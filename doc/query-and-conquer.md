@@ -17,6 +17,12 @@ with one base; win by capturing/destroying every other base on the map.
 - Shallow water is only adjacent to land or other shallow water.
 - A chain of shallow water can be at most 3 cells deep before reaching land.
 - Deep water may touch land directly.
+  - *(Resolved ambiguity: the two rules above are in literal tension for any water body wide
+    enough to have a deep interior — the outermost ring of shallow water must border the
+    innermost ring of deep water somewhere. Implemented interpretation: water depth is classified
+    by hex-distance from the nearest land cell — distance 1–3 is shallow, distance 4+ is deep.
+    This satisfies the depth-cap rule exactly and satisfies the adjacency rule for every shallow
+    cell's shore-facing side. See `src/map-gen/generate.js`'s `classifyWaterDepth`.)*
 - Minimum distance between any two bases: 5 cells, regardless of owner.
 - One unit per cell, regardless of player — for both occupying and passing through. (Bases and
   units with hold capacity are the exception; see §3.)
@@ -24,18 +30,27 @@ with one base; win by capturing/destroying every other base on the map.
 - Line of sight is blocked by mountain cells, units, and bases.
 
 ### Generation
-| Size | Multiplier of min size |
-|---|---|
-| Small | 1× |
-| Medium | 3× |
-| Large | 5× |
-| Extra large | 8× |
+| Size | Multiplier of min size | Resulting dimensions |
+|---|---|---|
+| Small | 1× | 40×40 |
+| Medium | 3× | 69×69 |
+| Large | 5× | 89×89 |
+| Extra large | 8× | 113×113 |
+
+*(Resolved ambiguity: "multiplier of min size" is implemented as an AREA multiplier, not a
+per-dimension one — side length = round(40 × √multiplier). A literal per-dimension reading would
+make Extra Large 320×320 (~102k cells), unreasonable to check 10 pre-generated candidates per type
+into the repo and to simulate turn-by-turn on the main thread. See `src/map-gen/sizes.js`.)*
 
 | Type | Definition |
 |---|---|
 | Islands | Min 50% water; islands may touch the map border |
 | Land-only | No water |
-| Mixed | Min 65% land |
+| Mixed | Min 65% land; generator additionally enforces a 10% water floor |
+
+*(Implementation note: "min 65% land" alone doesn't rule out 0% water, which would make a "mixed"
+map indistinguishable from "land-only". The generator enforces water in [10%, 35%] for this type so
+mixed maps are always meaningfully mixed. See `MIN_MIXED_WATER` in `src/map-gen/constraints.js`.)*
 
 For each size × type combination, 10 candidate maps are pre-generated; one is picked at random
 based on the chosen game options.

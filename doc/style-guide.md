@@ -89,10 +89,16 @@ Three visual states per cell:
 | Explored, not currently visible | Terrain color shown, **dimmed 30%** |
 | Currently visible | Terrain color shown at full value, no dimming |
 
-"Dimmed 15%" = an `rgba(0, 0, 0, 0.15)` overlay drawn on top of the tile's terrain color (or
-equivalently, a `brightness(0.85)` filter on the tile). Applies to the tile's terrain fill only;
+"Dimmed 30%" = an `rgba(0, 0, 0, 0.30)` overlay drawn on top of the tile's terrain color (or
+equivalently, a `brightness(0.70)` filter on the tile). Applies to the tile's terrain fill only;
 units are not shown at all in the "explored, not visible" state (per the design doc — units are
 always hidden outside current view, only terrain stays revealed once explored).
+
+*(Resolved ambiguity: this section and `style-preview.html`'s fog-demo CSS previously disagreed
+with themselves — table header and CSS both said 30%, while this formula and the preview's caption
+both said 15%. 30% is the confirmed value, tracked as `--fog-dim-alpha` in `src/styles/tokens.css`;
+`src/render/layers/fogLayer.js` will apply it once fog rendering is implemented. The stale 15%
+reading has been corrected above.)*
 
 ## 8. Damage / selection / highlight states (phase 1)
 

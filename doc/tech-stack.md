@@ -37,6 +37,20 @@ Web based video game
 * Dev tooling: make sure it can be run locally with live update
 * Testing: no testing
 
+## Hex coordinate system
+
+The game design spec fixes flat-top hex orientation and column-offset display layout
+(style-guide.md §6) but doesn't specify internal coordinate math — this was an open decision,
+resolved as follows:
+
+* Internal logic (distance, neighbors, line-of-sight, pathfinding, map generation) works in
+  **cube coordinates** `{x, y, z}` (x + y + z === 0), since neighbor/distance/adjacency math is
+  simple constant-time arithmetic there.
+* **Offset coordinates** `{col, row}` — specifically the "odd-q" scheme (odd columns pushed down
+  half a cell), matching flat-top orientation — are used only at the two boundaries that need a
+  rectangular grid shape: the map JSON format (`data/maps/*.json`) and on-screen pixel placement.
+* One module, `src/hex/coords.js`, owns the conversion between the two; nothing else hand-rolls it.
+
 ## State access rule (canonical vs. visible state)
 
 Future direction: a multiplayer mode with a server, where commands and results are passed

@@ -10,7 +10,8 @@
       "Bash(wsl.exe -- bash -lc \"cat /etc/resolv.conf | grep nameserver | head -1; ip route | grep default\")",
       "Bash(wsl.exe -- bash -lc 'cd /home/stefanraaphorst/query-and-conquer && for f in src/main.js src/ui/startScreen.js; do node --check \"$f\" && echo \"OK: $f\"; done')",
       "Bash(wsl.exe -- bash -lc \"which chromium chromium-browser google-chrome 2>&1; npx --yes playwright --version 2>&1 | tail -5\")",
-      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && git status --short && echo '---branch---' && git branch --show-current\")"
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && git status --short && echo '---branch---' && git branch --show-current\")",
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && sed -n '1,45p' doc/query-and-conquer.md\")"
     ]
   }
 }
