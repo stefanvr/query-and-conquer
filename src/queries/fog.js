@@ -16,6 +16,10 @@
  * hex-distance radii without explicitly cross-referencing the two --
  * applying LOS to vision as well is the more standard reading for this
  * genre and is treated as the resolved interpretation here.
+ *
+ * Design doc §8 "Options": fog of war on/off. When
+ * canonicalState.fogEnabled is false, every cell counts as currently
+ * visible to everyone -- see computeCurrentlyVisible's early return.
  */
 import { cellsWithinRadius } from "../hex/distance.js";
 import { hasLineOfSight } from "../hex/lineOfSight.js";
@@ -31,6 +35,15 @@ const cellKey = (c) => `${c.col},${c.row}`;
  */
 export function computeCurrentlyVisible(canonicalState, playerId) {
   const { width, height, terrain } = canonicalState.map;
+
+  if (canonicalState.fogEnabled === false) {
+    const all = new Set();
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) all.add(cellKey({ col, row }));
+    }
+    return all;
+  }
+
   const visible = new Set();
 
   const observers = [

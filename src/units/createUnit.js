@@ -22,6 +22,9 @@ export function createUnit(canonicalState, { ownerId, type, position, garrisoned
     position: { ...position },
     strength: UNIT_DEFS[type].strength,
     actionsRemaining: UNIT_DEFS[type].actionsPerTurn,
+    // design doc §3's "Attacks/turn" column (1, for every unit type) --
+    // reset alongside actionsRemaining each turn (src/turn/turnLoop.js).
+    attacksUsedThisTurn: 0,
     strikesUsed: 0,
     distanceFlownThisSortie: 0,
     cargo: [],

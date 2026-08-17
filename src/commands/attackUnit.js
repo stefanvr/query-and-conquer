@@ -3,6 +3,18 @@
  * costs 1 action." Range/LOS are per the attacker's stats
  * (src/units/unitDefs.js); a unit that needs line of sight cannot
  * attack through a blocking mountain/unit/base.
+ *
+ * Garrisoned units CAN attack (from wherever they were standing when
+ * they entered -- see enterBase.js) -- only moving requires exiting
+ * first. This is required for design doc §9's "base-defenders" AI
+ * category to mean anything: a garrisoned unit contributing to a
+ * base's defense (§4) has to be able to actually shoot back. This file
+ * used to reject garrisoned attackers entirely, which was wrong for
+ * both AI and human play.
+ *
+ * Also enforces §3's "Attacks/turn" cap (1, for every unit type) --
+ * previously unenforced, so a unit with several actions could attack
+ * repeatedly in one turn using only its action-point budget as a limit.
  */
 import { UNIT_DEFS } from "../units/unitDefs.js";
 import { offsetDistance } from "../hex/distance.js";
@@ -23,14 +35,14 @@ export function attackUnit(canonicalState, { attackerUnitId, defenderUnitId }) {
   if (attacker.ownerId !== activePlayer.id) {
     return { success: false, reason: "Not your unit, or not your turn." };
   }
-  if (attacker.garrisonedAt != null) {
-    return { success: false, reason: "Garrisoned units can't attack -- exit the base first." };
-  }
   if (defender.ownerId === attacker.ownerId) {
     return { success: false, reason: "Can't attack your own unit." };
   }
   if (attacker.actionsRemaining < 1) {
     return { success: false, reason: "No actions remaining." };
+  }
+  if (attacker.attacksUsedThisTurn >= UNIT_DEFS[attacker.type].attacksPerTurn) {
+    return { success: false, reason: "Already attacked this turn." };
   }
 
   const def = UNIT_DEFS[attacker.type];
@@ -49,6 +61,7 @@ export function attackUnit(canonicalState, { attackerUnitId, defenderUnitId }) {
   }
 
   attacker.actionsRemaining -= 1;
+  attacker.attacksUsedThisTurn += 1;
   const { attackValue, destroyed } = resolveOpenFieldCombat(attacker, defender);
 
   if (destroyed) {

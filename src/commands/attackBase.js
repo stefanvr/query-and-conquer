@@ -6,6 +6,11 @@
  * design doc §4 is explicit that destroying it isn't the same as
  * taking it; claiming a neutral base is a separate action
  * (src/commands/claimBase.js).
+ *
+ * Garrisoned units CAN attack -- see attackUnit.js's module doc for why
+ * (design doc §9's "base-defenders" AI category, and §4's "garrisoned
+ * units contribute to a base's combined defense", both require it).
+ * Also enforces the "Attacks/turn" cap from §3 (1, every unit type).
  */
 import { UNIT_DEFS } from "../units/unitDefs.js";
 import { offsetDistance } from "../hex/distance.js";
@@ -26,9 +31,6 @@ export function attackBase(canonicalState, { attackerUnitId, baseId }) {
   if (attacker.ownerId !== activePlayer.id) {
     return { success: false, reason: "Not your unit, or not your turn." };
   }
-  if (attacker.garrisonedAt != null) {
-    return { success: false, reason: "Garrisoned units can't attack -- exit the base first." };
-  }
   if (base.ownerId == null) {
     return { success: false, reason: "Base is unclaimed -- claim it instead of attacking it." };
   }
@@ -37,6 +39,9 @@ export function attackBase(canonicalState, { attackerUnitId, baseId }) {
   }
   if (attacker.actionsRemaining < 1) {
     return { success: false, reason: "No actions remaining." };
+  }
+  if (attacker.attacksUsedThisTurn >= UNIT_DEFS[attacker.type].attacksPerTurn) {
+    return { success: false, reason: "Already attacked this turn." };
   }
 
   const def = UNIT_DEFS[attacker.type];
@@ -55,6 +60,7 @@ export function attackBase(canonicalState, { attackerUnitId, baseId }) {
   }
 
   attacker.actionsRemaining -= 1;
+  attacker.attacksUsedThisTurn += 1;
   const previousOwnerId = base.ownerId;
   const { destroyedUnitIds, baseDamageDealt, wentNeutral } = resolveBaseAttack(base, def.groundAttack);
 

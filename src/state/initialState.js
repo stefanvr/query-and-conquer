@@ -14,10 +14,10 @@
 export const CURRENT_SCHEMA_VERSION = 1;
 
 /**
- * @param {{size: string, type: string, width: number, height: number, terrain: string[][]}} map
+ * @param {{size: string, type: string, width: number, height: number, terrain: string[][], fogEnabled?: boolean}} map
  * @returns {object} canonical state
  */
-export function createInitialState({ size, type, width, height, terrain }) {
+export function createInitialState({ size, type, width, height, terrain, fogEnabled = true }) {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     map: { size, type, width, height, terrain },
@@ -33,6 +33,8 @@ export function createInitialState({ size, type, width, height, terrain }) {
     // reference "this unit or base" generically, and for the AI
     // lowest-ID tie-break rule in design doc §9).
     nextEntityId: 1,
+    // design doc §8 "Options": fog of war on/off (src/queries/fog.js).
+    fogEnabled,
   };
 }
 
@@ -60,18 +62,21 @@ export function createExploredGrid(width, height) {
 
 /**
  * Adds a player to canonical state and returns it. `kind` distinguishes
- * human from AI (AI-specific fields like strategy/difficulty are added
- * in Stage 6 -- this just establishes the player list and each
- * player's persistent fog-of-war memory).
+ * human from AI. `strategy`/`difficulty` are AI-only (design doc §9's
+ * "Assignment" -- independent axes, auto-assigned by
+ * src/ai/assignStrategies.js for strategy, chosen per-AI in game
+ * options for difficulty); left undefined for a human player.
  * @param {object} canonicalState
- * @param {{kind: "human"|"ai"}} opts
+ * @param {{kind: "human"|"ai", strategy?: "aggressive"|"defensive"|"balanced", difficulty?: "easy"|"hard"}} opts
  * @returns {object} the newly created player
  */
-export function addPlayer(canonicalState, { kind }) {
+export function addPlayer(canonicalState, { kind, strategy, difficulty }) {
   const { width, height } = canonicalState.map;
   const player = {
     id: allocateEntityId(canonicalState),
     kind,
+    strategy: kind === "ai" ? strategy : undefined,
+    difficulty: kind === "ai" ? difficulty : undefined,
     exploredGrid: createExploredGrid(width, height),
     // Design doc §6 end screen: "a stats dialog (units built/lost per
     // player)". Incremented by build completion (Stage 5 buildTick) and

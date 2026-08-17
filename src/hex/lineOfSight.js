@@ -39,10 +39,18 @@ export function hexLine(from, to) {
  * @returns {boolean} true if nothing blocks sight between from and to
  */
 export function hasLineOfSight(from, to, { terrain, units, bases }) {
+  const height = terrain.length;
+  const width = terrain[0].length;
   const line = hexLine(from, to);
   // Endpoints never block sight to themselves -- only cells strictly
-  // between the observer and the target can obstruct the view.
-  const between = line.slice(1, -1);
+  // between the observer and the target can obstruct the view. The
+  // interpolated line between two IN-BOUNDS endpoints can still pass
+  // through intermediate cells outside the grid (an artifact of
+  // straight-line interpolation happening in cube space, not the
+  // rectangular offset grid) -- those can't contain a mountain/unit/
+  // base, so they're filtered out rather than blocking (or crashing on
+  // an out-of-bounds terrain lookup, which this used to do).
+  const between = line.slice(1, -1).filter((c) => c.col >= 0 && c.col < width && c.row >= 0 && c.row < height);
 
   const unitAt = (cell) => units.some((u) => u.position.col === cell.col && u.position.row === cell.row);
   const baseAt = (cell) => bases.some((b) => b.position.col === cell.col && b.position.row === cell.row);

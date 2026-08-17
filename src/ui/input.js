@@ -225,9 +225,29 @@ export function createInputController({ canonicalState, viewerId, renderer, onCh
     const { unit: clickedUnit, base: clickedBase } = entityAt(visibleState, cell);
 
     if (selection?.type === "garrison") {
+      const selectedUnit = visibleState.units.find((u) => u.id === selection.id);
+      if (!selectedUnit) return deselect();
+
+      // Garrisoned units can attack without exiting (attackUnit.js /
+      // attackBase.js's module docs) -- an enemy in range takes
+      // priority over the base-click-cancels behavior below, so a
+      // base-defender can actually defend by clicking a nearby threat.
+      if (clickedUnit && clickedUnit.ownerId !== viewerId) {
+        const result = dispatch(canonicalState, "attackUnit", { attackerUnitId: selectedUnit.id, defenderUnitId: clickedUnit.id });
+        setMessage(result.success ? `Hit for ${result.attackValue}${result.destroyed ? " -- destroyed!" : ""}` : result.reason);
+        if (result.success) return selectGarrisonedUnit(selection.id, selection.baseId, { clearMessage: false });
+        return;
+      }
+      if (clickedBase && clickedBase.ownerId != null && clickedBase.ownerId !== viewerId) {
+        const result = dispatch(canonicalState, "attackBase", { attackerUnitId: selectedUnit.id, baseId: clickedBase.id });
+        setMessage(result.success ? `Hit base for ${result.baseDamageDealt}${result.wentNeutral ? " -- base neutralized!" : ""}` : result.reason);
+        if (result.success) return selectGarrisonedUnit(selection.id, selection.baseId, { clearMessage: false });
+        return;
+      }
+
       // "if clicked on base it will cancel selection of the unit" --
-      // any base click (the same one or a different one) backs out to
-      // that base's own panel, never mind which.
+      // any other base click (your own, or an unclaimed one -- nothing
+      // left to attack there) backs out to that base's own panel.
       if (clickedBase) return selectBase(clickedBase.id);
 
       // "if clicked on cell the unit will be move" -- exit the base and

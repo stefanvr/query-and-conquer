@@ -58,7 +58,20 @@ export function renderHud(container, { getState, onEndTurn, onSave, inputControl
 
   const endTurnBtn = smallButton("End Turn", onEndTurn);
   const saveBtn = smallButton("Save", onSave);
-  topRow.append(turnLabel, endTurnBtn, saveBtn);
+
+  // Design doc §6: "AI: actions play out step by step, at a
+  // configurable speed (instant / fast [1s per action] / slow [2s per
+  // action])". Defaults to instant so a normal game doesn't force the
+  // player to sit through animation; this just exposes the choice.
+  const speedSelect = document.createElement("select");
+  for (const speed of ["instant", "fast", "slow"]) {
+    const option = document.createElement("option");
+    option.value = speed;
+    option.textContent = `AI speed: ${speed}`;
+    speedSelect.append(option);
+  }
+
+  topRow.append(turnLabel, endTurnBtn, saveBtn, speedSelect);
 
   const messageBox = document.createElement("div");
   messageBox.style.cssText =
@@ -253,6 +266,14 @@ export function renderHud(container, { getState, onEndTurn, onSave, inputControl
       const { turn } = getState();
       turnLabel.textContent = `Turn ${turn.number}`;
       renderActionPanel();
+    },
+    getAiSpeed() {
+      return speedSelect.value;
+    },
+    /** Disables end-turn/save while an AI turn is animating, so the human can't act out of turn. */
+    setInteractive(enabled) {
+      endTurnBtn.disabled = !enabled;
+      saveBtn.disabled = !enabled;
     },
   };
 }

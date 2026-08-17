@@ -13,12 +13,28 @@ import { recaptureTick } from "../commands/recaptureTick.js";
 /**
  * Advances to the next player's turn and runs the start-of-turn
  * housekeeping sequence for them.
+ *
+ * Skips eliminated players (0 bases owned) when picking the next
+ * active player -- design doc §6: "A player who loses all bases is
+ * eliminated; remaining players keep their existing turn order." Turn
+ * NUMBER still increments based on wrapping past the original index 0
+ * (not based on how many players remain), which is simpler and means
+ * "turn number" tracks rounds through the original seating order, not
+ * a tightly-packed count of only-surviving players -- a documented
+ * simplification, not a spec requirement either way.
  * @param {object} canonicalState
  */
 export function advanceTurn(canonicalState) {
-  const { players, turn } = canonicalState;
-  const nextIndex = (turn.activePlayerIndex + 1) % players.length;
-  if (nextIndex === 0) turn.number += 1;
+  const { players, bases, turn } = canonicalState;
+  const ownsABase = (playerId) => bases.some((b) => b.ownerId === playerId);
+
+  let nextIndex = turn.activePlayerIndex;
+  for (let i = 0; i < players.length; i++) {
+    nextIndex = (nextIndex + 1) % players.length;
+    if (nextIndex === 0) turn.number += 1;
+    if (ownsABase(players[nextIndex].id)) break;
+    // else: eliminated, keep scanning for the next surviving player
+  }
   turn.activePlayerIndex = nextIndex;
 
   const activePlayer = players[nextIndex];
@@ -30,13 +46,14 @@ export function advanceTurn(canonicalState) {
   recaptureTick(canonicalState, activePlayer.id);
 
   // Step 4: hand control to the active player. No unused actions carry
-  // over -- every unit they own gets a fresh action budget. (A unit
-  // that just got auto-recaptured/built this same tick already starts
-  // with a full budget from createUnit(), so this is a harmless no-op
-  // for it, not a double-grant.)
+  // over -- every unit they own gets a fresh action budget (and a
+  // fresh attacks-per-turn allowance). A unit that just got
+  // auto-recaptured/built this same tick already starts fresh from
+  // createUnit(), so this is a harmless no-op for it, not a double-grant.
   for (const unit of canonicalState.units) {
     if (unit.ownerId === activePlayer.id) {
       unit.actionsRemaining = UNIT_DEFS[unit.type].actionsPerTurn;
+      unit.attacksUsedThisTurn = 0;
     }
   }
 }
