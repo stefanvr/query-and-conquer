@@ -89,8 +89,8 @@ Three visual states per cell:
 | Explored, not currently visible | Terrain color shown, **dimmed 30%** |
 | Currently visible | Terrain color shown at full value, no dimming |
 
-"Dimmed 15%" = an `rgba(0, 0, 0, 0.15)` overlay drawn on top of the tile's terrain color (or
-equivalently, a `brightness(0.85)` filter on the tile). Applies to the tile's terrain fill only;
+"Dimmed 30%" = an `rgba(0, 0, 0, 0.30)` overlay drawn on top of the tile's terrain color (or
+equivalently, a `brightness(0.70)` filter on the tile). Applies to the tile's terrain fill only;
 units are not shown at all in the "explored, not visible" state (per the design doc — units are
 always hidden outside current view, only terrain stays revealed once explored).
 
