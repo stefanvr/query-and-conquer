@@ -26,6 +26,15 @@ body {
   align-items: center;
 }
 
+/* Map view (Stage 3+): fills the viewport so the canvas has real
+ * dimensions to size itself against, instead of collapsing to 0
+ * height under the default content-sized flex layout above. */
+#app.map-view {
+  width: 100%;
+  height: 100vh;
+  display: block;
+}
+
 /* --- Start screen: circular vignette crop of background.png --- */
 .screen {
   position: relative;
