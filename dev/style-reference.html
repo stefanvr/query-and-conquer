@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Query &amp; Conquer — Style Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Staatliches&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../src/styles/tokens.css">
+<link rel="stylesheet" href="../src/styles/layout.css">
+<link rel="stylesheet" href="../src/styles/components.css">
+<style>
+  /*
+   * Layout only for this dev reference page (not part of the shipped
+   * app). Kept separate from src/styles so nothing here leaks into the
+   * real game UI. Living cross-check against doc/style-guide.md /
+   * doc/style-preview.html while later stages are implemented —
+   * e.g. confirm the fog-of-war dim amount (30%, per style-guide.md
+   * table + style-preview.html's CSS comment) still renders as
+   * expected once fogLayer.js exists in Stage 4.
+   */
+  #app { display: block; padding: 24px; }
+  .section { margin-top: 44px; max-width: 640px; }
+  .section h2 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    letter-spacing: 0.06em;
+    color: var(--parchment);
+    border-bottom: 1px solid var(--olive);
+    padding-bottom: 6px;
+    margin-bottom: 14px;
+  }
+  .players { display: flex; gap: 14px; flex-wrap: wrap; }
+  .player-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .fog-row { display: flex; gap: 4px; }
+  .fog-caption { display: flex; gap: 4px; margin-top: 6px; }
+  .fog-caption span {
+    width: 64px; font-size: 10px; text-align: center; color: var(--steel);
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .unit-demo { display: flex; gap: 28px; align-items: flex-start; }
+  .unit-tile {
+    position: relative; width: 72px; height: 62px;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    background: var(--t-sand);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .unit-marker {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--p-ai-1); box-shadow: 0 0 0 2px var(--ink);
+  }
+</style>
+</head>
+<body>
+  <div id="app">
+    <div class="section">
+      <h2>Terrain legend</h2>
+      <div class="legend">
+        <div class="legend-item"><div class="hex gras"></div><div class="legend-label">Gras</div></div>
+        <div class="legend-item"><div class="hex gravel"></div><div class="legend-label">Gravel</div></div>
+        <div class="legend-item"><div class="hex mountain"></div><div class="legend-label">Mountain</div></div>
+        <div class="legend-item"><div class="hex sand"></div><div class="legend-label">Sand</div></div>
+        <div class="legend-item"><div class="hex shallow"></div><div class="legend-label">Shallow</div></div>
+        <div class="legend-item"><div class="hex deep"></div><div class="legend-label">Deep</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Player accents</h2>
+      <div class="players">
+        <div class="player-item"><div class="player-dot p-human"></div><div class="legend-label">Human</div></div>
+        <div class="player-item"><div class="player-dot p-ai-1"></div><div class="legend-label">AI 1</div></div>
+        <div class="player-item"><div class="player-dot p-ai-2"></div><div class="legend-label">AI 2</div></div>
+        <div class="player-item"><div class="player-dot p-ai-3"></div><div class="legend-label">AI 3</div></div>
+        <div class="player-item"><div class="player-dot p-ai-4"></div><div class="legend-label">AI 4</div></div>
+        <div class="player-item"><div class="player-dot p-ai-5"></div><div class="legend-label">AI 5</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Fog of war</h2>
+      <div class="fog-row">
+        <div class="fog-tile unexplored"></div>
+        <div class="fog-tile explored"></div>
+        <div class="fog-tile"></div>
+      </div>
+      <div class="fog-caption">
+        <span>Unexplored</span>
+        <span>Explored (dim 30%)</span>
+        <span>Visible</span>
+      </div>
+    </div>
+
+    <div class="section" style="padding-bottom: 40px;">
+      <h2>Phase 1 status text</h2>
+      <div class="unit-demo">
+        <div class="unit-tile">
+          <div class="unit-marker"></div>
+          <div class="status-label">7/10 SP</div>
+        </div>
+        <div class="unit-tile">
+          <div class="unit-marker"></div>
+          <div class="status-label">[SELECTED]</div>
+        </div>
+        <div class="unit-tile">
+          <div class="status-label">IN RANGE</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

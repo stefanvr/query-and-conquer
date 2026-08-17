@@ -1,0 +1,45 @@
+/*
+ * Design tokens ported verbatim from doc/style-guide.md §2-4 and
+ * doc/style-preview.html's :root block. Do not redefine these values
+ * elsewhere — every other stylesheet and the canvas renderer should
+ * read from these custom properties (or the JS mirror in
+ * src/styles/tokens.js, if one is added later) so there is exactly one
+ * source of truth for the palette.
+ */
+
+:root {
+  /* Core palette (§2) */
+  --ink: #0B0400;
+  --olive: #262714;
+  --steel: #6B7276;
+  --rust: #B81C00;
+  --signal: #F59100;
+  --parchment: #EDE4D3;
+
+  /* Terrain tile colors, flat (§4) */
+  --t-gras: #4F5D33;
+  --t-gravel: #8D8370;
+  --t-mountain: #6B7276;
+  --t-sand: #8C6B44;
+  --t-shallow: #4C7A82;
+  --t-deep: #1F3F49;
+
+  /* Player accent colors (§3) */
+  --p-human: #F59100;
+  --p-ai-1: #3B7CB8;
+  --p-ai-2: #7A4F9E;
+  --p-ai-3: #C9A227;
+  --p-ai-4: #2E8C74;
+  --p-ai-5: #C24E7A;
+
+  /* Fog of war (§7): "explored, not currently visible" dim amount.
+   * Confirmed 30% (rgba(0,0,0,0.30)) — the style guide's table header
+   * and style-preview.html's fog-demo CSS agree on this value; a
+   * conflicting "15%" appears in the guide's prose/caption and is
+   * treated as stale. */
+  --fog-dim-alpha: 0.30;
+
+  /* Typography (§5) */
+  --font-display: "Staatliches", system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+}

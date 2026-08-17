@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Read(//c/Users/stefan.van.raaphorst/**)",
+      "Bash(bash -lc 'node --version; npm --version')",
+      "Bash(wsl.exe -- bash -lc 'node --version && npm --version && echo $HOME && pwd')",
+      "Bash(wsl.exe -- bash -lc 'cd /home/stefanraaphorst/query-and-conquer && ls -la && git status && git branch')",
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && wc -l doc/style-preview.html && sed -n '50,56p' doc/style-preview.html | cut -c1-150\")",
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && sed -n '53p' doc/style-preview.html | tail -c 100\")",
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && mkdir -p src/assets src/styles src/ui src/hex src/map-gen src/state src/commands src/queries src/combat src/units src/buildings src/turn src/render/layers src/ai/strategies src/ai/difficulty src/save data/maps tools dev && sed -n '53p' doc/style-preview.html | sed -e 's/^.*base64,//' -e 's/\\\\\"\\);$//' | base64 -d > src/assets/background.png && file src/assets/background.png && ls -la src/assets/\")"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && node tools/_gen_stubs.js && rm tools/_gen_stubs.js && find src -name '*.js' | sort\")",
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && npm install 2>&1 | tail -20\")",
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && \\(nohup npx live-server --port=8080 --no-browser --entry-file=index.html > /tmp/live-server.log 2>&1 &\\) && sleep 2 && cat /tmp/live-server.log\")",
+      "Bash(wsl.exe -- bash -lc ' *)",
+      "Bash(wsl.exe -- bash -lc \"ps aux | grep -i live-server | grep -v grep; cat /tmp/live-server.log 2>&1\")",
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && npx live-server --port=8080 --no-browser --entry-file=index.html\")",
+      "Bash(wsl.exe -- bash -lc \"cat /etc/resolv.conf | grep nameserver | head -1; ip route | grep default\")",
+      "Bash(wsl.exe -- bash -lc 'cd /home/stefanraaphorst/query-and-conquer && for f in src/main.js src/ui/startScreen.js; do node --check \"$f\" && echo \"OK: $f\"; done')",
+      "Bash(wsl.exe -- bash -lc \"which chromium chromium-browser google-chrome 2>&1; npx --yes playwright --version 2>&1 | tail -5\")",
+      "Bash(wsl.exe -- bash -lc \"cd /home/stefanraaphorst/query-and-conquer && git status --short && echo '---branch---' && git branch --show-current\")"
+    ]
+  }
+}

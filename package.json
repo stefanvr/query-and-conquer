@@ -1,0 +1,14 @@
+{
+  "name": "query-and-conquer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Turn-based hex-grid strategy game. See doc/query-and-conquer.md for the design spec.",
+  "type": "module",
+  "scripts": {
+    "start": "live-server --port=8080 --entry-file=index.html",
+    "generate-maps": "node tools/generate-maps.js"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}

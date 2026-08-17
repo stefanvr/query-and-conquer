@@ -1,0 +1,64 @@
+/*
+ * Base page layout, shared across screens. Component-specific rules
+ * (buttons, etc.) live in components.css; color/font tokens live in
+ * tokens.css. Ported from doc/style-preview.html's <style> block.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ink);
+  font-family: var(--font-body);
+  color: var(--parchment);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#app {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* --- Start screen: circular vignette crop of background.png --- */
+.screen {
+  position: relative;
+  width: min(92vw, 640px);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background-image:
+    radial-gradient(circle at center, transparent 55%, var(--ink) 92%),
+    url("../assets/background.png");
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 0 6px var(--olive), 0 0 40px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 9%;
+}
+
+.title {
+  position: absolute;
+  top: 8%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 6vw, 42px);
+  letter-spacing: 0.06em;
+  color: var(--parchment);
+  text-shadow: 0 2px 0 var(--ink), 0 0 24px rgba(0, 0, 0, 0.9);
+}
+
+.title span {
+  color: var(--signal);
+}
