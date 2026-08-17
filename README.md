@@ -31,3 +31,19 @@ Pre-generated map JSON lives in `data/maps/` and is checked into the repo. Regen
 ```sh
 npm run generate-maps
 ```
+
+## Deployment (GitHub Pages)
+
+The site is fully static (no build step — see `doc/tech-stack.md`'s "hosting"/"tech choices"), so
+[.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) just publishes the repo
+as-is via GitHub's Pages Actions pipeline on every push to `main` (or manually via the Actions tab
+→ "Deploy to GitHub Pages" → Run workflow).
+
+One-time manual setup, in the repo's GitHub settings (not something a workflow file can do):
+
+1. **Settings → Pages → Build and deployment → Source** → select **GitHub Actions**.
+2. Push this workflow to `main` (or run it manually) once — the run publishes the site and the
+   Pages URL then appears at the top of Settings → Pages, and as the workflow run's environment URL.
+
+All asset and module paths in the app are relative (no leading `/`), so the site works correctly at
+a GitHub Pages project URL (`https://<user>.github.io/<repo>/`), which serves from a subpath.

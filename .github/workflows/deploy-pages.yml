@@ -1,0 +1,44 @@
+name: Deploy to GitHub Pages
+
+# Static site, no build step (see tech-stack.md "hosting"/"tech choices"):
+# maps are pre-generated and checked in (data/maps/*.json), so this
+# workflow just publishes the repo as-is via the standard GitHub Pages
+# Actions pipeline.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; let an in-flight run finish rather than
+# cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
