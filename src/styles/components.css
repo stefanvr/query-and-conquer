@@ -101,6 +101,27 @@
   background: rgba(0, 0, 0, var(--fog-dim-alpha));
 }
 
+/* --- Dropdowns (map size/type, AI count/difficulty, AI speed) --- */
+.select {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--parchment);
+  background: var(--ink);
+  border: 1px solid var(--steel);
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.select:hover {
+  border-color: var(--signal);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--signal);
+}
+
 /* --- Phase-1 text-only status labels (style-guide §8) --- */
 .status-label {
   position: absolute;

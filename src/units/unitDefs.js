@@ -2,12 +2,37 @@
  * Static per-unit-type stats (design doc §3 "Vehicles"). Pure data --
  * combat/build/AI logic that consumes it lives elsewhere and arrives
  * in later stages.
+ *
+ * Each unit also carries a `category` -- "vehicle" (tank), "boat"
+ * (fregat/transporter/carrier), or "plane" (fighter/bomber). This is
+ * what design doc §2's "Can build" column actually refers to (Land:
+ * "All vehicles" = the Vehicle category, i.e. tank only; Port: "Boats
+ * + Vehicles" = boats plus tank; Mountain: "Planes only"), and matches
+ * §3's own "Boats and bases are always classified as 'ground' targets"
+ * rule, which already treats "boat" as a named grouping. The doc's
+ * §3 table previously had no category column at all, which read as if
+ * "vehicle" meant "any of the 6 unit types" (the section is titled
+ * "Vehicles" too) -- that reading let a land base build boats it could
+ * never move (every boat has move cost 0 on all land terrain, and a
+ * land base is by definition never adjacent to water). See
+ * src/buildings/baseDefs.js for how this actually gates builds.
  */
 
 export const UNIT_TYPES = ["tank", "fighter", "bomber", "fregat", "transporter", "carrier"];
 
+/** @type {Record<string, "vehicle"|"boat"|"plane">} */
+export const UNIT_CATEGORIES = {
+  tank: "vehicle",
+  fighter: "plane",
+  bomber: "plane",
+  fregat: "boat",
+  transporter: "boat",
+  carrier: "boat",
+};
+
 export const UNIT_DEFS = {
   tank: {
+    category: "vehicle",
     actionsPerTurn: 5,
     attacksPerTurn: 1,
     attackRange: 1,
@@ -20,6 +45,7 @@ export const UNIT_DEFS = {
     canCapture: true,
   },
   fighter: {
+    category: "plane",
     actionsPerTurn: 8,
     attacksPerTurn: 1,
     attackRange: 1,
@@ -30,12 +56,17 @@ export const UNIT_DEFS = {
     airAttack: 4,
     moveCost: { gras: 1, gravel: 1, mountain: 2, sand: 1, shallow: 1, deep: 1 },
     canCapture: true,
-    // Returns to base/carrier after 4 strikes; 100-cell round-trip range
-    // limit; crashes if exceeded. Enforced by Stage 5 combat/turn logic.
-    strikesBeforeReturn: 4,
+    // Max 4 strikes before it must return to base/carrier to rearm --
+    // not an automatic forced return, just a cap on further attacks
+    // until it does (design doc §3, resolved ambiguity -- see the doc's
+    // own note). 100-cell round-trip range limit; crashes if exceeded.
+    // Enforced by src/commands/attackUnit.js/attackBase.js (strike cap)
+    // and moveUnit.js (range/crash).
+    maxStrikesPerSortie: 4,
     roundTripRangeLimit: 100,
   },
   bomber: {
+    category: "plane",
     actionsPerTurn: 6,
     attacksPerTurn: 1,
     attackRange: 1,
@@ -46,12 +77,14 @@ export const UNIT_DEFS = {
     airAttack: 1,
     moveCost: { gras: 1, gravel: 1, mountain: 1, sand: 1, shallow: 1, deep: 1 },
     canCapture: false,
-    // Returns to base after 2 strikes; 200-cell round-trip range limit;
-    // crashes if exceeded. Enforced by Stage 5 combat/turn logic.
-    strikesBeforeReturn: 2,
+    // Max 2 strikes before it must return to base to rearm -- see
+    // fighter's comment above for the "max, not mandatory" resolved
+    // ambiguity. 200-cell round-trip range limit; crashes if exceeded.
+    maxStrikesPerSortie: 2,
     roundTripRangeLimit: 200,
   },
   fregat: {
+    category: "boat",
     actionsPerTurn: 5,
     attacksPerTurn: 1,
     attackRange: 1,
@@ -64,6 +97,7 @@ export const UNIT_DEFS = {
     canCapture: true, // can only ever claim a port base -- can't move onto land
   },
   transporter: {
+    category: "boat",
     actionsPerTurn: 8,
     attacksPerTurn: 1,
     attackRange: 1,
@@ -78,6 +112,7 @@ export const UNIT_DEFS = {
     holds: "tank",
   },
   carrier: {
+    category: "boat",
     actionsPerTurn: 3,
     attacksPerTurn: 1,
     attackRange: 4,

@@ -24,7 +24,7 @@ import { drawStatusText } from "./layers/statusTextLayer.js";
  * @param {HTMLElement} container - element to render the canvas into (filled)
  * @param {() => object} getVisibleState - returns the current visible-state projection
  * @param {{onCellClick?: (cell: {col: number, row: number}) => void}} [opts]
- * @returns {{ redraw: () => void, setSelection: (selection: {type: "unit"|"base"|"garrison", id: number|string, baseId?: number|string}|null, reachableKeys?: Set<string>) => void, destroy: () => void }}
+ * @returns {{ redraw: () => void, setSelection: (selection: {type: "unit"|"base"|"garrison"|"enemyUnit", id: number|string, baseId?: number|string}|null, reachableKeys?: Set<string>) => void, destroy: () => void }}
  */
 export function createCanvasRenderer(container, getVisibleState, { onCellClick } = {}) {
   container.innerHTML = "";
@@ -36,7 +36,7 @@ export function createCanvasRenderer(container, getVisibleState, { onCellClick }
 
   const ctx = canvas.getContext("2d");
   const camera = createCamera();
-  let selection = null; // {type: "unit"|"base"|"garrison", id, baseId?} | null
+  let selection = null; // {type: "unit"|"base"|"garrison"|"enemyUnit", id, baseId?} | null
   let reachableKeys = null;
 
   function resizeCanvas() {
@@ -52,8 +52,11 @@ export function createCanvasRenderer(container, getVisibleState, { onCellClick }
     // "garrison" (a drilled-into garrisoned unit, src/ui/input.js) is
     // unit-like for the status-text label (AP/SP shown at the base's
     // position, since unitLayer.js doesn't draw a garrisoned unit's own
-    // dot) and keeps that base's selection ring lit too.
-    const selectedUnitId = selection?.type === "unit" || selection?.type === "garrison" ? selection.id : null;
+    // dot) and keeps that base's selection ring lit too. "enemyUnit" is
+    // a separate, read-only inspect selection (strength only, no AP) --
+    // see statusTextLayer.js's doc.
+    const ownUnitId = selection?.type === "unit" || selection?.type === "garrison" ? selection.id : null;
+    const enemyUnitId = selection?.type === "enemyUnit" ? selection.id : null;
     const selectedBaseId =
       selection?.type === "base" ? selection.id : selection?.type === "garrison" ? selection.baseId : null;
 
@@ -63,8 +66,8 @@ export function createCanvasRenderer(container, getVisibleState, { onCellClick }
     drawTerrain(ctx, visibleState, camera);
     drawFog(ctx, visibleState, camera);
     drawBases(ctx, visibleState, camera, selectedBaseId);
-    drawUnits(ctx, visibleState, camera, selectedUnitId);
-    drawStatusText(ctx, visibleState, camera, selectedUnitId, reachableKeys);
+    drawUnits(ctx, visibleState, camera, ownUnitId ?? enemyUnitId);
+    drawStatusText(ctx, visibleState, camera, { ownUnitId, enemyUnitId }, reachableKeys);
     ctx.restore();
   }
 

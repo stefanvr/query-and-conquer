@@ -67,9 +67,18 @@ contribute 1 SP to the base's combined defense and are destroyed before the base
 
 | Base | Can build | Location requirement | View | Strength |
 |---|---|---|---|---|
-| Land base | All vehicles | Gras/gravel/sand; not adjacent to any water | 4 | 20 |
-| Port base | Boats + tank | Gras/gravel/sand; must be adjacent to water. Carrier only buildable if adjacent to deep water | 4 | 20 |
+| Land base | Vehicles | Gras/gravel/sand; not adjacent to any water | 4 | 20 |
+| Port base | Boats + Vehicles | Gras/gravel/sand; must be adjacent to water. Carrier only buildable if adjacent to deep water | 4 | 20 |
 | Mountain base | Planes only | Mountain, with all 6 hex neighbors also mountain | 8 | 20 |
+
+*(Resolved ambiguity: "Can build" refers to the unit Category column in §3's Vehicles table
+(Vehicle/Boat/Plane), not "any of the 6 unit types" — §3's table previously had no category
+column, and the section itself is titled "Vehicles", so "Land base: All vehicles" read as "all 6
+unit types". Under that reading a land base could build boats it could never move anywhere (every
+boat has move cost 0 on all land terrain, §3, and a land base is by definition never adjacent to
+water — its own Location requirement). With categories: Vehicle = tank only, so "All vehicles" =
+tank only for a land base; "Boats + Vehicles" for a port base = boats plus tank, same as it always
+functionally was; "Planes only" for mountain is unchanged.)*
 
 ### Build & repair economy
 - **bbt** (base build time) = 5 turns. **bbr** (base repair time) = 2 turns.
@@ -97,18 +106,29 @@ contribute 1 SP to the base's combined defense and are destroyed before the base
 
 ---
 
-## 3. Vehicles
+## 3. Units
 
 Move cost is action points spent to enter a cell of that terrain (no partial moves; `0` = impassable).
 
-| Unit | Actions/turn | Attacks/turn | Attack range | Needs LOS | View | Strength | Ground / Air atk | Special |
-|---|---|---|---|---|---|---|---|---|
-| Tank | 5 | 1 | 1 | Yes | 3 | 10 | 4 / 1 | — |
-| Fighter | 8 | 1 | 1 | No | 5 | 15 | 2 / 4 | Returns to base/carrier after 4 strikes; 100-cell round-trip range limit; crashes if exceeded |
-| Bomber | 6 | 1 | 1 | No | 8 | 10 | 8 / 1 | Returns to base after 2 strikes; 200-cell range limit; crashes if exceeded |
-| Fregat | 5 | 1 | 1 | Yes | 6 | 15 | 6 / 4 | — |
-| Transporter | 8 | 1 | 1 | Yes | 3 | 30 | 0 / 0 | Holds 5 tanks |
-| Carrier | 3 | 1 | 4 | No | 5 | 25 | 8 / 4 | Holds 5 planes |
+| Unit | Category | Actions/turn | Attacks/turn | Attack range | Needs LOS | View | Strength | Ground / Air atk | Special |
+|---|---|---|---|---|---|---|---|---|---|
+| Tank | Vehicle | 5 | 1 | 1 | Yes | 3 | 10 | 4 / 1 | — |
+| Fighter | Plane | 8 | 1 | 1 | No | 5 | 15 | 2 / 4 | Max 4 strikes before returning to base/carrier to rearm; 100-cell round-trip range limit; crashes if exceeded |
+| Bomber | Plane | 6 | 1 | 1 | No | 8 | 10 | 8 / 1 | Max 2 strikes before returning to base to rearm; 200-cell round-trip range limit; crashes if exceeded |
+| Fregat | Boat | 5 | 1 | 1 | Yes | 6 | 15 | 6 / 4 | — |
+| Transporter | Boat | 8 | 1 | 1 | Yes | 3 | 30 | 0 / 0 | Holds 5 tanks |
+| Carrier | Boat | 3 | 1 | 4 | No | 5 | 25 | 8 / 4 | Holds 5 planes |
+
+Categories are what §2's "Can build" column and §3's own "Boats and bases are always classified as
+'ground' targets" rule refer to — Vehicle = Tank, Boat = Fregat/Transporter/Carrier, Plane =
+Fighter/Bomber.
+
+*(Resolved ambiguity: "returns to base after N strikes" originally read as an automatic forced
+action. Implemented as a cap instead — the unit simply can't attack again once it's used its N
+strikes this sortie, until the player/AI actually flies it back and re-enters a base to rearm
+(`strikesUsed` resets to 0 on `enterBase`, `src/commands/enterBase.js`). The range limit stays a
+hard rule: exceeding it crashes the unit regardless of intent. See `src/units/unitDefs.js`'s
+`maxStrikesPerSortie`.)*
 
 **Move cost per terrain (action points):**
 

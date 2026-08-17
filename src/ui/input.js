@@ -97,6 +97,12 @@ export function createInputController({ canonicalState, viewerId, renderer, onCh
       };
     }
 
+    if (selection.type === "enemyUnit") {
+      const unit = visibleState.units.find((u) => u.id === selection.id);
+      if (!unit) return { message: lastMessage, context: null };
+      return { message: lastMessage, context: { type: "enemyUnit", unit } };
+    }
+
     const base = visibleState.bases.find((b) => b.id === selection.id);
     if (!base) return { message: lastMessage, context: null };
     return {
@@ -201,8 +207,21 @@ export function createInputController({ canonicalState, viewerId, renderer, onCh
     emitChange();
   }
 
-  function deselect() {
-    lastMessage = null;
+  /**
+   * Read-only "inspect" selection for a visible enemy unit -- shows
+   * only its strength (statusTextLayer.js), no action buttons (there's
+   * nothing to command). Enemy BASES deliberately have no equivalent --
+   * a base's strength stays unknown until it's demolished.
+   */
+  function selectEnemyUnit(unitId, { clearMessage = true } = {}) {
+    if (clearMessage) lastMessage = null;
+    selection = { type: "enemyUnit", id: unitId };
+    renderer.setSelection(selection, null);
+    emitChange();
+  }
+
+  function deselect({ clearMessage = true } = {}) {
+    if (clearMessage) lastMessage = null;
     selection = null;
     renderer.setSelection(null, null);
     emitChange();
@@ -320,6 +339,7 @@ export function createInputController({ canonicalState, viewerId, renderer, onCh
     }
 
     if (clickedUnit && clickedUnit.ownerId === viewerId) return selectUnit(clickedUnit.id);
+    if (clickedUnit && clickedUnit.ownerId !== viewerId) return selectEnemyUnit(clickedUnit.id);
     if (clickedBase && clickedBase.ownerId === viewerId) return selectBase(clickedBase.id);
     deselect();
   }
@@ -341,7 +361,11 @@ export function createInputController({ canonicalState, viewerId, renderer, onCh
     if (selection?.type !== "unit") return;
     const result = dispatch(canonicalState, "enterBase", { unitId: selection.id, baseId });
     setMessage(result.success ? "Unit garrisoned." : result.reason);
-    if (result.success) selectGarrisonedUnit(selection.id, baseId, { clearMessage: false });
+    // Deselect on success (rather than drilling into the newly-garrisoned
+    // unit) -- staying selected as "garrison" meant the very next click
+    // anywhere on the map was interpreted as "exit the base and move
+    // there", immediately un-loading the unit the player just loaded.
+    if (result.success) deselect({ clearMessage: false });
   }
 
   /** Exits the currently-selected garrisoned unit WITHOUT also moving it -- it stays a field unit on the base's cell. */
@@ -384,6 +408,7 @@ export function createInputController({ canonicalState, viewerId, renderer, onCh
     enterSelectedUnitsBase,
     exitSelectedUnit,
     selectGarrisonedUnit,
+    selectEnemyUnit,
     buildAtSelectedBase,
     cancelQueuedBuild,
     getStatus: buildStatus,

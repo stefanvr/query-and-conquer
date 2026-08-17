@@ -46,9 +46,16 @@ export function computeCurrentlyVisible(canonicalState, playerId) {
 
   const visible = new Set();
 
+  // Garrisoned units don't contribute their own view radius -- a unit
+  // tucked inside a base isn't independently scouting the horizon; only
+  // the base's own view stat matters for what's visible from that
+  // position. Without this filter, garrisoning e.g. a bomber (view 8)
+  // in a base whose own view is only 4 silently extended that base's
+  // effective visibility, which isn't something the base's own stats
+  // should change.
   const observers = [
     ...canonicalState.units
-      .filter((u) => u.ownerId === playerId)
+      .filter((u) => u.ownerId === playerId && u.garrisonedAt == null)
       .map((u) => ({ position: u.position, view: UNIT_DEFS[u.type].view })),
     ...canonicalState.bases
       .filter((b) => b.ownerId === playerId)

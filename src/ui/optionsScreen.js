@@ -115,6 +115,7 @@ export function renderOptionsScreen(root, onPlay) {
 function buildSelect(id, values, labels) {
   const select = document.createElement("select");
   select.id = id;
+  select.className = "select";
   for (const value of values) {
     const option = document.createElement("option");
     option.value = value;

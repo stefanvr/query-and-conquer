@@ -44,11 +44,17 @@ import { createShapeIcon } from "./unitShapes.js";
 export function renderHud(container, { getState, onEndTurn, onSave, inputController, viewerId }) {
   const hud = document.createElement("div");
   hud.className = "hud";
+  // No overflow/scroll on the hud element itself -- overflow: visible
+  // (the default) means the End Turn/Save buttons' hover box-shadow and
+  // transform can never trigger a scrollbar just from hovering.
+  // actionPanel (the one section that can genuinely grow tall --
+  // garrison/queue/build lists) manages its own scroll in JS; see
+  // fitActionPanelScroll()'s doc.
   hud.style.cssText =
     "position: absolute; top: 12px; left: 12px; z-index: 10; " +
     "display: flex; flex-direction: column; gap: 8px; align-items: flex-start; " +
     "font-family: var(--font-body); color: var(--parchment); max-width: 360px; " +
-    "max-height: calc(100vh - 24px); overflow-y: auto;";
+    "max-height: calc(100vh - 24px);";
 
   const topRow = document.createElement("div");
   topRow.style.cssText = "display: flex; align-items: center; gap: 12px;";
@@ -64,6 +70,7 @@ export function renderHud(container, { getState, onEndTurn, onSave, inputControl
   // action])". Defaults to instant so a normal game doesn't force the
   // player to sit through animation; this just exposes the choice.
   const speedSelect = document.createElement("select");
+  speedSelect.className = "select";
   for (const speed of ["instant", "fast", "slow"]) {
     const option = document.createElement("option");
     option.value = speed;
@@ -78,6 +85,11 @@ export function renderHud(container, { getState, onEndTurn, onSave, inputControl
     "background: var(--ink); padding: 4px 10px; border-radius: 3px; font-size: 12px; min-height: 1.2em;";
 
   const actionPanel = document.createElement("div");
+  // overflow-y/max-height are managed in JS by fitActionPanelScroll(),
+  // turned on only when content genuinely needs to scroll -- see its
+  // module doc. 160px (used there) reserves roughly the top row +
+  // message box + gaps + the same 24px bottom margin the hud container
+  // used to reserve.
   actionPanel.style.cssText = "display: flex; flex-direction: column; gap: 6px; width: 100%;";
 
   hud.append(topRow, messageBox, actionPanel);
@@ -216,6 +228,32 @@ export function renderHud(container, { getState, onEndTurn, onSave, inputControl
   }
 
   function renderActionPanel() {
+    fillActionPanel();
+    fitActionPanelScroll();
+  }
+
+  /**
+   * Only turns on overflow-y: auto (and the matching max-height cap) when
+   * actionPanel's content actually needs it (a base panel with a full
+   * garrison/queue/build list). Otherwise leaves overflow at its default
+   * "visible", which structurally cannot show a scrollbar under any
+   * circumstance -- unlike leaving overflow-y: auto on permanently, which
+   * can flash a Windows overlay scrollbar on hover from a sub-pixel
+   * rounding overflow (a fraction of a device pixel from display scaling)
+   * that integer scrollHeight/clientHeight never reveal, even for
+   * content as short as a single button.
+   */
+  function fitActionPanelScroll() {
+    actionPanel.style.overflowY = "visible";
+    actionPanel.style.maxHeight = "none";
+    const available = window.innerHeight - 160; // see actionPanel's original comment for this budget
+    if (actionPanel.scrollHeight > available) {
+      actionPanel.style.maxHeight = `${available}px`;
+      actionPanel.style.overflowY = "auto";
+    }
+  }
+
+  function fillActionPanel() {
     actionPanel.innerHTML = "";
     const status = inputController.getStatus();
     messageBox.textContent = status.message ?? "";

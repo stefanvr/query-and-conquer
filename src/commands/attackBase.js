@@ -10,7 +10,8 @@
  * Garrisoned units CAN attack -- see attackUnit.js's module doc for why
  * (design doc §9's "base-defenders" AI category, and §4's "garrisoned
  * units contribute to a base's combined defense", both require it).
- * Also enforces the "Attacks/turn" cap from §3 (1, every unit type).
+ * Also enforces the "Attacks/turn" cap from §3 (1, every unit type) and
+ * fighter/bomber's per-sortie strike cap (see attackUnit.js's doc).
  */
 import { UNIT_DEFS } from "../units/unitDefs.js";
 import { offsetDistance } from "../hex/distance.js";
@@ -43,6 +44,10 @@ export function attackBase(canonicalState, { attackerUnitId, baseId }) {
   if (attacker.attacksUsedThisTurn >= UNIT_DEFS[attacker.type].attacksPerTurn) {
     return { success: false, reason: "Already attacked this turn." };
   }
+  const maxStrikes = UNIT_DEFS[attacker.type].maxStrikesPerSortie;
+  if (maxStrikes != null && attacker.strikesUsed >= maxStrikes) {
+    return { success: false, reason: "Out of strikes this sortie -- return to base to rearm." };
+  }
 
   const def = UNIT_DEFS[attacker.type];
   const distance = offsetDistance(attacker.position, base.position);
@@ -61,6 +66,7 @@ export function attackBase(canonicalState, { attackerUnitId, baseId }) {
 
   attacker.actionsRemaining -= 1;
   attacker.attacksUsedThisTurn += 1;
+  if (maxStrikes != null) attacker.strikesUsed += 1;
   const previousOwnerId = base.ownerId;
   const { destroyedUnitIds, baseDamageDealt, wentNeutral } = resolveBaseAttack(base, def.groundAttack);
 

@@ -1,10 +1,17 @@
 /**
  * Renders bases with owner accent color (style-guide.md §3), plus
- * phase-1 text for build/neutral status (style-guide.md §8).
+ * phase-1 text for strength/build/neutral status (style-guide.md §8).
+ * Strength and what a base is currently building are only shown for
+ * YOUR OWN bases -- an enemy base's strength/production is hidden
+ * intel, not something you can read off the map just because you can
+ * see the base itself (design doc: base strength stays unknown until
+ * it's demolished). "Neutral" is shown for any base, own or not, since
+ * that's ownership status, not production/strength info.
  */
 import { hexCenter, hexCorners, DEFAULT_HEX_SIZE } from "../hexGeometry.js";
 import { worldToScreen } from "../camera.js";
 import { getPlayerColor, getCssToken } from "../colorTokens.js";
+import { BASE_DEFS } from "../../buildings/baseDefs.js";
 
 /**
  * @param {CanvasRenderingContext2D} ctx
@@ -38,8 +45,17 @@ export function drawBases(ctx, visibleState, camera, selectedBaseId) {
       ctx.stroke();
     }
 
-    const label = base.ownerId == null ? "NEUTRAL" : base.currentBuild ? `BUILDING: ${base.currentBuild.unitType.toUpperCase()}` : null;
-    if (label) drawSmallLabel(ctx, center.x, center.y + hexSize * 1.1, camera, label);
+    const isOwn = base.ownerId === visibleState.viewerId;
+    const lines = [];
+    if (base.ownerId == null) {
+      lines.push("NEUTRAL");
+    } else if (isOwn) {
+      lines.push(`${base.strength}/${BASE_DEFS[base.type].strength} SP`);
+      if (base.currentBuild) lines.push(`BUILDING: ${base.currentBuild.unitType.toUpperCase()}`);
+    }
+    lines.forEach((text, i) => {
+      drawSmallLabel(ctx, center.x, center.y + hexSize * (1.1 + i * 0.5), camera, text);
+    });
   }
 }
 

@@ -15,6 +15,11 @@
  * Also enforces §3's "Attacks/turn" cap (1, for every unit type) --
  * previously unenforced, so a unit with several actions could attack
  * repeatedly in one turn using only its action-point budget as a limit.
+ *
+ * Fighter/bomber additionally have a per-SORTIE strike cap
+ * (maxStrikesPerSortie, §3) -- a cap on further attacks, not an
+ * automatic forced return (see the resolved-ambiguity note in
+ * doc/query-and-conquer.md §3). strikesUsed resets on enterBase.js.
  */
 import { UNIT_DEFS } from "../units/unitDefs.js";
 import { offsetDistance } from "../hex/distance.js";
@@ -44,6 +49,10 @@ export function attackUnit(canonicalState, { attackerUnitId, defenderUnitId }) {
   if (attacker.attacksUsedThisTurn >= UNIT_DEFS[attacker.type].attacksPerTurn) {
     return { success: false, reason: "Already attacked this turn." };
   }
+  const maxStrikes = UNIT_DEFS[attacker.type].maxStrikesPerSortie;
+  if (maxStrikes != null && attacker.strikesUsed >= maxStrikes) {
+    return { success: false, reason: "Out of strikes this sortie -- return to base to rearm." };
+  }
 
   const def = UNIT_DEFS[attacker.type];
   const distance = offsetDistance(attacker.position, defender.position);
@@ -62,6 +71,7 @@ export function attackUnit(canonicalState, { attackerUnitId, defenderUnitId }) {
 
   attacker.actionsRemaining -= 1;
   attacker.attacksUsedThisTurn += 1;
+  if (maxStrikes != null) attacker.strikesUsed += 1;
   const { attackValue, destroyed } = resolveOpenFieldCombat(attacker, defender);
 
   if (destroyed) {

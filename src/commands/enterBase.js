@@ -15,6 +15,10 @@
  * cell OR adjacent to it) matches §3's "[loading can happen] anywhere
  * water is adjacent to land" and mirrors the same fix applied to
  * claimBase.js -- see that module's doc for the fuller reasoning.
+ *
+ * For fighter/bomber, entering a base is also "returning to rearm" --
+ * resets strikesUsed and distanceFlownThisSortie to 0 (see
+ * moveUnit.js's and attackUnit.js's docs).
  */
 import { MAX_BASE_CAPACITY } from "../buildings/baseDefs.js";
 import { offsetDistance } from "../hex/distance.js";
@@ -52,6 +56,8 @@ export function enterBase(canonicalState, { unitId, baseId }) {
 
   unit.actionsRemaining -= 1;
   unit.garrisonedAt = base.id;
+  unit.strikesUsed = 0;
+  unit.distanceFlownThisSortie = 0;
   base.garrison.push(unit.id);
 
   return { success: true };
