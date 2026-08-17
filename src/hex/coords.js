@@ -67,6 +67,30 @@ export function cubeAdd(a, b) {
 }
 
 /**
+ * Rounds a fractional cube coordinate (e.g. from pixel->hex conversion
+ * or hex-line interpolation) to the nearest valid cube coordinate
+ * (x + y + z === 0). Reference:
+ * https://www.redblobgames.com/grids/hexagons/#rounding
+ * @param {CubeCoord} frac
+ * @returns {CubeCoord}
+ */
+export function cubeRound(frac) {
+  let rx = Math.round(frac.x);
+  let ry = Math.round(frac.y);
+  let rz = Math.round(frac.z);
+
+  const xDiff = Math.abs(rx - frac.x);
+  const yDiff = Math.abs(ry - frac.y);
+  const zDiff = Math.abs(rz - frac.z);
+
+  if (xDiff > yDiff && xDiff > zDiff) rx = -ry - rz;
+  else if (yDiff > zDiff) ry = -rx - rz;
+  else rz = -rx - ry;
+
+  return { x: rx, y: ry, z: rz };
+}
+
+/**
  * Hex distance (number of hex steps) between two cube coordinates.
  * Used by src/hex/distance.js's offset-facing wrapper (Stage 4) and
  * directly wherever cube coordinates are already in hand.

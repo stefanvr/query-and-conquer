@@ -28,7 +28,7 @@
  * rather than trying to nurse a single grid into exact compliance --
  * cheap since each attempt is a few thousand cells of array work.
  */
-import { mulberry32, randInt, pick } from "./rng.js";
+import { mulberry32, randInt, pick } from "../rng.js";
 import { neighborsInBounds } from "../hex/neighbors.js";
 import {
   floodFillComponents,

@@ -1,7 +1,25 @@
 /**
- * Command dispatch table -- the only entry point allowed to mutate canonical state.
- * Stub only -- implemented in Stage 4 of the implementation plan.
- * Exists now so the module layout (and the canonical/visible-state
- * seam it supports) is established from Stage 1, not retrofitted later.
+ * Command dispatch table -- the only entry point allowed to mutate
+ * canonical state (tech-stack.md's "State access rule"). UI and AI
+ * code call dispatch(), never a command handler directly, so every
+ * mutation path funnels through one place.
  */
-export {};
+import { moveUnit } from "./moveUnit.js";
+import { endTurn } from "./endTurn.js";
+
+export const COMMANDS = {
+  moveUnit,
+  endTurn,
+};
+
+/**
+ * @param {object} canonicalState
+ * @param {keyof COMMANDS} type
+ * @param {object} [payload]
+ * @returns {object} the command handler's result
+ */
+export function dispatch(canonicalState, type, payload) {
+  const handler = COMMANDS[type];
+  if (!handler) throw new Error(`Unknown command: ${type}`);
+  return handler(canonicalState, payload);
+}

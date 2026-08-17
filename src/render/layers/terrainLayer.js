@@ -25,6 +25,12 @@ export function drawTerrain(ctx, visibleState, camera) {
 
   for (let row = 0; row < height; row++) {
     for (let col = 0; col < width; col++) {
+      // Unexplored cells (fog-of-war, Stage 4+) are terrain: null --
+      // "not rendered — full --ink" per style-guide.md §7. The canvas
+      // has no fill of its own, so simply not drawing here lets the
+      // page's --ink background (src/styles/layout.css) show through.
+      if (terrain[row][col] == null) continue;
+
       const centerWorld = hexCenter({ col, row }, DEFAULT_HEX_SIZE);
       const center = worldToScreen(camera, centerWorld.x, centerWorld.y);
 

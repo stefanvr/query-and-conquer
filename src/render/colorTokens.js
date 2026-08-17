@@ -38,3 +38,21 @@ export function getTerrainColor(terrain) {
   if (!token) throw new Error(`Unknown terrain type: ${terrain}`);
   return getCssToken(token);
 }
+
+const PLAYER_ACCENT_TOKENS = ["--p-human", "--p-ai-1", "--p-ai-2", "--p-ai-3", "--p-ai-4", "--p-ai-5"];
+
+/**
+ * @param {number} playerIndex - 0 = human, 1-5 = AI slots (style-guide.md §3's fixed order)
+ * @returns {string} resolved hex color for that player slot
+ */
+export function getPlayerColor(playerIndex) {
+  const token = PLAYER_ACCENT_TOKENS[playerIndex] ?? PLAYER_ACCENT_TOKENS[PLAYER_ACCENT_TOKENS.length - 1];
+  return getCssToken(token);
+}
+
+/**
+ * @returns {number} the confirmed fog "explored, not visible" dim alpha (0.30)
+ */
+export function getFogDimAlpha() {
+  return parseFloat(getCssToken("--fog-dim-alpha"));
+}

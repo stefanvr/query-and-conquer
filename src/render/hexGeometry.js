@@ -8,6 +8,7 @@
  *
  * Reference: https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
  */
+import { cubeRound, cubeToOffset } from "../hex/coords.js";
 
 /** World-space hex circumradius, in pixels, before camera zoom is applied. */
 export const DEFAULT_HEX_SIZE = 16;
@@ -41,6 +42,25 @@ export function hexCorners(cx, cy, hexSize) {
     corners.push({ x: cx + hexSize * Math.cos(angle), y: cy + hexSize * Math.sin(angle) });
   }
   return corners;
+}
+
+/**
+ * Inverse of hexCenter(): which offset cell a world-space pixel point
+ * falls in. hexCenter() is exactly the standard flat-top axial-to-pixel
+ * formula (q = col, r = row - (col - col&1)/2 = the cube "z" this
+ * project uses) -- so the inverse is the standard pixel-to-axial
+ * formula, rounded to the nearest hex via cubeRound and converted back
+ * to offset via src/hex/coords.js.
+ * @param {number} worldX
+ * @param {number} worldY
+ * @param {number} hexSize
+ * @returns {{col: number, row: number}}
+ */
+export function pixelToHex(worldX, worldY, hexSize) {
+  const q = (2 / 3) * worldX / hexSize;
+  const r = ((-1 / 3) * worldX + (Math.sqrt(3) / 3) * worldY) / hexSize;
+  const cube = cubeRound({ x: q, y: -q - r, z: r });
+  return cubeToOffset(cube);
 }
 
 /**

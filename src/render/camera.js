@@ -38,21 +38,32 @@ export function fitToView(camera, worldWidth, worldHeight, viewportWidth, viewpo
 }
 
 /**
- * Wires mouse drag (pan) and wheel (zoom-to-cursor) on a canvas element.
+ * Wires mouse drag (pan), wheel (zoom-to-cursor), and click-without-drag
+ * (onClick) on a canvas element. A "click" is a pointerdown/pointerup
+ * pair that moved less than a few pixels -- anything more is treated as
+ * a pan, not a cell selection.
  * @param {HTMLCanvasElement} canvas
  * @param {{x: number, y: number, zoom: number}} camera
  * @param {() => void} onChange - called after any camera mutation
+ * @param {(screenX: number, screenY: number) => void} [onClick] - called with canvas-local coords on a click
  * @returns {() => void} cleanup function to remove listeners
  */
-export function attachCameraControls(canvas, camera, onChange) {
+export function attachCameraControls(canvas, camera, onChange, onClick) {
+  const CLICK_DRAG_THRESHOLD = 4;
   let dragging = false;
+  let moved = false;
   let lastX = 0;
   let lastY = 0;
+  let downX = 0;
+  let downY = 0;
 
   function onPointerDown(e) {
     dragging = true;
+    moved = false;
     lastX = e.clientX;
     lastY = e.clientY;
+    downX = e.clientX;
+    downY = e.clientY;
     canvas.style.cursor = "grabbing";
   }
 
@@ -62,12 +73,19 @@ export function attachCameraControls(canvas, camera, onChange) {
     const dy = e.clientY - lastY;
     lastX = e.clientX;
     lastY = e.clientY;
+    if (Math.abs(e.clientX - downX) > CLICK_DRAG_THRESHOLD || Math.abs(e.clientY - downY) > CLICK_DRAG_THRESHOLD) {
+      moved = true;
+    }
     camera.x -= dx / camera.zoom;
     camera.y -= dy / camera.zoom;
     onChange();
   }
 
-  function onPointerUp() {
+  function onPointerUp(e) {
+    if (dragging && !moved && onClick) {
+      const rect = canvas.getBoundingClientRect();
+      onClick(e.clientX - rect.left, e.clientY - rect.top);
+    }
     dragging = false;
     canvas.style.cursor = "grab";
   }

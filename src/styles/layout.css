@@ -33,6 +33,7 @@ body {
   width: 100%;
   height: 100vh;
   display: block;
+  position: relative; /* anchors the HUD overlay, src/ui/hud.js */
 }
 
 /* --- Start screen: circular vignette crop of background.png --- */

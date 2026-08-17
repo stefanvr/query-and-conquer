@@ -1,11 +1,10 @@
 /**
- * Small seedable PRNG (mulberry32) so map generation is reproducible
- * from a stored seed -- deterministic regeneration is convenient for
- * debugging a specific candidate without needing Math.random(), which
- * this project's Workflow tooling also can't use for the same reason
- * (see the "no Date.now()/Math.random()" note in Workflow scripts;
- * generation itself isn't run inside one, but the same "reproducible
- * output from a stored seed" property is worth having regardless).
+ * Small seedable PRNG (mulberry32). Reproducible from a stored seed --
+ * originally added for map generation (deterministic candidates), and
+ * reused from Stage 4 on for base placement, so any procedural setup
+ * step can be re-run deterministically from a seed rather than relying
+ * on Math.random(). Lives at src/ (not under map-gen/) because it's a
+ * generic utility, not map-gen-specific.
  */
 
 /**
@@ -40,4 +39,18 @@ export function randInt(rng, min, max) {
  */
 export function pick(rng, arr) {
   return arr[randInt(rng, 0, arr.length)];
+}
+
+/**
+ * Fisher-Yates shuffle, in place.
+ * @param {() => number} rng
+ * @param {Array<any>} arr
+ * @returns {Array<any>} the same array, shuffled
+ */
+export function shuffle(rng, arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randInt(rng, 0, i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
