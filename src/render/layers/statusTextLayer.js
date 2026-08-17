@@ -1,8 +1,8 @@
 /**
- * Phase-1 text-only status labels (style-guide.md §8): [SELECTED],
- * X/Y SP, IN RANGE. Explicitly a placeholder per the style guide --
- * "dedicated UI elements (selection rings, health bars, range
- * overlays) are expected to replace this in a later pass."
+ * Phase-1 text-only status labels (style-guide.md §8): X/Y AP, X/Y SP,
+ * IN RANGE. Explicitly a placeholder per the style guide -- "dedicated
+ * UI elements (selection rings, health bars, range overlays) are
+ * expected to replace this in a later pass."
  */
 import { hexCenter, DEFAULT_HEX_SIZE } from "../hexGeometry.js";
 import { worldToScreen } from "../camera.js";
@@ -52,7 +52,8 @@ export function drawStatusText(ctx, visibleState, camera, selectedUnitId, reacha
   if (selectedUnit) {
     const centerWorld = hexCenter(selectedUnit.position, DEFAULT_HEX_SIZE);
     const maxStrength = UNIT_DEFS[selectedUnit.type].strength;
-    drawLabel(ctx, centerWorld.x, centerWorld.y, camera, "[SELECTED]", -hexSize * 1.5);
+    const maxActions = UNIT_DEFS[selectedUnit.type].actionsPerTurn;
+    drawLabel(ctx, centerWorld.x, centerWorld.y, camera, `${selectedUnit.actionsRemaining}/${maxActions} AP`, -hexSize * 1.5);
     drawLabel(ctx, centerWorld.x, centerWorld.y, camera, `${selectedUnit.strength}/${maxStrength} SP`, -hexSize * 0.9);
   }
 }

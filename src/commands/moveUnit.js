@@ -22,14 +22,20 @@ export function moveUnit(canonicalState, { unitId, destination }) {
   if (unit.ownerId !== activePlayer.id) {
     return { success: false, reason: "Not your unit, or not your turn." };
   }
+  if (unit.garrisonedAt != null) {
+    return { success: false, reason: "Unit is garrisoned -- exit the base first." };
+  }
 
   const { width, height, terrain } = canonicalState.map;
 
   // One unit per cell, regardless of player (design doc §1) -- occupied
   // cells (other than the mover's own current cell) are impassable.
+  // Garrisoned units are the doc's explicit exception (bases can hold up
+  // to 15 units on their own cell) -- they don't block movement onto or
+  // through it.
   const occupiedKeys = new Set(
     canonicalState.units
-      .filter((u) => u.id !== unit.id)
+      .filter((u) => u.id !== unit.id && u.garrisonedAt == null)
       .map((u) => `${u.position.col},${u.position.row}`)
   );
 

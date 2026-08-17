@@ -10,9 +10,9 @@
 
 /**
  * @param {HTMLElement} root - container to render into
- * @param {() => void} onStart - called when the player presses Start
+ * @param {{onStart: () => void, onContinue?: () => void, hasSave?: boolean}} opts
  */
-export function renderStartScreen(root, onStart) {
+export function renderStartScreen(root, { onStart, onContinue, hasSave = false }) {
   root.innerHTML = "";
 
   const screen = document.createElement("div");
@@ -22,12 +22,26 @@ export function renderStartScreen(root, onStart) {
   title.className = "title";
   title.innerHTML = 'QUERY &amp; <span>CONQUER</span>';
 
+  const buttonRow = document.createElement("div");
+  buttonRow.style.cssText = "display: flex; flex-direction: column; gap: 10px; align-items: center;";
+
   const startBtn = document.createElement("button");
   startBtn.className = "btn-primary";
   startBtn.type = "button";
-  startBtn.textContent = "Start";
+  startBtn.textContent = hasSave ? "New Game" : "Start";
   startBtn.addEventListener("click", () => onStart());
+  buttonRow.append(startBtn);
 
-  screen.append(title, startBtn);
+  if (hasSave && onContinue) {
+    const continueBtn = document.createElement("button");
+    continueBtn.className = "btn-primary";
+    continueBtn.type = "button";
+    continueBtn.style.cssText = "font-size: 14px; padding: 8px 32px;";
+    continueBtn.textContent = "Continue";
+    continueBtn.addEventListener("click", () => onContinue());
+    buttonRow.append(continueBtn);
+  }
+
+  screen.append(title, buttonRow);
   root.append(screen);
 }

@@ -73,6 +73,10 @@ export function addPlayer(canonicalState, { kind }) {
     id: allocateEntityId(canonicalState),
     kind,
     exploredGrid: createExploredGrid(width, height),
+    // Design doc §6 end screen: "a stats dialog (units built/lost per
+    // player)". Incremented by build completion (Stage 5 buildTick) and
+    // combat resolution (Stage 5 commands), never read/written elsewhere.
+    stats: { unitsBuilt: 0, unitsLost: 0 },
   };
   canonicalState.players.push(player);
   return player;

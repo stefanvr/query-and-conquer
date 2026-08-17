@@ -72,3 +72,24 @@ export function getVisibleState(canonicalState, viewerId) {
     viewerId,
   };
 }
+
+/**
+ * Full, UNFILTERED state -- deliberate exception to the fog-of-war
+ * seam above, justified by design doc §6's end screen requirement:
+ * "full map reveal (fog removed, but read-only ...), all bases/units
+ * annotated with details, and a stats dialog". Once the game is over,
+ * hiding information no longer serves fog of war's purpose. Still
+ * funneled through a named, single-purpose query function rather than
+ * letting the end screen read canonicalState ad hoc.
+ * @param {object} canonicalState
+ * @returns {object} unfiltered map/units/bases/players (with stats), read-only use only
+ */
+export function getEndGameState(canonicalState) {
+  return {
+    map: canonicalState.map,
+    units: canonicalState.units,
+    bases: canonicalState.bases,
+    turn: canonicalState.turn,
+    players: canonicalState.players.map((p) => ({ id: p.id, kind: p.kind, stats: p.stats })),
+  };
+}

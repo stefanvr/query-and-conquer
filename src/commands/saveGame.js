@@ -1,7 +1,17 @@
 /**
- * Command handler: capture exact mid-turn state to the single localStorage save slot.
- * Stub only -- implemented in Stage 5 of the implementation plan.
- * Exists now so the module layout (and the canonical/visible-state
- * seam it supports) is established from Stage 1, not retrofitted later.
+ * Command handler: save (design doc §6 mid-turn option) -- "captures
+ * exact mid-turn state, single slot". Doesn't mutate canonicalState
+ * itself; the "mutation" is the localStorage write. Kept in commands/
+ * and in the dispatch table anyway, since it's still a deliberate
+ * player-triggered stateful action, not a pure read.
  */
-export {};
+import { writeSave } from "../save/storage.js";
+
+/**
+ * @param {object} canonicalState
+ * @returns {{success: true}}
+ */
+export function saveGame(canonicalState) {
+  writeSave(canonicalState);
+  return { success: true };
+}

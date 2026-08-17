@@ -13,8 +13,7 @@
  * permanently stranded on their own base.
  */
 import { BASE_DEFS, BUILD_COST_MULTIPLIER } from "../buildings/baseDefs.js";
-import { UNIT_DEFS } from "../units/unitDefs.js";
-import { allocateEntityId } from "./initialState.js";
+import { createUnit } from "../units/createUnit.js";
 
 /**
  * @param {object} canonicalState
@@ -22,24 +21,16 @@ import { allocateEntityId } from "./initialState.js";
  * @returns {object[]} the newly created units
  */
 export function spawnStartingUnits(canonicalState, bases) {
-  const newUnits = bases.map((base) => {
-    const type = cheapestBuildableType(base.type);
-    return {
-      id: allocateEntityId(canonicalState),
+  const newUnits = bases.map((base) =>
+    createUnit(canonicalState, {
       ownerId: base.ownerId,
-      type,
-      position: { ...base.position },
-      strength: UNIT_DEFS[type].strength,
-      actionsRemaining: UNIT_DEFS[type].actionsPerTurn,
-      // Reserved for Stage 5 (combat/return-to-base) and beyond, so the
-      // unit shape doesn't need retrofitting later -- see the
-      // implementation plan's "canonical state fields" risk note.
-      strikesUsed: 0,
-      distanceFlownThisSortie: 0,
-      cargo: [],
-      constructionTurnsRemaining: null,
-    };
-  });
+      type: cheapestBuildableType(base.type),
+      position: base.position,
+      // A field unit, not garrisoned -- see the module doc; it stands
+      // at the base's cell but doesn't count against base capacity.
+      garrisonedAt: null,
+    })
+  );
 
   canonicalState.units.push(...newUnits);
   return newUnits;

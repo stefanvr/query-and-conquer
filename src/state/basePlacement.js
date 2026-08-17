@@ -67,9 +67,16 @@ export function placeBases(canonicalState, playerIds, rng) {
       type: site.type,
       position: site.cell,
       strength: BASE_DEFS[site.type].strength,
-      garrison: [],
-      buildQueue: [],
-      currentBuild: null,
+      garrison: [], // unit IDs, oldest-entered-first (design doc §4 damage-resolution order)
+      buildQueue: [], // pending unitType strings, up to MAX_BUILD_QUEUE
+      currentBuild: null, // { unitType, turnsRemaining } | null
+      // Neutral-base bookkeeping (design doc §4) -- both null while the
+      // base has a normal owner; set when strength hits 0 (Stage 5
+      // src/commands/attackBase.js) and cleared on reclaim/capture
+      // (src/commands/claimBase.js) or once the pending build actually
+      // completes and auto-recaptures (src/commands/recaptureTick.js).
+      previousOwnerId: null,
+      pendingRecaptureUnitType: null,
     };
     newBases.push(base);
     placedCells.push(site.cell);

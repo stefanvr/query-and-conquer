@@ -6,15 +6,17 @@
  *
  * Also owns click -> hex-cell translation (screen pixel -> world pixel
  * -> offset cell) and forwards it to the caller's onCellClick, plus
- * local (non-canonical) selection/reachable-cell state so unitLayer.js
- * and statusTextLayer.js can highlight the selected unit -- selection
- * itself is UI state, not canonical state (src/ui/input.js owns the
- * selection *logic*; this module just renders whatever it's told).
+ * local (non-canonical) selection/reachable-cell state so unitLayer.js,
+ * baseLayer.js, and statusTextLayer.js can highlight the current
+ * selection -- selection itself is UI state, not canonical state
+ * (src/ui/input.js owns the selection *logic*; this module just
+ * renders whatever it's told).
  */
 import { createCamera, attachCameraControls, fitToView } from "./camera.js";
 import { gridPixelBounds, pixelToHex, DEFAULT_HEX_SIZE } from "./hexGeometry.js";
 import { drawTerrain } from "./layers/terrainLayer.js";
 import { drawFog } from "./layers/fogLayer.js";
+import { drawBases } from "./layers/baseLayer.js";
 import { drawUnits } from "./layers/unitLayer.js";
 import { drawStatusText } from "./layers/statusTextLayer.js";
 
@@ -22,7 +24,7 @@ import { drawStatusText } from "./layers/statusTextLayer.js";
  * @param {HTMLElement} container - element to render the canvas into (filled)
  * @param {() => object} getVisibleState - returns the current visible-state projection
  * @param {{onCellClick?: (cell: {col: number, row: number}) => void}} [opts]
- * @returns {{ redraw: () => void, setSelection: (unitId: number|string|null, reachableKeys?: Set<string>) => void, destroy: () => void }}
+ * @returns {{ redraw: () => void, setSelection: (selection: {type: "unit"|"base"|"garrison", id: number|string, baseId?: number|string}|null, reachableKeys?: Set<string>) => void, destroy: () => void }}
  */
 export function createCanvasRenderer(container, getVisibleState, { onCellClick } = {}) {
   container.innerHTML = "";
@@ -34,7 +36,8 @@ export function createCanvasRenderer(container, getVisibleState, { onCellClick }
 
   const ctx = canvas.getContext("2d");
   const camera = createCamera();
-  const selection = { unitId: null, reachableKeys: null };
+  let selection = null; // {type: "unit"|"base"|"garrison", id, baseId?} | null
+  let reachableKeys = null;
 
   function resizeCanvas() {
     const rect = container.getBoundingClientRect();
@@ -46,13 +49,22 @@ export function createCanvasRenderer(container, getVisibleState, { onCellClick }
 
   function redraw() {
     const visibleState = getVisibleState();
+    // "garrison" (a drilled-into garrisoned unit, src/ui/input.js) is
+    // unit-like for the status-text label (AP/SP shown at the base's
+    // position, since unitLayer.js doesn't draw a garrisoned unit's own
+    // dot) and keeps that base's selection ring lit too.
+    const selectedUnitId = selection?.type === "unit" || selection?.type === "garrison" ? selection.id : null;
+    const selectedBaseId =
+      selection?.type === "base" ? selection.id : selection?.type === "garrison" ? selection.baseId : null;
+
     ctx.save();
     ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawTerrain(ctx, visibleState, camera);
     drawFog(ctx, visibleState, camera);
-    drawUnits(ctx, visibleState, camera, selection.unitId);
-    drawStatusText(ctx, visibleState, camera, selection.unitId, selection.reachableKeys);
+    drawBases(ctx, visibleState, camera, selectedBaseId);
+    drawUnits(ctx, visibleState, camera, selectedUnitId);
+    drawStatusText(ctx, visibleState, camera, selectedUnitId, reachableKeys);
     ctx.restore();
   }
 
@@ -84,9 +96,9 @@ export function createCanvasRenderer(container, getVisibleState, { onCellClick }
 
   return {
     redraw,
-    setSelection(unitId, reachableKeys = null) {
-      selection.unitId = unitId;
-      selection.reachableKeys = reachableKeys;
+    setSelection(newSelection, newReachableKeys = null) {
+      selection = newSelection;
+      reachableKeys = newReachableKeys;
       redraw();
     },
     destroy() {
