@@ -14,11 +14,13 @@ Web based video game
 
 ## hosting
 
-* Git hub pages
+* GitHub Pages
 
 ## tech choices
 
-* live-server
+* live-server for local development
+* Node's built-in test runner (`node:test`) for unit/integration tests
+* Playwright for a thin layer of UI-wiring tests
 
 ## Design choices for v1
 * Save system - start with localStorage - risk not enough storage for now accepted
@@ -33,9 +35,15 @@ Web based video game
 
 * Rendering approach for the hex grid - use canvas
 
-* Browser target: no need for legacy support, but keep it a most used
+* Browser target: no need for legacy support, but target the most widely used current browsers
 * Dev tooling: make sure it can be run locally with live update
-* Testing: no testing
+* Testing:
+  * Unit/integration tests carry the bulk of coverage, driven through the code interface —
+    command handlers and queries operate on plain canonical-state objects with no DOM involved,
+    so they're cheap to test directly with `node:test` and need no build step or browser.
+  * Playwright is reserved for a small number of UI-wiring/smoke tests only (e.g. a click reaches
+    the right command, the canvas actually draws something) — kept deliberately thin, since
+    browser-driven tests are slower and more brittle than testing the command/query layer directly.
 
 ## Hex coordinate system
 
@@ -76,7 +84,7 @@ a later move to a server a matter of relocating state, not rewriting consumers.
   design, so it's supposed to bypass the filter.
 
 **Why this isn't speculative extra work:** the design doc already requires this exact
-filtering for fog of war in single-player (§5, and the AI difficulty table's "Information" row).
+filtering for fog of war in single-player (§6, and the AI difficulty table's "Information" row).
 This rule doesn't add a feature — it just fixes *where* that filtering logic lives (one
 function, one seam) instead of letting it leak into rendering code or AI code ad hoc.
 
