@@ -1,6 +1,6 @@
 # Query and Conquer — Style Specification
 
-v1 visual style. Scope: enough to start implementation. Real art (tile sprites, unit
+Phase 1 visual style. Scope: enough to start implementation. Real art (tile sprites, unit
 sprites, UI chrome) can replace flat colors later without changing this spec's structure.
 
 ---
@@ -10,7 +10,7 @@ sprites, UI chrome) can replace flat colors later without changing this spec's s
 Source reference art (illustrated soldiers/tank, dark vignette, olive/rust/orange military
 tones) informed the palette below, but is **not** used directly except for the start-screen
 background image (`background.png`). All other surfaces — tiles, buttons, UI — use flat
-colors derived from that reference, not sprite art, to keep v1 simple.
+colors derived from that reference, not sprite art, to keep phase 1 simple.
 
 ---
 
@@ -66,7 +66,7 @@ Placeholder flat colors for the 6 terrain types, until real tile art exists.
 | Role | Font | Notes |
 |---|---|---|
 | Display (titles, button labels) | **Staatliches** (Google Font) | Condensed/stencil, used sparingly — headings and buttons only |
-| Body / UI text | System sans stack: `system-ui, -apple-system, "Segoe UI", sans-serif` | No extra webfont load; keeps v1 lightweight |
+| Body / UI text | System sans stack: `system-ui, -apple-system, "Segoe UI", sans-serif` | No extra webfont load; keeps it lightweight |
 
 Only one webfont is loaded (Staatliches). Body text uses the OS default stack.
 
@@ -94,22 +94,22 @@ equivalently, a `brightness(0.70)` filter on the tile). Applies to the tile's te
 units are not shown at all in the "explored, not visible" state (per the design doc — units are
 always hidden outside current view, only terrain stays revealed once explored).
 
-## 8. Damage / selection / highlight states (phase 1)
-
-Phase 1 uses **text only** — no color-coded highlight boxes, icons, or glow effects yet. This is
+## 8. State / selection / highlight states 
+Use **text only** — no color-coded highlight boxes, icons, or glow effects yet. This is
 an intentional placeholder; dedicated UI elements (selection rings, health bars, range overlays)
 are expected to replace this in a later pass.
 
-| State | Phase 1 treatment |
+| State | treatment |
 |---|---|
-| Selected unit/base | Plain text label rendered near the entity, e.g. `[SELECTED]` |
-| Damage / current health | Plain text, e.g. `7/10 SP`, rendered near the entity |
-| In attack range / reachable | Plain text label, e.g. `IN RANGE`, rendered on the relevant cell |
+| Base ongoing construction | Plain text label rendered near the base, e.g. `Building: [unit type underconstruction]` |
+| Unit Actions | Plain text, e.g. `7/10 AP`, rendered near the entity |
+| Base/Unit Damage / current health | Plain text, e.g. `7/10 SP`, rendered near the entity |
+| Unit Optional Range limit | Plain text, e.g. `17/100 RL`, rendered near the entity |
 
 Text uses `--parchment` on a small `--ink` backing (for legibility over any terrain color),
 `system-ui` body font, no Staatliches (that's reserved for titles/buttons per §5).
 
-## 9. Components (v1)
+## 9. Components
 
 ### Start screen
 - Full-bleed circular crop of `background.png`, edge-darkened with a radial-gradient vignette
@@ -128,19 +128,51 @@ Text uses `--parchment` on a small `--ink` backing (for legibility over any terr
 - Active/pressed: translate down `4px`, shadow flattens to `0`
 - No gradients — flat fill only, consistent with "colors for buttons, not imagery" decision
 
+### Selection components
+- Dropdowns (map size/type, AI count/difficulty, AI speed):
+  - Font: body stack (`--font-body` / `system-ui`), `14px` — not Staatliches, per §5
+  - Text: `--parchment`
+  - Background: `--ink`
+  - Border: `1px solid var(--steel)`, `4px` border-radius
+  - Padding: `6px 10px`
+  - Hover: border color → `--signal`
+  - Focus: outline removed, border color → `--signal`
+  - No shadow/press treatment (that's specific to the primary CTA button in §9 above)
+
 ### Terrain legend / tile swatches
 - Flat-top hex shape (see §6), one per terrain type
 - Thin inset border: `inset 0 0 0 1px rgba(0,0,0,0.35)` for edge definition against similar-toned
   neighbors
 - Label below each swatch: `--steel`, uppercase, 11px, letterspaced
 
+### Units
+
+Unit type is distinguished by shape, drawn identically on the map canvas and in HUD
+icons (build buttons, garrison/queue slots) from one shared geometry source — so the
+two views can never visually drift apart.
+
+| Unit | Shape |
+|---|---|
+| Tank | Square |
+| Fighter | Triangle |
+| Bomber | Hexagon |
+| Fregat | Bar (elongated rectangle) |
+| Transporter | Circle |
+| Carrier | Star (5-point) |
+
+Rendering rules (map canvas):
+- Fill: the unit's owner player-accent color (§3), not a fixed color
+- Radius: `0.4 × hex size` (hex size scales with camera zoom)
+- Stroke: `#FFFFFF` if selected, else `rgba(0, 0, 0, 0.5)`; line width `max(1, hexSize × 0.08)`
+- Garrisoned units are not drawn as map tokens — shown via the base's panel instead
+
 ---
 
 ## 10. Open items (not yet decided)
 
-None remaining from the initial v1 pass. Future candidates as implementation progresses:
+None remaining from the initial phase 1 pass. Future candidates as implementation progresses:
 real tile/unit sprite art to replace flat colors, and dedicated selection/health/range UI
-elements to replace the phase-1 text treatment in §8.
+elements to replace the phase 1 text treatment in §8.
 
 ---
 
