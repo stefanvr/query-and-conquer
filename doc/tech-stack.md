@@ -35,7 +35,9 @@ Web based video game
 
 * Rendering approach for the hex grid - use canvas
 
-* Browser target: no need for legacy support, but target the most widely used current browsers
+* Browser target: no need for legacy support, but target the most widely used current browsers,
+  desktop and mobile alike — see Mobile & touch support below for what that requires concretely.
+
 * Dev tooling: make sure it can be run locally with live update
 * Testing:
   * Unit/integration tests carry the bulk of coverage, driven through the code interface —
@@ -44,6 +46,45 @@ Web based video game
   * Playwright is reserved for a small number of UI-wiring/smoke tests only (e.g. a click reaches
     the right command, the canvas actually draws something) — kept deliberately thin, since
     browser-driven tests are slower and more brittle than testing the command/query layer directly.
+
+## Mobile & touch support
+
+Single responsive codebase — no separate mobile site/app. Desktop mouse and mobile touch are
+both first-class inputs, not touch bolted onto a mouse-first build.
+
+* **Input:** one input-handling layer maps pointer events for mouse and touch alike — tap =
+  click/select, drag = pan, pinch = zoom (with on-screen +/- zoom buttons as a fallback where
+  pinch isn't practical, e.g. a trackpad-less desktop). No feature may depend on a hover-only
+  state (a tile/unit tooltip revealed only on `:hover`, say) — touch devices have no hover, so
+  anything hover reveals must also be reachable by tap.
+* **Touch targets:** HUD buttons, side-menu actions, and other UI chrome use a minimum ~44×44
+  CSS px touch target (standard mobile accessibility guidance). Hex cells themselves render
+  smaller than that at most zoom levels on a phone screen, so cell selection needs a
+  tap-tolerance radius (nearest cell within N px of the tap), not exact-pixel hit testing.
+* **Layout:** HUD, side menu, and other screens (implementation-spec.md §6-8) use responsive
+  flexbox/grid plus media queries to go from a wide desktop layout to a narrow phone-portrait
+  one; support both portrait and landscape rather than locking to one orientation.
+* **Rendering performance:** the canvas draws only the current viewport, not the full map —
+  maps run up to 12,000 cells (Extra Large, per query-and-conquer.md §1), and mobile CPUs/GPUs
+  sit at the weaker end of the target range, so a full-map redraw every frame would not hold an
+  acceptable frame rate there.
+* **Testing:** Playwright's thin UI-wiring layer (see Testing above) includes at least one
+  touch-driven smoke test (tap-select, drag-pan) alongside the mouse-driven ones, since touch
+  runs through the same input-handling layer but is a distinct path worth covering.
+
+Risk accepted: a unified pointer/touch input layer plus tap-tolerance hit-testing is more
+upfront work than a mouse-only build — accepted, since retrofitting touch later would mean
+touching every input call site instead of one seam.
+
+**Native gesture conflict:** the canvas/game-viewport element sets `touch-action: none`, so the
+browser hands it every touch event untouched instead of trying to pan/zoom the page with it.
+Scoped to that element only — HUD and menu chrome outside the canvas keep normal touch
+behavior. Considered and rejected: disabling zoom page-wide via the viewport meta's
+`user-scalable=no` (kills accessibility zoom for HUD/menu text too, and recent iOS Safari
+versions ignore the flag anyway); manually calling `preventDefault()` in non-passive touch
+handlers (strictly more code and a perf risk for the same outcome `touch-action` gets
+declaratively); and letting native pinch-zoom the page instead of the map (would contradict the
+pinch-zooms-the-map decision above).
 
 ## Hex coordinate system
 

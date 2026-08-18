@@ -17,7 +17,9 @@ implementation.
 ## 1. Map & camera
 *(game spec §1 — rendering, pan/zoom, hex selection & highlight, terrain legend, tile hover
 states. Base placement, §5, is fully automatic and has no dedicated UX surface — note any
-placement-adjacent UI, e.g. a start-of-game camera focus, here instead.)*
+placement-adjacent UI, e.g. a start-of-game camera focus, here instead. Pan/zoom design here
+must account for touch (drag-pan, pinch-zoom, `touch-action: none` on the canvas) alongside
+mouse — see tech-stack.md's Mobile & touch support section.)*
 _Not started._
 
 ## 2. Bases
