@@ -16,7 +16,6 @@ with one base; win by capturing/destroying every other base on the map.
 - Every disconnected land or water body is at least a 4×4 contiguous region.
 - Shallow water is only adjacent to land or other shallow water.
 - A chain of shallow water can be at most 3 cells deep before reaching land.
-- Deep water may touch land directly.
 - Minimum distance between any two bases: 5 cells, regardless of owner.
 - One unit per cell, regardless of player — for both occupying and passing through. (Bases and
   units with hold capacity are the exception; see §3.)
@@ -24,21 +23,21 @@ with one base; win by capturing/destroying every other base on the map.
 - Line of sight is blocked by mountain cells, units, and bases.
 
 ### Generation
-| Size | Multiplier of min size |
-|---|---|
-| Small | 1× |
-| Medium | 3× |
-| Large | 5× |
-| Extra large | 8× |
+| Size | max single dimension | max cells
+|---|---|---|
+| Small | 60 | 1600
+| Medium | 80  | 4800 |
+| Large | 100 | 8000 |
+| Extra large | 120 | 12000 |
 
 | Type | Definition |
 |---|---|
-| Islands | Min 50% water; islands may touch the map border |
 | Land-only | No water |
-| Mixed | Min 65% land |
+| Mixed | Between 10% and 30% water; Minimum of 2 coasts with deepwater adjecent |
+| Islands |  Between 35% and 40% water; islands may touch the map border; minimum island size 180; minimum islands is 6; Minimum of 3 island with deepwater adjecent |
 
 For each size × type combination, 10 candidate maps are pre-generated; one is picked at random
-based on the chosen game options.
+based on the chosen game options. Within the max single dimension and max cells specified, the shape of the map can be rectangle portrait/landscape, square, hexagonal or circle shaped, trying to maximize number of cells.
 
 Bases are placed automatically once the terrain map is generated (see §7 Base Placement).
 
@@ -48,18 +47,19 @@ Bases are placed automatically once the terrain map is generated (see §7 Base P
 
 Each base has a **strength (SP)** pool separate from its garrisoned units. Garrisoned units each
 contribute 1 SP to the base's combined defense and are destroyed before the base's own SP is hit
-(see §5 Combat).
+(see §4 Combat).
 
 | Base | Can build | Location requirement | View | Strength |
 |---|---|---|---|---|
-| Land base | All vehicles | Gras/gravel/sand; not adjacent to any water | 4 | 20 |
-| Port base | Boats + tank | Gras/gravel/sand; must be adjacent to water. Carrier only buildable if adjacent to deep water | 4 | 20 |
-| Mountain base | Planes only | Mountain, with all 6 hex neighbors also mountain | 8 | 20 |
+| Land base | Vehicles | Gras/gravel/sand; not adjacent to any water | 4 | 20 |
+| Port base | Boats + Vehicles | Gras/gravel/sand; must be adjacent to water. Carrier only buildable if adjacent to deep water | 4 | 20 |
+| Mountain base | Planes only | Mountain, with all neighbors also mountain | 8 | 20 |
 
 ### Build & repair economy
 - **bbt** (base build time) = 5 turns. **bbr** (base repair time) = 2 turns.
 - A base builds 1 unit at a time, can repair up to 5 units in parallel, and holds a queue of up
   to 5 pending builds. Capacity: 15 units max (garrisoned + in-progress builds count against it).
+- Repair queueing at a base (when more than 5 units need it) is first-come, arrival order.
 - A build in progress occupies 1 capacity slot. If the base is at max capacity, new builds cannot
   start until a slot frees up.
 - A boat entering a base with loaded units unloads them for free, directly into the base — but
@@ -71,10 +71,10 @@ contribute 1 SP to the base's combined defense and are destroyed before the base
 | Unit | Cost |
 |---|---|
 | Tank | 1× |
-| Transporter | 1× |
 | Fighter | 2× |
-| Fregat | 3× |
 | Bomber | 5× |
+| Fregat | 3× |
+| Transporter | 1× |
 | Carrier | 8× |
 
 **Repair rate:** every vehicle repairs 10 SP per bbr. A damaged base recovers 1 SP per turn
@@ -82,18 +82,25 @@ contribute 1 SP to the base's combined defense and are destroyed before the base
 
 ---
 
-## 3. Vehicles
+## 3. Units
 
 Move cost is action points spent to enter a cell of that terrain (no partial moves; `0` = impassable).
+Garrisoned state of unit means loaded into other unit or base 
 
-| Unit | Actions/turn | Attacks/turn | Attack range | Needs LOS | View | Strength | Ground / Air atk | Special |
-|---|---|---|---|---|---|---|---|---|
-| Tank | 5 | 1 | 1 | Yes | 3 | 10 | 4 / 1 | — |
-| Fighter | 8 | 1 | 1 | No | 5 | 15 | 2 / 4 | Returns to base/carrier after 4 strikes; 100-cell round-trip range limit; crashes if exceeded |
-| Bomber | 6 | 1 | 1 | No | 8 | 10 | 8 / 1 | Returns to base after 2 strikes; 200-cell range limit; crashes if exceeded |
-| Fregat | 5 | 1 | 1 | Yes | 6 | 15 | 6 / 4 | — |
-| Transporter | 8 | 1 | 1 | Yes | 3 | 30 | 0 / 0 | Holds 5 tanks |
-| Carrier | 3 | 1 | 4 | No | 5 | 25 | 8 / 4 | Holds 5 planes |
+**Unit Spec**
+
+| Unit | Category | Target type | Actions/turn | Attacks/turn | Attack range | Needs LOS | View | Strength | Ground / Air atk | Special |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Tank | Vehicle | ground | 5 | 2 | 1 | Yes | 3 | 10 | 4 / 1 | — |
+| Fighter | Plane | air | 8 | 1 | 2 | No | 5 | 15 | 2 / 4 | Max 4 strikes before returning to base/carrier to rearm; 100-cell round-trip range limit |
+| Bomber | Plane | air | 6 | 1 | 1 | No | 8 | 10 | 8 / 1 | Max 2 strikes before returning to base to rearm; 200-cell round-trip range limit |
+| Fregat | Boat | ground | 5 | 1 | 2 | Yes | 6 | 15 | 6 / 4 | — |
+| Transporter | Boat | ground | 8 | 1 | 1 | Yes | 3 | 30 | 0 / 0 | Holds 5 tanks |
+| Carrier | Boat | ground | 3 | 1 | 4 | No | 5 | 25 | 8 / 4 | Holds 5 planes |
+
+Generic Planes rules:
+* crashes if range limit is exceeded
+* must mandatory at least move 50% of their total availble actions when not Garrisoned, an attack does not count as action for this purpose. The idea is that planes need to refuel hence the range limit.
 
 **Move cost per terrain (action points):**
 
@@ -108,11 +115,13 @@ Move cost is action points spent to enter a cell of that terrain (no partial mov
 
 ### Actions
 - Attacking costs 1 action.
-- Loading/unloading a boat or base costs 1 action; entering or exiting therefore costs 2 actions
-  total (1 move + 1 load/unload). For a boat this can happen anywhere water is adjacent to land.
+- For loading/entering the target base or unit construction or garrison types determine access. e.g. tank can move onto transporter on water as the transporter can garrison tanks.
+- Loading/unloading a boat or base costs 1 action; entering or exiting therefore costs 1 actions + move cost in
+  total (e.g tank on grass 1 move + 1 load/unload = 2). For a boat this can happen anywhere water is adjacent to land.
 - Open-field unit-vs-unit combat: attacker's attack value is subtracted from the defender's
   strength; the defender is destroyed at 0.
 - Boats and bases are always classified as "ground" targets for attack-type purposes.
+- Garrisoned units are always classified as "ground" targets for attack-type purposes.
 
 ---
 
@@ -124,7 +133,7 @@ mountain base (unreachable by tank or boat) can only be claimed by a fighter.
 
 **Attacking a claimed (enemy-owned) base:**
 - Destroying it costs damage equal to the base's own strength + 1 SP per unit inside
-  (garrisoned or under construction).
+  (garrisoned only; under construction is not included).
 - Each attack first destroys garrisoned units (1 SP each, oldest-entered first), then spills
   remaining damage onto the base's own strength.
   *Example:* a base with 4 garrisoned units + 1 unit under construction is hit by a tank
@@ -145,9 +154,22 @@ mountain base (unreachable by tank or boat) can only be claimed by a fighter.
 **On capture by an attacker:** any in-progress build and the queue are cleared, and base strength
 is restored to 4 (recovering the remaining 16 via normal 1/turn passive repair).
 
+**On re-capture by an original owner:** which can only be done if no build finishes (as it would auto re-capture instead), the base strength
+is restored to 4 and any in-progress build keeps continuing.
+
 ---
 
-## 5. Fog of War
+## 5. Base Placement
+
+Bases are distributed automatically at game start using a **Grid-cell / Voronoi-region**
+heuristic: the map is divided into roughly equal regions (seeded from evenly spaced points), and
+one base is placed per region via rejection sampling against each base type's terrain and
+min-distance rules. Chosen so this heuristic can be swapped for another later without changing
+anything else.
+
+---
+
+## 6. Fog of War
 
 - Hides both cells and units outside current view range.
 - Once a cell is explored, its terrain stays revealed, but units on it are hidden again once out
@@ -155,11 +177,10 @@ is restored to 4 (recovering the remaining 16 via normal 1/turn passive repair).
 
 ---
 
-## 6. Turns & Game Loop
+## 7. Game Setup, Loop and turns
 
 ### Match setup
-1. Load a saved game if one exists, or choose game options (AI count/difficulty, map size/type, fog
-   on/off) and start a new game.
+1. Load a saved game if one exists, or choose game options (see §8) and start a new game.
 2. Turn order is randomized once at game start and then stays fixed.
 
 ### Per-turn sequence
@@ -172,9 +193,10 @@ is restored to 4 (recovering the remaining 16 via normal 1/turn passive repair).
      taken.
    - **AI:** actions play out step by step, at a configurable speed (instant / fast [1s per
      action] / slow [2s per action]).
-5. Mid-turn options for the human player: save (captures exact mid-turn state, single slot),
-   quit (exits to menu, last save intact, no result recorded), or terminate (instant elimination
-   — treated exactly like losing all bases — ends the match immediately).
+5. Mid-turn options for the human player: 
+   1. save (captures exact mid-turn state, single slot)
+   2. quit (exits to menu, last save intact, no result recorded)
+   3. terminate (instant elimination — treated exactly like losing all bases — ends the match immediately)
 6. End turn; advance to the next player.
 
 ### Elimination & end of game
@@ -183,16 +205,6 @@ is restored to 4 (recovering the remaining 16 via normal 1/turn passive repair).
 - End screen: victory/loss result, full map reveal (fog removed, but read-only — no further
   actions), all bases/units annotated with details, and a stats dialog (units built/lost per
   player).
-
----
-
-## 7. Base Placement
-
-Bases are distributed automatically at game start using a **Grid-cell / Voronoi-region**
-heuristic: the map is divided into roughly equal regions (seeded from evenly spaced points), and
-one base is placed per region via rejection sampling against each base type's terrain and
-min-distance rules. Chosen so this heuristic can be swapped for another later without changing
-anything else.
 
 ---
 
@@ -233,8 +245,7 @@ landmasses it already occupies. "Nearest" is always measured from the acting uni
 position, not a base or army-wide centroid — this keeps evaluation cheap, at the cost of
 aggressive AI sometimes looking more opportunistic than coordinated.
 
-**Field units** = any unit not currently garrisoned/stationed at a base.
-**Repair queueing** at a base (when more than 5 units need it) is first-come, arrival order.
+**Field units** = any unit not currently garrisoned/stationed at a base or other unit.
 **Ties** (equally close/equally weak options) are broken by lowest unit ID, for determinism.
 
 ### Strategies
@@ -252,19 +263,20 @@ aggressive AI sometimes looking more opportunistic than coordinated.
 2. Else attack an enemy in range that's threatening a friendly base (within that base's view).
 3. Else hold near the nearest friendly base — only move toward it if farther away than
    (that base's view + this unit's view). E.g. a tank near a land base: 4 + 3 = 7 cells.
-4. Idle at full strength with no threat present: takes no action (unused budget is intentional).
+4. Idle at full strength with no threat present, and not capture-eligible or no known unclaimed
+   base exists: takes no action (unused budget is intentional).
+5. Else (capture-eligible, a known unclaimed base exists, and rules 1–4 found nothing to do):
+   pathfind toward the nearest known unclaimed base to expand.
 - Build order: cheapest to most expensive by bbt — Tank/Transporter (1×) > Fighter (2×) >
   Fregat (3×) > Bomber (5×) > Carrier (8×).
-- Expansion: pathfinds a spare capturing-eligible unit toward the nearest known unclaimed base,
-  but only if not needed for defense (rules 1–2 always take priority).
 - Target priority: highest attack value first (neutralize the biggest threat, not the easiest kill).
 
 **Balanced**
 1. If damaged, retreat to repair (as Defensive).
 2. Else attack an enemy in range.
 3. Else, if a known unclaimed base exists and this unit can capture it, move toward it.
-4. Else move toward the nearest known enemy — but never leave a base with zero units in view
-   range to do so.
+4. Else move toward the nearest known enemy — but never leave a player owned base with zero units, either units in view
+   range or garissoned, to do so.
 - Build order: an even mix — Tank > Fighter > Transporter > Fregat > Bomber > Carrier.
 - Target priority: lowest remaining strength (same simplification as Aggressive for v1).
 
