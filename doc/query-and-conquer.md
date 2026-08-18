@@ -39,7 +39,7 @@ with one base; win by capturing/destroying every other base on the map.
 For each size × type combination, 10 candidate maps are pre-generated; one is picked at random
 based on the chosen game options. Within the max single dimension and max cells specified, the shape of the map can be rectangle portrait/landscape, square, hexagonal or circle shaped, trying to maximize number of cells.
 
-Bases are placed automatically once the terrain map is generated (see §7 Base Placement).
+Bases are placed automatically once the terrain map is generated (see §5 Base Placement).
 
 ---
 
@@ -180,45 +180,53 @@ anything else.
 ## 7. Game Setup, Loop and turns
 
 ### Match setup
-1. Load a saved game if one exists, or choose game options (see §8) and start a new game.
+1. Load a saved game if one exists, or choose game options (see Game Options below) and start a new game.
 2. Turn order is randomized once at game start and then stays fixed.
 
+### Game Options
+
+- 1 to 5 AI opponents.
+- Per-AI difficulty: easy or hard.
+- Map size: small / medium / large / extra large.
+- Map type: land-only / mixed / islands.
+- Fog of war: on/off.
+  
 ### Per-turn sequence
 1. Recalculate base repairs.
 2. Complete any builds whose timer expired.
 3. Resolve automatic neutral-base recapture (see §4).
 4. Hand control to the active player.
-   - **Human:** freely selects actions between units in any order until all actions are spent or
-     they choose to end the turn early. No unused actions carry over. No undo once an action is
-     taken.
+   - **Human:** freely selects actions between units in any order until every unit's own action
+     budget is spent (see §3's per-unit Actions/turn) or they choose to end the turn early. No
+     unused actions carry over. No undo once an action is taken.
    - **AI:** actions play out step by step, at a configurable speed (instant / fast [1s per
      action] / slow [2s per action]).
 5. Mid-turn options for the human player: 
    1. save (captures exact mid-turn state, single slot)
    2. quit (exits to menu, last save intact, no result recorded)
    3. terminate (instant elimination — treated exactly like losing all bases — ends the match immediately)
-6. End turn; advance to the next player.
+6. Check elimination (see below), then end turn; advance to the next player.
 
 ### Elimination & end of game
-- A player who loses all bases is eliminated; remaining players keep their existing turn order.
-- The game ends when only one player still owns any base.
+- A player is eliminated when they own **zero bases and have zero units** anywhere — none in the
+  field, none garrisoned, and none under construction. Both conditions together, not either alone:
+  - Owning a base keeps you in the game even with zero current units (you can just queue a build).
+  - Having any unit keeps you in the game even with zero bases — including a unit still under
+    construction at a former base that's currently neutral (per §4, a build survives its base
+    going neutral), which is what lets that base's auto-recapture actually get a chance to happen
+    before elimination is evaluated.
+- Remaining players keep their existing turn order (the eliminated player's slot is simply
+  skipped).
+- The game ends when only one player still owns any base (a simultaneous all-neutral state with
+  no player owning a base, however unlikely, is not itself an end condition — the game continues
+  until eliminations or recaptures resolve it to one owner).
 - End screen: victory/loss result, full map reveal (fog removed, but read-only — no further
   actions), all bases/units annotated with details, and a stats dialog (units built/lost per
   player).
 
 ---
 
-## 8. Options
-
-- 1 to 5 AI opponents.
-- Per-AI difficulty: easy or hard.
-- Map size: small / medium / large / extra large.
-- Map type: islands / land-only / mixed.
-- Fog of war: on/off.
-
----
-
-## 9. AI Behavior
+## 8. AI Behavior
 
 ### Assignment
 - **Strategy** (Aggressive / Defensive / Balanced) is auto-assigned per AI: build a list of the
