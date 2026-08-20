@@ -18,7 +18,8 @@ shifts during implementation.
 - [x] Spec
 - [x] Style page for development
 - [x] Simple opening page with background
-- [ ] Deployment (GitHub Pages, per tech-stack.md) — workflow built, not yet pushed/enabled
+- [ ] Deployment (GitHub Pages, per tech-stack.md) — workflow merged to main; pending the
+      one-time Settings → Pages → Source: GitHub Actions toggle
 
 ## Stage 2 — Map creation
 - [ ] Spec
