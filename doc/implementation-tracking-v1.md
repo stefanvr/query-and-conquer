@@ -21,14 +21,16 @@ shifts during implementation.
 - [X] Deployment (GitHub Pages, per tech-stack.md)
 
 ## Stage 2 — Map creation
-- [ ] Spec
-- [ ] Implement map generation (§1: terrain rules, land/water body sizing, shallow-water chains,
+- [x] Spec
+- [x] Implement map generation (§1: terrain rules, land/water body sizing, shallow-water chains,
       size/type tables)
-- [ ] Create build run script (regenerate maps only when the generation script changes)
-- [ ] Create maps preview page
-- [ ] Verify shallow/deep water adjacency doesn't always cap at exactly 3 shallow cells, so
-      deep-water-adjacent ports (and therefore carriers) stay buildable
-- [ ] Verify the islands map type actually lands in the 35–40% water range
+- [x] Create build run script (regenerate maps only when the generation script changes)
+- [x] Create maps preview page
+- [x] Verify shallow/deep water adjacency doesn't always cap at exactly 3 shallow cells, so
+      deep-water-adjacent ports (and therefore carriers) stay buildable — 70/70 generated maps
+      with deep water have land directly adjacent to it
+- [x] Verify the islands map type actually lands in the 35–40% water range — 30/30 generated
+      islands maps measure 35.0-39.9% water
 
 ## Stage 3 — Outer game loop
 - [ ] Spec
