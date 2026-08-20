@@ -15,5 +15,13 @@ npm test          # node:test — unit/integration tests
 npm run test:e2e  # Playwright — thin UI-wiring smoke tests
 ```
 
-`dev/style-guide.html` is a living reference of the design tokens/components in
-[doc/style-guide.md](doc/style-guide.md), served the same way as the app itself.
+### Dev-only pages
+
+Open these through the dev server, not by double-clicking the file — they use `fetch` and ES
+module imports, which browsers block under the `file://` protocol (that's the permission error
+you'll see otherwise). With `npm run dev` running:
+
+- `http://127.0.0.1:8080/dev/style-guide.html` — living reference of the design
+  tokens/components in [doc/style-guide.md](doc/style-guide.md).
+- `http://127.0.0.1:8080/dev/maps-preview.html` — static render of any pre-generated map in
+  `assets/maps/`, picked from a dropdown.
