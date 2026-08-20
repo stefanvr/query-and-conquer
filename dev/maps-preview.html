@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Query and Conquer — Maps Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Staatliches&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../src/styles/tokens.css">
+<style>
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--parchment);
+    font-family: var(--font-body);
+    padding: 20px;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    letter-spacing: 0.06em;
+    margin: 0 0 16px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  select {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--parchment);
+    background: var(--ink);
+    border: 1px solid var(--steel);
+    border-radius: 4px;
+    padding: 6px 10px;
+  }
+
+  select:hover, select:focus {
+    outline: none;
+    border-color: var(--signal);
+  }
+
+  #map-meta {
+    font-size: 13px;
+    color: var(--steel);
+  }
+
+  #map-canvas {
+    display: block;
+    background: var(--olive);
+    border: 1px solid var(--steel);
+    max-width: 100%;
+  }
+
+  .canvas-wrap {
+    overflow: auto;
+  }
+</style>
+</head>
+<body>
+  <h1>Maps Preview <span style="color: var(--steel); font-family: var(--font-body); font-size: 14px; letter-spacing: normal;">— dev-only, not part of the shipped app</span></h1>
+  <div class="controls">
+    <select id="map-select"></select>
+  </div>
+  <div id="map-meta"></div>
+  <div class="canvas-wrap">
+    <canvas id="map-canvas"></canvas>
+  </div>
+
+  <script type="module" src="maps-preview.js"></script>
+</body>
+</html>
