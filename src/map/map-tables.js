@@ -25,6 +25,14 @@ export const SHAPE_KINDS = ["rectangle", "square", "hexagon", "circle"];
 export const LAND_TERRAINS = ["gras", "gravel", "mountain", "sand"];
 export const WATER_TERRAINS = ["shallow", "deep"];
 
+export function isLandTerrain(terrain) {
+  return LAND_TERRAINS.includes(terrain);
+}
+
+export function isWaterTerrain(terrain) {
+  return WATER_TERRAINS.includes(terrain);
+}
+
 /** Minimum contiguous bounding-box extent for any disconnected land or water body (§1). */
 export const MIN_BODY_EXTENT = 4;
 
@@ -33,3 +41,11 @@ export const MAX_SHALLOW_CHAIN = 3;
 
 /** Candidate maps pre-generated per size x type combination (§1 "Generation"). */
 export const CANDIDATES_PER_COMBO = 10;
+
+/**
+ * Islands is not offered at Small size: 6 islands x 180 cells (1,080+ land cells) can't fit
+ * alongside the required 35-40% water within Small's 1,600-cell cap (§1).
+ */
+export function isComboSupported(sizeKey, typeKey) {
+  return !(sizeKey === "small" && typeKey === "islands");
+}

@@ -4,10 +4,10 @@
 // violation gets discarded and regenerated with a new seed (see generate.js).
 import { findComponents } from "./grid.js";
 import { offsetKey } from "./hex-coords.js";
-import { MIN_BODY_EXTENT, MAX_SHALLOW_CHAIN, TYPES } from "./map-tables.js";
+import { MIN_BODY_EXTENT, MAX_SHALLOW_CHAIN, TYPES, isLandTerrain, isWaterTerrain } from "./map-tables.js";
 
-const isLand = (t) => t === "gras" || t === "gravel" || t === "mountain" || t === "sand";
-const isWater = (t) => t === "shallow" || t === "deep";
+const isLand = isLandTerrain;
+const isWater = isWaterTerrain;
 
 /** BFS outward from `start` up to maxRadius hex-steps; true if a land cell is reached. */
 function hasLandWithinRadius(grid, start, maxRadius) {
