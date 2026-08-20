@@ -55,33 +55,13 @@ _Not started._
 *(app-only — start screen, game room (new game / load game), game options menu, mid-turn menu
 (save/quit/terminate), end screen; game spec §7 for the flows these implement)*
 
-### Start screen (Stage 1)
-- Single screen, no routing yet — this is the only screen the app skeleton renders. Game
-  room, options menu, mid-turn menu and end screen are built in later stages (see tracking doc);
-  this section only covers what Stage 1 needs.
-- Structure and visuals follow `style-guide.md` §9 "Start screen"/"Buttons" exactly:
-  full-bleed circular crop of `assets/background.png`, radial-gradient vignette to `--ink`,
-  Staatliches title (`QUERY & CONQUER`, `CONQUER` in `--signal`) near the top of the circle,
-  primary CTA button (`Start`) near the bottom.
-- The `Start` button is wired (click listener attached in `src/main.js`) but is currently a
-  stub — it has no game room to navigate to yet, so it only logs a placeholder action. Its
-  hover/active press states are pure CSS (`:hover`/`:active`), so they already work without any
-  JS, including on touch (`:active` fires on tap). Real navigation to the game room lands in
-  Stage 3.
-- Responsive per `tech-stack.md`'s Mobile & touch support: the circle scales via
-  `min(92vw, 640px)` and `aspect-ratio`, so it shrinks to fit a phone-portrait viewport without a
-  separate layout; the button already meets the ~44×44px touch-target minimum via its padding.
-- One webfont load (Staatliches via Google Fonts), rest is system font stack — per style guide §5.
+### Start screen
+- Circular background visual + title + `Start` button, per style-guide.md §9.
+- `Start` is a placeholder for testing — no game room to navigate to until Stage 3.
 
-### Dev style guide page (Stage 1, dev-only)
-- `dev/style-guide.html` — a living reference page for development, not part of the shipped app
-  (not linked from the start screen, not deployed as a game screen). Renders the same tokens the
-  app itself uses (`src/styles/tokens.css`, `src/styles/main.css`), so it can never drift from
-  the real palette the way a hand-copied reference doc can.
-- Shows: full color token swatches, terrain hex swatches (§4), player accent swatches (§3), fog
-  of war's three states (§7), the phase-1 text-only status treatment (§8), and unit shapes (§9)
-  once those exist. Grows alongside the app as later stages add components — e.g. selection
-  panel styles land here once Stage 7 (Side menu) builds them.
+### Dev style guide page (dev-only)
+- `dev/style-guide.html` — living reference of style-guide.md's tokens/components, not part of
+  the shipped app. Pulls the app's own CSS rather than duplicating values.
 
 ## 9. Stats display
 *(app-only — running in-HUD stats if any, and the end-of-game stats dialog per game spec §7)*
