@@ -1,0 +1,662 @@
+[
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "small-landOnly-0.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "small-landOnly-1.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "hexagon",
+    "file": "small-landOnly-2.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "circle",
+    "file": "small-landOnly-3.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "small-landOnly-4.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "small-landOnly-5.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "hexagon",
+    "file": "small-landOnly-6.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "circle",
+    "file": "small-landOnly-7.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "small-landOnly-8.json"
+  },
+  {
+    "size": "small",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "small-landOnly-9.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "small-mixed-0.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "square",
+    "file": "small-mixed-1.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "hexagon",
+    "file": "small-mixed-2.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "circle",
+    "file": "small-mixed-3.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "small-mixed-4.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "square",
+    "file": "small-mixed-5.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "hexagon",
+    "file": "small-mixed-6.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "circle",
+    "file": "small-mixed-7.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "small-mixed-8.json"
+  },
+  {
+    "size": "small",
+    "type": "mixed",
+    "shape": "square",
+    "file": "small-mixed-9.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "medium-landOnly-0.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "medium-landOnly-1.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "hexagon",
+    "file": "medium-landOnly-2.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "circle",
+    "file": "medium-landOnly-3.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "medium-landOnly-4.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "medium-landOnly-5.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "hexagon",
+    "file": "medium-landOnly-6.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "circle",
+    "file": "medium-landOnly-7.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "medium-landOnly-8.json"
+  },
+  {
+    "size": "medium",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "medium-landOnly-9.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "medium-mixed-0.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "square",
+    "file": "medium-mixed-1.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "hexagon",
+    "file": "medium-mixed-2.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "circle",
+    "file": "medium-mixed-3.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "medium-mixed-4.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "square",
+    "file": "medium-mixed-5.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "hexagon",
+    "file": "medium-mixed-6.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "circle",
+    "file": "medium-mixed-7.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "medium-mixed-8.json"
+  },
+  {
+    "size": "medium",
+    "type": "mixed",
+    "shape": "square",
+    "file": "medium-mixed-9.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "medium-islands-0.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "square",
+    "file": "medium-islands-1.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "hexagon",
+    "file": "medium-islands-2.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "circle",
+    "file": "medium-islands-3.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "medium-islands-4.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "square",
+    "file": "medium-islands-5.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "hexagon",
+    "file": "medium-islands-6.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "circle",
+    "file": "medium-islands-7.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "medium-islands-8.json"
+  },
+  {
+    "size": "medium",
+    "type": "islands",
+    "shape": "square",
+    "file": "medium-islands-9.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "large-landOnly-0.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "large-landOnly-1.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "hexagon",
+    "file": "large-landOnly-2.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "circle",
+    "file": "large-landOnly-3.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "large-landOnly-4.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "large-landOnly-5.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "hexagon",
+    "file": "large-landOnly-6.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "circle",
+    "file": "large-landOnly-7.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "large-landOnly-8.json"
+  },
+  {
+    "size": "large",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "large-landOnly-9.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "large-mixed-0.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "square",
+    "file": "large-mixed-1.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "hexagon",
+    "file": "large-mixed-2.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "circle",
+    "file": "large-mixed-3.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "large-mixed-4.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "square",
+    "file": "large-mixed-5.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "hexagon",
+    "file": "large-mixed-6.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "circle",
+    "file": "large-mixed-7.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "large-mixed-8.json"
+  },
+  {
+    "size": "large",
+    "type": "mixed",
+    "shape": "square",
+    "file": "large-mixed-9.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "large-islands-0.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "square",
+    "file": "large-islands-1.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "hexagon",
+    "file": "large-islands-2.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "circle",
+    "file": "large-islands-3.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "large-islands-4.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "square",
+    "file": "large-islands-5.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "hexagon",
+    "file": "large-islands-6.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "circle",
+    "file": "large-islands-7.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "large-islands-8.json"
+  },
+  {
+    "size": "large",
+    "type": "islands",
+    "shape": "square",
+    "file": "large-islands-9.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "extraLarge-landOnly-0.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "extraLarge-landOnly-1.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "hexagon",
+    "file": "extraLarge-landOnly-2.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "circle",
+    "file": "extraLarge-landOnly-3.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "extraLarge-landOnly-4.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "extraLarge-landOnly-5.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "hexagon",
+    "file": "extraLarge-landOnly-6.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "circle",
+    "file": "extraLarge-landOnly-7.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "rectangle",
+    "file": "extraLarge-landOnly-8.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "landOnly",
+    "shape": "square",
+    "file": "extraLarge-landOnly-9.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "extraLarge-mixed-0.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "square",
+    "file": "extraLarge-mixed-1.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "hexagon",
+    "file": "extraLarge-mixed-2.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "circle",
+    "file": "extraLarge-mixed-3.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "extraLarge-mixed-4.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "square",
+    "file": "extraLarge-mixed-5.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "hexagon",
+    "file": "extraLarge-mixed-6.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "circle",
+    "file": "extraLarge-mixed-7.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "rectangle",
+    "file": "extraLarge-mixed-8.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "mixed",
+    "shape": "square",
+    "file": "extraLarge-mixed-9.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "extraLarge-islands-0.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "square",
+    "file": "extraLarge-islands-1.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "hexagon",
+    "file": "extraLarge-islands-2.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "circle",
+    "file": "extraLarge-islands-3.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "extraLarge-islands-4.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "square",
+    "file": "extraLarge-islands-5.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "hexagon",
+    "file": "extraLarge-islands-6.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "circle",
+    "file": "extraLarge-islands-7.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "rectangle",
+    "file": "extraLarge-islands-8.json"
+  },
+  {
+    "size": "extraLarge",
+    "type": "islands",
+    "shape": "square",
+    "file": "extraLarge-islands-9.json"
+  }
+]
