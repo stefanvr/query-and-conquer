@@ -36,7 +36,11 @@ with one base; win by capturing/destroying every other base on the map.
 | Mixed | Between 10% and 30% water; Minimum of 2 coasts with deepwater adjecent |
 | Islands |  Between 35% and 40% water; islands may touch the map border; minimum island size 180; minimum islands is 6; Minimum of 3 island with deepwater adjecent |
 
-For each size × type combination, 10 candidate maps are pre-generated; one is picked at random
+Islands is not offered at Small size: 6 islands × 180 cells is already 1,080+ land cells, which
+can't fit alongside 35–40% water within Small's 1,600-cell cap. Islands becomes available
+starting at Medium.
+
+For each size × type combination (except Small × Islands), 10 candidate maps are pre-generated; one is picked at random
 based on the chosen game options. Within the max single dimension and max cells specified, the shape of the map can be rectangle portrait/landscape, square, hexagonal or circle shaped, trying to maximize number of cells.
 
 Bases are placed automatically once the terrain map is generated (see §5 Base Placement).
@@ -188,7 +192,7 @@ anything else.
 - 1 to 5 AI opponents.
 - Per-AI difficulty: easy or hard.
 - Map size: small / medium / large / extra large.
-- Map type: land-only / mixed / islands.
+- Map type: land-only / mixed / islands (islands unavailable when map size is small — see §1).
 - Fog of war: on/off.
   
 ### Per-turn sequence
