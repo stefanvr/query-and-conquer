@@ -4,6 +4,7 @@
 // (odd-q offset coords, per tech-stack.md); non-rectangular shapes just mark some of that
 // rectangle's cells as outside the map.
 import { offsetToCube, cubeToOffset } from "./hex-coords.js";
+import { hexToPixel } from "./hex-pixel.js";
 
 /**
  * @param {number} maxDimension
@@ -58,14 +59,6 @@ function hexagonShape(maxDimension, maxCells) {
   return best;
 }
 
-/** Flat-top pixel position for a hex at (col, row), size=1 units — used only to approximate a
- * circular region; not the app's real on-screen placement math. */
-function pixelPosition(col, row) {
-  const px = 1.5 * col;
-  const py = Math.sqrt(3) * (row + 0.5 * (((col % 2) + 2) % 2));
-  return { px, py };
-}
-
 /** A roughly circular region: all cells within pixel-distance R of the origin, grown until it
  * would exceed maxCells or maxDimension. */
 function circleShape(maxDimension, maxCells) {
@@ -76,8 +69,8 @@ function circleShape(maxDimension, maxCells) {
     const cells = [];
     for (let col = -colSpan; col <= colSpan; col++) {
       for (let row = -rowSpan; row <= rowSpan; row++) {
-        const { px, py } = pixelPosition(col, row);
-        if (Math.sqrt(px * px + py * py) <= R) cells.push({ col, row });
+        const { x, y } = hexToPixel(col, row, 1);
+        if (Math.sqrt(x * x + y * y) <= R) cells.push({ col, row });
       }
     }
     const result = normalizeCells(cells);
