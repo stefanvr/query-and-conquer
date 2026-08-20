@@ -12,6 +12,13 @@ sections here, not one exclusively, so check this file's relevant sections befor
 stage rather than a single same-named one. Keep a section updated if the design shifts during
 implementation.
 
+**Format:** keep sections to short bullet-point guidance for *implementing* the feature — not
+prose paragraphs explaining rationale, backstory, or restating what the game spec, tech stack
+doc, or tracking doc already cover. Favor something like "circular background visual + title +
+Start button, per style-guide.md §9" over a multi-paragraph explanation of why each visual choice
+was made or how it maps to CSS — that level of detail belongs in code comments or the tracking
+doc, not here.
+
 ---
 
 ## 1. Map & camera

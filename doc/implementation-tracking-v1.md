@@ -5,12 +5,20 @@ earlier stages have already built — no stage's tasks should depend on somethin
 hasn't built yet. Cross-references: game design in [query-and-conquer.md](query-and-conquer.md),
 tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](style-guide.md).
 
-**Workflow, per stage:** before starting a stage's build tasks, check the relevant section(s) of
-[implementation-spec.md](implementation-spec.md) — organized by game element/module, not by
-stage, so a stage typically touches a handful of sections there — and write/update whichever of
-them the stage's features need. That's the "Spec" checkbox at the top of each stage below. Only
-start the build checkboxes once those sections are filled in; update them again if the design
-shifts during implementation.
+**Workflow, per stage:**
+1. **Review the plan.** Re-read the stage's own checklist below and check whether it still holds
+   up — add, remove, or tweak steps based on what's been learned since it was written (e.g. from
+   how the previous stage actually went). Do this before touching the spec or any code.
+2. **Fill in the spec, then stop.** Check the relevant section(s) of
+   [implementation-spec.md](implementation-spec.md) — organized by game element/module, not by
+   stage, so a stage typically touches a handful of sections there, not one exclusively — and
+   write/update whichever of them the stage's features need (see that doc's own Format note).
+   That's the "Spec" checkbox at the top of each stage below. Present the result and wait for
+   explicit sign-off before writing any implementation code; update the section again if the
+   design shifts once implementation starts.
+3. **Implement with one commit per step.** Once the spec is confirmed, work through the stage's
+   checklist items and commit each one separately rather than bundling the whole stage into a
+   single commit.
 
 ---
 
