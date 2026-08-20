@@ -15,10 +15,10 @@ shifts during implementation.
 ---
 
 ## Stage 1 — App skeleton
-- [ ] Spec
-- [ ] Style page for development
-- [ ] Simple opening page with background
-- [ ] Deployment (GitHub Pages, per tech-stack.md)
+- [x] Spec
+- [x] Style page for development
+- [x] Simple opening page with background
+- [ ] Deployment (GitHub Pages, per tech-stack.md) — workflow built, not yet pushed/enabled
 
 ## Stage 2 — Map creation
 - [ ] Spec

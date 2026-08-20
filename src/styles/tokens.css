@@ -1,0 +1,31 @@
+/* Design tokens — mirrors doc/style-guide.md §2–4. One source of truth; nothing else
+   hand-rolls these values. */
+:root {
+  /* §2 Color tokens */
+  --ink: #0B0400;
+  --olive: #262714;
+  --steel: #6B7276;
+  --rust: #B81C00;
+  --signal: #F59100;
+  --parchment: #EDE4D3;
+
+  /* §3 Player accent colors */
+  --p-human: #F59100;
+  --p-ai-1: #3B7CB8;
+  --p-ai-2: #7A4F9E;
+  --p-ai-3: #C9A227;
+  --p-ai-4: #2E8C74;
+  --p-ai-5: #C24E7A;
+
+  /* §4 Terrain tile colors */
+  --t-gras: #4F5D33;
+  --t-gravel: #8D8370;
+  --t-mountain: #6B7276;
+  --t-sand: #8C6B44;
+  --t-shallow: #4C7A82;
+  --t-deep: #1F3F49;
+
+  /* §5 Typography */
+  --font-display: "Staatliches", system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
