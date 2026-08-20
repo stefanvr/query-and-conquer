@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "live-server --port=8080 --no-browser",
+    "maps:generate": "node scripts/generate-maps.js",
     "test": "node --test test/",
     "test:e2e": "playwright test"
   },
