@@ -20,7 +20,11 @@ states. Base placement, §5, is fully automatic and has no dedicated UX surface 
 placement-adjacent UI, e.g. a start-of-game camera focus, here instead. Pan/zoom design here
 must account for touch (drag-pan, pinch-zoom, `touch-action: none` on the canvas) alongside
 mouse — see tech-stack.md's Mobile & touch support section.)*
-_Not started._
+
+### Maps preview page (dev-only)
+- Static grid render of each pre-generated map, flat terrain colors (style-guide.md §4), no
+  pan/zoom/interaction — a visual check on generation output, not the real game camera.
+- In-game camera (pan/zoom/selection) lands in Stage 3.
 
 ## 2. Bases
 *(game spec §2 — base info panel, build/queue interaction, capacity display, repair status)*
