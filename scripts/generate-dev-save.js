@@ -33,7 +33,8 @@ const grid = deserializeGrid(state.map.width, state.map.height, state.map.rows);
 const humanBase = playerBase(state, 0);
 queueBuild(state, humanBase.id, "tank");
 for (let i = 0; i < buildTurns("tank"); i++) processTurnStart(state, 0);
-unloadUnit(state, grid, humanBase.id, humanBase.garrison[0].id);
+// (humanBase.col + 1, humanBase.row) — e2e tests assume the tank lands one hex east of the base.
+unloadUnit(state, grid, humanBase.id, humanBase.garrison[0].id, humanBase.col + 1, humanBase.row);
 
 fs.writeFileSync(path.join(repoRoot, "assets", "dev-save.json"), JSON.stringify(state));
 console.log("Wrote assets/dev-save.json");

@@ -90,19 +90,19 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
 slot-grid panel and garrison-select flow — the plain-text queue/garrison lists and
 auto-picked unload destination were meant as v1 placeholders, not the intended end state.*
 - [x] Spec
-- [ ] Base panel: Building/Queue/Garrison as visual slot grids (icon + label per slot, empty
+- [x] Base panel: Building/Queue/Garrison as visual slot grids (icon + label per slot, empty
       slots dimmed), replacing the plain-text lines (§2)
-- [ ] `cancelQueuedBuild(state, baseId, queueIndex)` and
+- [x] `cancelQueuedBuild(state, baseId, queueIndex)` and
       `reorderQueuedBuild(state, baseId, queueIndex, direction)` commands
-- [ ] Queue slot interaction: click a filled slot to reveal Remove / Move up / Move down controls
+- [x] Queue slot interaction: click a filled slot to reveal Remove / Move up / Move down controls
       (§2)
-- [ ] `unloadUnit` takes an explicit destination instead of auto-picking the first valid hex
-- [ ] Garrison slot interaction: click a filled, owned slot to enter unload-preview mode — base
+- [x] `unloadUnit` takes an explicit destination instead of auto-picking the first valid hex
+- [x] Garrison slot interaction: click a filled, owned slot to enter unload-preview mode — base
       panel closes, the unit's token draws on top of the base on the map, valid adjacent
       destinations highlight (§1/§2)
-- [ ] Unload-preview mode: click the base/unit to cancel back to the base panel; click a
+- [x] Unload-preview mode: click the base/unit to cancel back to the base panel; click a
       highlighted hex to confirm the unload there (§1/§2)
-- [ ] Update dev save script + e2e tests for the new unload flow
+- [x] Update dev save script + e2e tests for the new unload flow
 
 ## Stage 6 — Combat, base capture & repair economy
 *Repair only becomes testable once a unit can move, take damage, and re-enter a base to

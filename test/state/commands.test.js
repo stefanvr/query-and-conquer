@@ -222,13 +222,14 @@ test("a completed build never starts the next queued item if the base is at max 
 
 // --- Movement / load / unload (Stage 5) ---
 
-test("unloadUnit places the garrisoned unit on a valid adjacent hex, deducting 1 action + move cost", () => {
+test("unloadUnit places the garrisoned unit on the given adjacent hex, deducting 1 action + move cost", () => {
   const s = state([0], 0);
   const grid = allLandGrid();
   const base = landBase({ col: 5, row: 5, garrison: [{ id: 0, unitType: "tank" }] });
   s.bases.push(base);
+  const [dest] = grid.neighborsOf(base.col, base.row);
 
-  unloadUnit(s, grid, base.id, 0);
+  unloadUnit(s, grid, base.id, 0, dest.col, dest.row);
 
   assert.equal(base.garrison.length, 0);
   assert.equal(s.units.length, 1);
@@ -238,20 +239,29 @@ test("unloadUnit places the garrisoned unit on a valid adjacent hex, deducting 1
   assert.equal(unit.sp, UNIT_TYPES.tank.strength);
   // gras move cost is 1, unload itself is 1 action -> 2 spent
   assert.equal(unit.remainingActions, UNIT_TYPES.tank.actionsPerTurn - 2);
-  assert.equal(grid.neighborsOf(base.col, base.row).some((n) => n.col === unit.col && n.row === unit.row), true);
+  assert.equal(unit.col, dest.col);
+  assert.equal(unit.row, dest.row);
 });
 
-test("unloadUnit is a no-op if every adjacent hex is occupied", () => {
+test("unloadUnit is a no-op if the given hex isn't a valid destination (occupied)", () => {
   const s = state([0], 0);
   const grid = allLandGrid();
   const base = landBase({ col: 5, row: 5, garrison: [{ id: 0, unitType: "tank" }] });
   s.bases.push(base);
-  let nextId = 100;
-  for (const n of grid.neighborsOf(base.col, base.row)) {
-    s.units.push({ id: nextId++, ownerId: 1, unitType: "tank", col: n.col, row: n.row, sp: 10, maxSp: 10, remainingActions: 0 });
-  }
+  const [dest] = grid.neighborsOf(base.col, base.row);
+  s.units.push({ id: 100, ownerId: 1, unitType: "tank", col: dest.col, row: dest.row, sp: 10, maxSp: 10, remainingActions: 0 });
 
-  unloadUnit(s, grid, base.id, 0);
+  unloadUnit(s, grid, base.id, 0, dest.col, dest.row);
+  assert.equal(base.garrison.length, 1, "unit never left the base");
+});
+
+test("unloadUnit is a no-op if the given hex isn't adjacent to the base", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const base = landBase({ col: 5, row: 5, garrison: [{ id: 0, unitType: "tank" }] });
+  s.bases.push(base);
+
+  unloadUnit(s, grid, base.id, 0, 9, 9);
   assert.equal(base.garrison.length, 1, "unit never left the base");
 });
 

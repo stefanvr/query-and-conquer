@@ -58,7 +58,7 @@ test("moving the tank to an adjacent hex spends AP and leaves the base-adjacent 
   await expect(page.locator("#unit-panel-actions")).toBeEmpty();
 });
 
-test("loading the tank into the base moves it into the garrison, and it can be unloaded again", async ({ page }) => {
+test("loading the tank into the base moves it into the garrison, and the destination picker unloads it again", async ({ page }) => {
   const tank = await screenPosFor(page, 1, 2);
   await page.mouse.click(tank.x, tank.y);
   await expect(page.locator("#unit-panel-actions button")).toBeEnabled();
@@ -72,7 +72,36 @@ test("loading the tank into the base moves it into the garrison, and it can be u
   await expect(page.locator("#base-panel-garrison")).toContainText("TANK"); // slot label, style-guide.md §9 uppercase
   await expect(page.locator("#base-panel-capacity")).toContainText("1/15");
 
-  await page.click("#base-panel-garrison button"); // the filled garrison slot -- unloads it
+  await page.click("#base-panel-garrison button"); // enters the unload destination picker
+  await expect(page.locator("#base-panel")).toBeHidden();
+
+  const dest = await screenPosFor(page, 1, 2); // back where it started -- adjacent, passable, empty
+  await page.mouse.click(dest.x, dest.y);
+  await expect(page.locator("#unit-panel")).toBeVisible(); // the newly-placed unit's own panel opens
+  await expect(page.locator("#unit-panel-title")).toContainText("Tank");
+
+  // Close via the panel's own button rather than clicking the base's canvas position again --
+  // on a narrow mobile viewport the still-open unit panel can overlay canvas-center (same
+  // test-geometry note as unit-movement's move test above), so a canvas click there would hit
+  // the panel, not the base hex underneath it.
+  await page.click("#unit-panel-close");
+  await page.mouse.click(base.x, base.y);
   await expect(page.locator("#base-panel-garrison")).not.toContainText("TANK");
   await expect(page.locator("#base-panel-capacity")).toContainText("0/15");
+});
+
+test("clicking the base while the unload destination picker is open cancels back to the base panel", async ({ page }) => {
+  const tank = await screenPosFor(page, 1, 2);
+  await page.mouse.click(tank.x, tank.y);
+  await page.click("#unit-panel-actions button"); // Load into base
+
+  const base = await screenPosFor(page, 0, 2);
+  await page.mouse.click(base.x, base.y);
+  await page.click("#base-panel-garrison button"); // enters the unload destination picker
+  await expect(page.locator("#base-panel")).toBeHidden();
+
+  await page.mouse.click(base.x, base.y); // cancel
+  await expect(page.locator("#base-panel")).toBeVisible();
+  await expect(page.locator("#base-panel-garrison")).toContainText("TANK");
+  await expect(page.locator("#base-panel-capacity")).toContainText("1/15");
 });

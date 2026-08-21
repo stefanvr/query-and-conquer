@@ -99,39 +99,45 @@ export function moveUnit(state, grid, unitId, targetCol, targetRow) {
   return state;
 }
 
-/** Unloads a garrisoned unit from `base` onto the first valid adjacent hex (passable, unoccupied,
- * affordable) — no destination picker for v1 (implementation-spec.md §2). Costs 1 action + the
- * destination's move cost, from the unit's own fresh action budget (game spec §3). No-op if no
- * valid destination exists. */
-export function unloadUnit(state, grid, baseId, unitId) {
+/** Whether `targetCol`/`targetRow` is a valid unload destination for `garrisoned` out of `base`
+ * (implementation-spec.md §1's unload destination picker) — adjacent to the base, passable for
+ * the unit's type, unoccupied, and affordable within the unit's full action budget. Exported so
+ * the UI can compute which adjacent hexes to highlight without duplicating this logic. */
+export function isValidUnloadTarget(state, grid, base, garrisoned, targetCol, targetRow) {
+  if (offsetDistance({ col: base.col, row: base.row }, { col: targetCol, row: targetRow }) !== 1) return false;
+  if (!grid.isInMap(targetCol, targetRow)) return false;
+  if (isBlockedForMovement(state, targetCol, targetRow)) return false;
+  const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
+  if (cost === null) return false;
+  return 1 + cost <= UNIT_TYPES[garrisoned.unitType].actionsPerTurn;
+}
+
+/** Unloads a garrisoned unit from `base` onto the given (player-chosen) adjacent hex —
+ * implementation-spec.md §1's unload destination picker. Costs 1 action + the destination's move
+ * cost, from the unit's own fresh action budget (game spec §3). No-op if the destination isn't a
+ * valid unload target. */
+export function unloadUnit(state, grid, baseId, unitId, targetCol, targetRow) {
   const base = state.bases.find((b) => b.id === baseId);
   if (!base) return state;
   const index = base.garrison.findIndex((u) => u.id === unitId);
   if (index === -1) return state;
 
   const garrisoned = base.garrison[index];
+  if (!isValidUnloadTarget(state, grid, base, garrisoned, targetCol, targetRow)) return state;
+
   const stats = UNIT_TYPES[garrisoned.unitType];
-
-  for (const n of grid.neighborsOf(base.col, base.row)) {
-    if (isBlockedForMovement(state, n.col, n.row)) continue;
-    const cost = moveCost(garrisoned.unitType, grid.get(n.col, n.row));
-    if (cost === null) continue;
-    const totalCost = 1 + cost;
-    if (totalCost > stats.actionsPerTurn) continue;
-
-    base.garrison.splice(index, 1);
-    state.units.push({
-      id: garrisoned.id,
-      ownerId: base.ownerId,
-      unitType: garrisoned.unitType,
-      col: n.col,
-      row: n.row,
-      sp: stats.strength,
-      maxSp: stats.strength,
-      remainingActions: stats.actionsPerTurn - totalCost,
-    });
-    return state;
-  }
+  const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
+  base.garrison.splice(index, 1);
+  state.units.push({
+    id: garrisoned.id,
+    ownerId: base.ownerId,
+    unitType: garrisoned.unitType,
+    col: targetCol,
+    row: targetRow,
+    sp: stats.strength,
+    maxSp: stats.strength,
+    remainingActions: stats.actionsPerTurn - (1 + cost),
+  });
   return state;
 }
 

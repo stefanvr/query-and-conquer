@@ -10,6 +10,7 @@ import {
   processTurnStart,
   moveUnit,
   unloadUnit,
+  isValidUnloadTarget,
   loadUnit,
 } from "../state/commands.js";
 import { getVisibleState } from "../state/queries.js";
@@ -89,6 +90,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   let selectedBase = null;
   let selectedUnit = null;
   let selectedQueueIndex = null; // which base-panel queue slot has its Remove/Move controls open
+  let pendingUnload = null; // { base, garrisoned } while the unload destination picker is active (§1)
 
   function refreshHud() {
     const visible = getVisibleState(state, activePlayer(state).id);
@@ -195,11 +197,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
       el.type = "button";
       el.className = "slot";
       fillSlotContent(el, garrisoned.unitType);
-      el.addEventListener("click", () => {
-        unloadUnit(state, grid, base.id, garrisoned.id);
-        renderBasePanel(base);
-        camera?.draw();
-      });
+      el.addEventListener("click", () => openUnloadPreview(base, garrisoned));
       basePanelGarrison.appendChild(el);
     }
 
@@ -266,6 +264,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
     basePanel.hidden = true;
     unitPanel.hidden = true;
     camera?.setSelectedHex(null);
+    closeUnloadPreview();
   }
 
   function openBasePanel(base) {
@@ -276,6 +275,37 @@ export function initGameScreen({ onQuit, onTerminate }) {
     basePanel.hidden = false;
     camera.setSelectedHex({ col: base.col, row: base.row });
     renderBasePanel(base);
+  }
+
+  /** Every hex `garrisoned` could unload onto from `base` — mirrors unloadUnit's own validation
+   * (implementation-spec.md §1) so the UI can highlight destinations without duplicating the
+   * command's rules, only which hexes to check. */
+  function computeUnloadTargets(base, garrisoned) {
+    return grid.neighborsOf(base.col, base.row).filter((n) => isValidUnloadTarget(state, grid, base, garrisoned, n.col, n.row));
+  }
+
+  /** Enters the unload destination picker (§1): closes the base panel and shows the garrisoned
+   * unit's token on top of the base, with valid destinations highlighted. */
+  function openUnloadPreview(base, garrisoned) {
+    pendingUnload = { base, garrisoned };
+    selectedBase = null;
+    selectedUnit = null;
+    selectedQueueIndex = null;
+    basePanel.hidden = true;
+    unitPanel.hidden = true;
+    camera.setPendingUnload({
+      col: base.col,
+      row: base.row,
+      ownerId: base.ownerId,
+      unitType: garrisoned.unitType,
+      targets: computeUnloadTargets(base, garrisoned),
+    });
+  }
+
+  function closeUnloadPreview() {
+    if (!pendingUnload) return;
+    pendingUnload = null;
+    camera?.setPendingUnload(null);
   }
 
   function openUnitPanel(unit) {
@@ -299,6 +329,27 @@ export function initGameScreen({ onQuit, onTerminate }) {
   }
 
   function selectHex(col, row) {
+    if (pendingUnload) {
+      const { base, garrisoned } = pendingUnload;
+      if (col === base.col && row === base.row) {
+        // Clicking the base (== the previewed unit's own hex, since its token draws on top of
+        // the base) cancels back to the base panel (implementation-spec.md §1).
+        closeUnloadPreview();
+        openBasePanel(base);
+        return;
+      }
+      const targets = computeUnloadTargets(base, garrisoned);
+      if (targets.some((t) => t.col === col && t.row === row)) {
+        unloadUnit(state, grid, base.id, garrisoned.id, col, row);
+        closeUnloadPreview();
+        const placedUnit = state.units.find((u) => u.id === garrisoned.id);
+        if (placedUnit) openUnitPanel(placedUnit);
+        camera.draw();
+        return;
+      }
+      return; // anything else: no-op, stays in the picker
+    }
+
     if (selectedUnit && isValidMoveTarget(selectedUnit, col, row)) {
       moveUnit(state, grid, selectedUnit.id, col, row);
       camera.setSelectedHex({ col: selectedUnit.col, row: selectedUnit.row });
@@ -340,6 +391,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   /** The End Turn button: explicitly ends the human's own current turn, then cascades past any
    * AI turns that follow. */
   function advanceUntilHuman() {
+    closeUnloadPreview(); // a stale picker from this turn shouldn't survive into the next one
     endTurn(state);
     processTurnStart(state, activePlayer(state).id);
     advanceCascadeToHuman();

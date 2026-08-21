@@ -39,7 +39,10 @@ function cssVar(name) {
  * @param {object} mapData - parsed map JSON (width, height, rows)
  * @param {{ bases?: object[], units?: object[], players?: object[], selectedHex?: {col:number,row:number}|null,
  *   onSelectHex?: (col: number, row: number) => void }} [options]
- * @returns {{ draw: () => void, zoomIn: () => void, zoomOut: () => void, centerOn: (col:number,row:number) => void, destroy: () => void }}
+ * @returns {{ draw: () => void, zoomIn: () => void, zoomOut: () => void, centerOn: (col:number,row:number) => void,
+ *   setSelectedHex: (hex: {col:number,row:number}|null) => void,
+ *   setPendingUnload: (preview: {col:number,row:number,ownerId:number,unitType:string,targets:{col:number,row:number}[]}|null) => void,
+ *   destroy: () => void }}
  */
 export function createMapCamera(canvas, mapData, options = {}) {
   const { bases = [], units = [], players = [] } = options;
@@ -49,6 +52,11 @@ export function createMapCamera(canvas, mapData, options = {}) {
   const grid = deserializeGrid(mapData.width, mapData.height, mapData.rows);
   const ctx = canvas.getContext("2d");
   const camera = { x: 0, y: 0, hexSize: DEFAULT_HEX_SIZE };
+  // Unload destination picker (implementation-spec.md §1): while set, draws `unitType`/`ownerId`
+  // as a preview token on top of (col, row) — the base being unloaded from — and highlights every
+  // hex in `targets` as a selectable destination. Rendering-only; game-screen.js owns the actual
+  // click-to-cancel/click-to-confirm interaction.
+  let pendingUnload = null;
 
   function baseAt(col, row) {
     return bases.find((b) => b.col === col && b.row === row);
@@ -111,6 +119,30 @@ export function createMapCamera(canvas, mapData, options = {}) {
     drawLabelLine(sx, ty, size, `${unit.remainingActions}/${maxActions} AP`);
   }
 
+  /** The previewed unit's own token — same shape/owner-color as a placed unit (drawUnitToken),
+   * but half-opacity with a dashed stroke so it reads as "not placed yet," and no AP label since
+   * the unit isn't a field unit until the player confirms a destination. */
+  function drawPendingUnitToken(sx, sy, size, ownerId, unitType) {
+    const radius = size * 0.4;
+    const shape = UNIT_SHAPES[unitType] ?? "circle";
+    ctx.beginPath();
+    if (shape === "square") {
+      const s = radius * Math.SQRT2;
+      ctx.rect(sx - s / 2, sy - s / 2, s, s);
+    } else {
+      ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+    }
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = cssVar(ownerColorVar(ownerId));
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = Math.max(1, size * 0.08);
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.setLineDash([2, 2]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const size = camera.hexSize;
@@ -142,6 +174,13 @@ export function createMapCamera(canvas, mapData, options = {}) {
           ctx.strokeStyle = "#FFFFFF";
           ctx.stroke();
         }
+
+        if (pendingUnload?.targets.some((t) => t.col === col && t.row === row)) {
+          ctx.fillStyle = cssVar("--signal");
+          ctx.globalAlpha = 0.35;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
       }
     }
 
@@ -156,6 +195,10 @@ export function createMapCamera(canvas, mapData, options = {}) {
       const { x, y } = hexToPixel(unit.col, unit.row, size);
       const isSelected = Boolean(selectedHex && selectedHex.col === unit.col && selectedHex.row === unit.row);
       drawUnitToken(x - camera.x, y - camera.y, size, unit, isSelected);
+    }
+    if (pendingUnload) {
+      const { x, y } = hexToPixel(pendingUnload.col, pendingUnload.row, size);
+      drawPendingUnitToken(x - camera.x, y - camera.y, size, pendingUnload.ownerId, pendingUnload.unitType);
     }
   }
 
@@ -291,6 +334,10 @@ export function createMapCamera(canvas, mapData, options = {}) {
     centerOn,
     setSelectedHex(hex) {
       selectedHex = hex;
+      draw();
+    },
+    setPendingUnload(preview) {
+      pendingUnload = preview;
       draw();
     },
     destroy() {
