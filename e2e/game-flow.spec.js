@@ -27,6 +27,20 @@ test("start -> main menu -> options -> start match reaches the game screen with 
   expect(box.height).toBeGreaterThan(100);
 });
 
+test("a fresh match always lands on the human's turn, even if turn order starts with an AI", async ({ page }) => {
+  // Turn order is randomized (game spec §7) — before this was fixed, a match starting on an AI's
+  // turn just sat there, since only the End Turn button cascaded past AI turns, never match
+  // start itself. Run several times since the failure only showed up on ~half of random seeds.
+  for (let i = 0; i < 8; i++) {
+    await page.goto("/");
+    await page.evaluate(() => localStorage.clear());
+    await page.click("#start-button");
+    await page.click("#new-game-button");
+    await page.click("#start-match-button");
+    await expect(page.locator("#hud-turn-indicator")).toContainText("Human");
+  }
+});
+
 test("Islands is not offered as a map type when size is Small", async ({ page }) => {
   await page.click("#start-button");
   await page.click("#new-game-button");
@@ -104,6 +118,53 @@ test("dragging the map canvas pans the camera without errors", async ({ page }) 
   await page.click("#zoom-out-button");
 
   expect(errors).toEqual([]);
+});
+
+test("clicking the human's own base opens its panel with a build option, and empty terrain closes it", async ({ page }) => {
+  await page.click("#start-button");
+  await page.click("#new-game-button");
+  await page.click("#start-match-button");
+  await expect(page.locator("#screen-game")).toBeVisible();
+
+  // The camera centers on the human's own base at match start, so canvas center hits it.
+  const canvas = page.locator("#map-canvas");
+  const box = await canvas.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator("#base-panel")).toBeVisible();
+  await expect(page.locator("#base-panel-title")).toContainText("Base");
+  await expect(page.locator("#base-panel-capacity")).toContainText("0/15");
+  await expect(page.locator("#base-panel-build-buttons button").first()).toBeVisible();
+
+  // A tap on the panel's own close button also works, independent of hex selection.
+  await page.click("#base-panel-close");
+  await expect(page.locator("#base-panel")).toBeHidden();
+});
+
+test("queuing a build updates capacity, and its progress ticks down exactly once per End Turn", async ({ page }) => {
+  await page.click("#start-button");
+  await page.click("#new-game-button");
+  await page.click("#start-match-button");
+  await expect(page.locator("#screen-game")).toBeVisible();
+
+  const canvas = page.locator("#map-canvas");
+  const box = await canvas.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator("#base-panel")).toBeVisible();
+
+  // Base type (and so which unit types are buildable) varies with the randomly-picked map/base
+  // site — read whichever build button is first, rather than assuming Tank.
+  const firstButton = page.locator("#base-panel-build-buttons button").first();
+  const unitType = (await firstButton.textContent()).replace("Build ", "").trim();
+  await firstButton.click();
+  await expect(page.locator("#base-panel-capacity")).toContainText("1/15");
+
+  const queueText = await page.locator("#base-panel-queue").textContent();
+  const match = queueText.match(/Building: (\S+) \((\d+) turns left\)/);
+  expect(match?.[1]).toBe(unitType);
+  const initialTurns = Number(match[2]);
+
+  await page.click("#end-turn-button");
+  await expect(page.locator("#base-panel-queue")).toContainText(`Building: ${unitType} (${initialTurns - 1} turns left)`);
 });
 
 test("Surrender shows an in-app confirmation (not a native dialog) before returning to the main menu", async ({ page }) => {
