@@ -52,6 +52,29 @@ export function queueBuild(state, baseId, unitType) {
   return state;
 }
 
+/** Removes a pending (not-yet-started) queue entry (implementation-spec.md §2's queue slot
+ * click). No-op if the index is out of range. */
+export function cancelQueuedBuild(state, baseId, queueIndex) {
+  const base = state.bases.find((b) => b.id === baseId);
+  if (!base) return state;
+  if (queueIndex < 0 || queueIndex >= base.queue.length) return state;
+  base.queue.splice(queueIndex, 1);
+  return state;
+}
+
+/** Swaps a queue entry with its neighbor one step towards the front (`direction: -1`) or back
+ * (`direction: 1`) — implementation-spec.md §2's Move up/Move down queue controls. No-op if
+ * either index is out of range (already at that end of the queue). */
+export function reorderQueuedBuild(state, baseId, queueIndex, direction) {
+  const base = state.bases.find((b) => b.id === baseId);
+  if (!base) return state;
+  const target = queueIndex + direction;
+  if (queueIndex < 0 || queueIndex >= base.queue.length) return state;
+  if (target < 0 || target >= base.queue.length) return state;
+  [base.queue[queueIndex], base.queue[target]] = [base.queue[target], base.queue[queueIndex]];
+  return state;
+}
+
 /** One unit per cell, regardless of owner — bases block regular movement too, since entering a
  * base's own cell is the separate load/unload interaction, not a plain move (game spec §1/§3). */
 function isBlockedForMovement(state, col, row) {

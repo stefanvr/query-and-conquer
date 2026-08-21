@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { endTurn, terminate, queueBuild, processTurnStart, moveUnit, unloadUnit, loadUnit } from "../../src/state/commands.js";
+import {
+  endTurn,
+  terminate,
+  queueBuild,
+  cancelQueuedBuild,
+  reorderQueuedBuild,
+  processTurnStart,
+  moveUnit,
+  unloadUnit,
+  loadUnit,
+} from "../../src/state/commands.js";
 import { buildTurns, UNIT_TYPES } from "../../src/state/unit-types.js";
 import { TerrainGrid } from "../../src/map/grid.js";
 
@@ -86,6 +96,78 @@ test("queueBuild rejects once the queue already holds the max pending builds", (
   assert.equal(base.queue.length, 5);
   queueBuild(s, base.id, "tank"); // 6th queued build: rejected
   assert.equal(base.queue.length, 5);
+});
+
+// Port base, deep-water adjacent, so tank/fregat/transporter/carrier are all buildable there —
+// gives the queue tests distinguishable unit types to assert ordering on.
+function portBase(overrides = {}) {
+  return landBase({ type: "port", adjacentToDeepWater: true, ...overrides });
+}
+
+test("cancelQueuedBuild removes only the targeted pending entry, leaving the rest in order", () => {
+  const s = state([0], 0);
+  const base = portBase();
+  s.bases.push(base);
+  queueBuild(s, base.id, "tank"); // starts immediately, queue stays empty
+  queueBuild(s, base.id, "fregat");
+  queueBuild(s, base.id, "carrier");
+  assert.equal(base.queue.length, 2);
+
+  cancelQueuedBuild(s, base.id, 0);
+  assert.deepEqual(
+    base.queue.map((q) => q.unitType),
+    ["carrier"],
+  );
+});
+
+test("cancelQueuedBuild is a no-op for an out-of-range index", () => {
+  const s = state([0], 0);
+  const base = portBase();
+  s.bases.push(base);
+  queueBuild(s, base.id, "tank");
+  queueBuild(s, base.id, "fregat");
+
+  cancelQueuedBuild(s, base.id, 5);
+  assert.equal(base.queue.length, 1);
+});
+
+test("reorderQueuedBuild swaps a queue entry with its neighbor towards the front or back", () => {
+  const s = state([0], 0);
+  const base = portBase();
+  s.bases.push(base);
+  queueBuild(s, base.id, "tank"); // starts immediately
+  queueBuild(s, base.id, "fregat");
+  queueBuild(s, base.id, "carrier");
+  queueBuild(s, base.id, "transporter");
+  // queue is now [fregat, carrier, transporter]
+
+  reorderQueuedBuild(s, base.id, 2, -1); // transporter moves up, swaps with carrier
+  assert.deepEqual(
+    base.queue.map((q) => q.unitType),
+    ["fregat", "transporter", "carrier"],
+  );
+
+  reorderQueuedBuild(s, base.id, 0, 1); // fregat moves back, swaps with transporter
+  assert.deepEqual(
+    base.queue.map((q) => q.unitType),
+    ["transporter", "fregat", "carrier"],
+  );
+});
+
+test("reorderQueuedBuild is a no-op at either end of the queue", () => {
+  const s = state([0], 0);
+  const base = portBase();
+  s.bases.push(base);
+  queueBuild(s, base.id, "tank");
+  queueBuild(s, base.id, "fregat");
+  queueBuild(s, base.id, "carrier");
+
+  reorderQueuedBuild(s, base.id, 0, -1); // already at the front
+  reorderQueuedBuild(s, base.id, 1, 1); // already at the back
+  assert.deepEqual(
+    base.queue.map((q) => q.unitType),
+    ["fregat", "carrier"],
+  );
 });
 
 test("processTurnStart ticks down the in-progress build and completes it exactly on schedule", () => {
