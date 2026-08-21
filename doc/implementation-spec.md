@@ -74,18 +74,22 @@ or unit; hosts the interaction described in §2/§3 above)*
 _Not started._
 
 ## 8. Menus & screens
-*(app-only — start screen, game room (new game / load game), game options menu, mid-turn menu
-(save/quit/terminate), end screen; game spec §7 for the flows these implement)*
+*(app-only — start screen, main menu (new game / load game), game options menu, mid-turn menu
+(save/surrender/quit), end screen; game spec §7 for the flows these implement)*
 
 ### Start screen
 - Circular background visual + title + `Start` button, per style-guide.md §9.
-- `Start` is a placeholder for testing — no game room to navigate to until Stage 3.
+- `Start` is a placeholder for testing — no main menu to navigate to until Stage 3.
 
 ### Dev style guide page (dev-only)
 - `dev/style-guide.html` — living reference of style-guide.md's tokens/components, not part of
   the shipped app. Pulls the app's own CSS rather than duplicating values.
 
-### Game room
+### Main menu
+- Named "Main menu", not "Game room" — this screen is solo-game entry only; "Game room"
+  connotes a multiplayer lobby (join/host, other players present), which doesn't exist yet.
+  When multiplayer lands (tech-stack.md's future direction), it gets its own entry here
+  pointing at an actual lobby screen, rather than this one being reinterpreted.
 - Shown after Start (replaces the Stage 1 stub in `src/main.js`).
 - Two entries: New game (→ game options menu) and Load game (enabled only when the save slot has
   a save, §10).
@@ -103,7 +107,7 @@ _Not started._
 - Reached via the HUD's entry point (§6), any time during the human player's own turn.
 - Three actions, in this order: Save (§10), Surrender (instant elimination — irreversible;
   shows an in-app confirmation panel, not a native `confirm()`, before applying), Quit (return
-  to game room; save slot untouched).
+  to main menu; save slot untouched).
 - The confirmation panel reuses the mid-turn menu's own overlay backdrop, swapping which inner
   panel is shown, rather than stacking a second overlay on top.
 
@@ -116,7 +120,7 @@ _Not started._
 - Single save slot, localStorage-backed (tech-stack.md), exact mid-turn canonical state.
 - Only the mid-turn menu's Save action writes to the slot — quitting does not autosave.
 - Dev save: a fixed, hand-authored save (small test map, no bases/units yet — those land in
-  Stage 4+) separate from the player's slot, reached via the game room's `?dev`-gated "Load test
+  Stage 4+) separate from the player's slot, reached via the main menu's `?dev`-gated "Load test
   game" entry (§8).
 
 ## 11. AI behavior UX

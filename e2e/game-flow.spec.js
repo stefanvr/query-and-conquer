@@ -9,9 +9,9 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
-test("start -> game room -> options -> start match reaches the game screen with a rendered map", async ({ page }) => {
+test("start -> main menu -> options -> start match reaches the game screen with a rendered map", async ({ page }) => {
   await page.click("#start-button");
-  await expect(page.locator("#screen-game-room")).toBeVisible();
+  await expect(page.locator("#screen-main-menu")).toBeVisible();
   await expect(page.locator("#load-game-button")).toBeDisabled();
 
   await page.click("#new-game-button");
@@ -58,7 +58,7 @@ test("mid-turn Save then Quit then Load Game round-trips back into the match", a
 
   await page.click("#menu-button");
   await page.click("#quit-button");
-  await expect(page.locator("#screen-game-room")).toBeVisible();
+  await expect(page.locator("#screen-main-menu")).toBeVisible();
   await expect(page.locator("#load-game-button")).toBeEnabled();
 
   await page.click("#load-game-button");
@@ -106,7 +106,7 @@ test("dragging the map canvas pans the camera without errors", async ({ page }) 
   expect(errors).toEqual([]);
 });
 
-test("Surrender shows an in-app confirmation (not a native dialog) before returning to the game room", async ({ page }) => {
+test("Surrender shows an in-app confirmation (not a native dialog) before returning to the main menu", async ({ page }) => {
   let nativeDialogSeen = false;
   page.on("dialog", async (dialog) => {
     nativeDialogSeen = true;
@@ -130,6 +130,6 @@ test("Surrender shows an in-app confirmation (not a native dialog) before return
 
   await page.click("#surrender-button");
   await page.click("#surrender-confirm-yes");
-  await expect(page.locator("#screen-game-room")).toBeVisible();
+  await expect(page.locator("#screen-main-menu")).toBeVisible();
   expect(nativeDialogSeen).toBe(false);
 });

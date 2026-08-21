@@ -1,6 +1,6 @@
 // App entry point — screen router + glue between screens, state, and save/load. No URL
 // routing; screens are toggled via the [hidden] attribute (implementation-spec.md §8).
-import { initGameRoom } from "./screens/game-room.js";
+import { initMainMenu } from "./screens/main-menu.js";
 import { initOptionsMenu } from "./screens/options-menu.js";
 import { initGameScreen } from "./screens/game-screen.js";
 import { createGameState } from "./state/game-state.js";
@@ -17,17 +17,17 @@ function enterGameScreen(state) {
   showScreen("screen-game");
 }
 
-function returnToGameRoom() {
-  gameRoom.refresh();
-  showScreen("screen-game-room");
+function returnToMainMenu() {
+  mainMenu.refresh();
+  showScreen("screen-main-menu");
 }
 
 const gameScreen = initGameScreen({
-  onQuit: returnToGameRoom,
-  onTerminate: returnToGameRoom,
+  onQuit: returnToMainMenu,
+  onTerminate: returnToMainMenu,
 });
 
-const gameRoom = initGameRoom({
+const mainMenu = initMainMenu({
   onNewGame: () => {
     optionsMenu.resetForm();
     showScreen("screen-options");
@@ -43,7 +43,7 @@ const gameRoom = initGameRoom({
 });
 
 const optionsMenu = initOptionsMenu({
-  onBack: () => showScreen("screen-game-room"),
+  onBack: () => showScreen("screen-main-menu"),
   onStartMatch: (options, mapData) => {
     const state = createGameState(options, mapData, Math.random);
     enterGameScreen(state);
@@ -51,6 +51,6 @@ const optionsMenu = initOptionsMenu({
 });
 
 document.querySelector("#start-button").addEventListener("click", () => {
-  gameRoom.refresh();
-  showScreen("screen-game-room");
+  mainMenu.refresh();
+  showScreen("screen-main-menu");
 });

@@ -47,7 +47,7 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
       type determine a candidate pool in assets/maps/; the actual map is picked at random from
       it (§1) — not a separate user-facing control.
 - [x] Turn order randomized once at game start, then fixed for the match (§7)
-- [x] Add start game in game room
+- [x] Add start game in main menu
 - [x] Create skeleton game
   - [x] render map: viewport-clipped canvas draw (never the full map — up to 12,000 cells),
         pan, zoom (+/- buttons and pinch), unified mouse/touch input layer, `touch-action: none`
@@ -55,8 +55,8 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
   - [x] add end turn option
   - [x] mid-turn: save (single slot, exact state)
   - [x] mid-turn: quit (exit to menu, last save intact, no result recorded)
-  - [x] mid-turn: terminate (instant elimination)
-- [x] Add load game to game room
+  - [x] mid-turn: surrender (instant elimination)
+- [x] Add load game to main menu
 - [x] Create dev save game with test map
 - [x] Add dev-only "load test game" option
 
