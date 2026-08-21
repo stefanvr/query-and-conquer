@@ -41,24 +41,24 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
       islands maps measure 35.0-39.9% water
 
 ## Stage 3 — Outer game loop
-- [ ] Spec
-- [ ] Game options menu: AI count (1–5), per-AI difficulty, map size, map type (islands disabled
+- [x] Spec
+- [x] Game options menu: AI count (1–5), per-AI difficulty, map size, map type (islands disabled
       when size is small, per map-tables.js's isComboSupported), fog of war toggle. Map size +
       type determine a candidate pool in assets/maps/; the actual map is picked at random from
       it (§1) — not a separate user-facing control.
-- [ ] Turn order randomized once at game start, then fixed for the match (§7)
-- [ ] Add start game in game room
-- [ ] Create skeleton game
-  - [ ] render map: viewport-clipped canvas draw (never the full map — up to 12,000 cells),
+- [x] Turn order randomized once at game start, then fixed for the match (§7)
+- [x] Add start game in game room
+- [x] Create skeleton game
+  - [x] render map: viewport-clipped canvas draw (never the full map — up to 12,000 cells),
         pan, zoom (+/- buttons and pinch), unified mouse/touch input layer, `touch-action: none`
         on the canvas (tech-stack.md's Mobile & touch support)
-  - [ ] add end turn option
-  - [ ] mid-turn: save (single slot, exact state)
-  - [ ] mid-turn: quit (exit to menu, last save intact, no result recorded)
-  - [ ] mid-turn: terminate (instant elimination)
-- [ ] Add load game to game room
-- [ ] Create dev save game with test map
-- [ ] Add dev-only "load test game" option
+  - [x] add end turn option
+  - [x] mid-turn: save (single slot, exact state)
+  - [x] mid-turn: quit (exit to menu, last save intact, no result recorded)
+  - [x] mid-turn: terminate (instant elimination)
+- [x] Add load game to game room
+- [x] Create dev save game with test map
+- [x] Add dev-only "load test game" option
 
 ## Stage 4 — Base build economy
 - [ ] Spec
