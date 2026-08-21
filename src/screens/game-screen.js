@@ -392,15 +392,15 @@ export function initGameScreen({ onQuit, onTerminate }) {
     // overlap to resolve, only a fallback when the attack/claim itself isn't currently valid.
     if (selectedUnit && selectedUnit.ownerId === activePlayer(state).id) {
       const targetUnit = unitAtHex(state, col, row);
-      if (targetUnit && isValidAttackTarget(selectedUnit, targetUnit)) {
-        attackUnit(state, selectedUnit.id, targetUnit.id, activePlayer(state).id);
+      if (targetUnit && isValidAttackTarget(state, grid, selectedUnit, targetUnit)) {
+        attackUnit(state, grid, selectedUnit.id, targetUnit.id, activePlayer(state).id);
         renderUnitPanel(selectedUnit);
         camera.draw();
         return;
       }
       const targetBase = baseAtHex(state, col, row);
-      if (targetBase && isValidAttackBaseTarget(selectedUnit, targetBase)) {
-        attackBase(state, selectedUnit.id, targetBase.id, activePlayer(state).id);
+      if (targetBase && isValidAttackBaseTarget(state, grid, selectedUnit, targetBase)) {
+        attackBase(state, grid, selectedUnit.id, targetBase.id, activePlayer(state).id);
         renderUnitPanel(selectedUnit);
         camera.draw();
         return;

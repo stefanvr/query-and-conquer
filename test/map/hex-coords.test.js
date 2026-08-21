@@ -6,6 +6,7 @@ import {
   cubeDistance,
   offsetDistance,
   offsetNeighbors,
+  hexLine,
 } from "../../src/map/hex-coords.js";
 
 test("offset <-> cube round-trips for a grid of cells, including negative rows/cols", () => {
@@ -59,4 +60,34 @@ test("cubeDistance matches offsetDistance for the same cells", () => {
   const a = { col: 5, row: 5 };
   const b = { col: -2, row: 8 };
   assert.equal(cubeDistance(offsetToCube(a), offsetToCube(b)), offsetDistance(a, b));
+});
+
+test("hexLine from a cell to itself is just that one cell", () => {
+  assert.deepEqual(hexLine({ col: 3, row: 4 }, { col: 3, row: 4 }), [{ col: 3, row: 4 }]);
+});
+
+test("hexLine to a neighbor is exactly [a, b], with no cell in between", () => {
+  const a = { col: 5, row: 5 };
+  const b = offsetNeighbors(a)[0];
+  assert.deepEqual(hexLine(a, b), [a, b]);
+});
+
+test("hexLine has exactly distance+1 cells, starts at a, ends at b, and each step is adjacent to the last", () => {
+  const a = { col: 0, row: 0 };
+  const b = { col: 4, row: 3 };
+  const line = hexLine(a, b);
+  assert.equal(line.length, offsetDistance(a, b) + 1);
+  assert.deepEqual(line[0], a);
+  assert.deepEqual(line[line.length - 1], b);
+  for (let i = 1; i < line.length; i++) {
+    assert.equal(offsetDistance(line[i - 1], line[i]), 1, `step ${i - 1} -> ${i} isn't adjacent`);
+  }
+});
+
+test("hexLine is symmetric (reversed a/b retraces the same cells in reverse)", () => {
+  const a = { col: -2, row: 3 };
+  const b = { col: 3, row: -1 };
+  const forward = hexLine(a, b);
+  const backward = hexLine(b, a).reverse();
+  assert.deepEqual(forward, backward);
 });

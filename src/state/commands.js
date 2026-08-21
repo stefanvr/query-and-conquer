@@ -1,7 +1,7 @@
 // Command handlers — the only code allowed to mutate canonical state (tech-stack.md's CQRS-lite
 // rule: "separate the code that mutates state from the code that reads/renders it").
 import { UNIT_TYPES, BASE_CATEGORIES, buildTurns, buildableUnitTypes, moveCost } from "./unit-types.js";
-import { offsetDistance } from "../map/hex-coords.js";
+import { offsetDistance, hexLine } from "../map/hex-coords.js";
 import { baseAtHex, unitAtHex } from "./game-state.js";
 
 const MAX_QUEUE_LENGTH = 5; // §2
@@ -183,17 +183,33 @@ export function loadUnit(state, grid, unitId, activePlayerId) {
 
 // --- Combat (game spec §3's Actions, §4's base capture) ---
 
+/** Whether line of sight from `from` to `to` is clear: no mountain cell, unit, or base anywhere
+ * strictly between the two endpoints (game spec §1). Traces the actual hex line (hexLine) rather
+ * than assuming a straight run of same-row/col cells, since ranges are hex-distance radii, not
+ * lines — an off-axis target at distance 2+ still has real cells in between to check. */
+function hasLineOfSight(state, grid, from, to) {
+  const line = hexLine(from, to);
+  for (let i = 1; i < line.length - 1; i++) {
+    // excludes both endpoints — line[0] is `from` itself, line[last] is `to` itself
+    const { col, row } = line[i];
+    if (grid.get(col, row) === "mountain") return false;
+    if (unitAtHex(state, col, row) || baseAtHex(state, col, row)) return false;
+  }
+  return true;
+}
+
 /** Whether `attacker` could attack `defender` right now: different owner, within attack range
- * (game spec §3's per-unit table), and `attacker` still has both an attack and an action left
- * this turn. Exported so the UI can route a click to attack without duplicating this logic
- * (implementation-spec.md §1). No LOS-blocking check yet — every actionable unit's range is 1
- * (Tank) until boats/planes land, so "in range" and "adjacent" already coincide with nothing in
- * between to block. */
-export function isValidAttackTarget(attacker, defender) {
+ * (game spec §3's per-unit table), line of sight clear if `attacker`'s type needs it (game spec
+ * §1 — moot for a range-1 attacker, since there's no cell in between to block), and `attacker`
+ * still has both an attack and an action left this turn. Exported so the UI can route a click to
+ * attack without duplicating this logic (implementation-spec.md §1). */
+export function isValidAttackTarget(state, grid, attacker, defender) {
   if (!attacker || !defender) return false;
   if (attacker.ownerId === defender.ownerId) return false;
   if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return false;
-  return offsetDistance(attacker, defender) <= UNIT_TYPES[attacker.unitType].attackRange;
+  const stats = UNIT_TYPES[attacker.unitType];
+  if (offsetDistance(attacker, defender) > stats.attackRange) return false;
+  return !stats.needsLOS || hasLineOfSight(state, grid, attacker, defender);
 }
 
 /** Open-field unit-vs-unit combat (game spec §3): `attacker`'s atk value against `defender`'s
@@ -201,13 +217,13 @@ export function isValidAttackTarget(attacker, defender) {
  * `state.units`) at 0. Costs 1 action + 1 of the attacker's attacks this turn. No-op if either
  * unit is missing, `attackerUnitId` isn't owned by `activePlayerId`, or the target isn't valid
  * (`isValidAttackTarget`). */
-export function attackUnit(state, attackerUnitId, defenderUnitId, activePlayerId) {
+export function attackUnit(state, grid, attackerUnitId, defenderUnitId, activePlayerId) {
   const attacker = state.units.find((u) => u.id === attackerUnitId);
   if (!attacker || attacker.ownerId !== activePlayerId) return state;
   const defenderIndex = state.units.findIndex((u) => u.id === defenderUnitId);
   if (defenderIndex === -1) return state;
   const defender = state.units[defenderIndex];
-  if (!isValidAttackTarget(attacker, defender)) return state;
+  if (!isValidAttackTarget(state, grid, attacker, defender)) return state;
 
   const atkStats = UNIT_TYPES[attacker.unitType];
   const targetType = UNIT_TYPES[defender.unitType].targetType;
@@ -221,12 +237,15 @@ export function attackUnit(state, attackerUnitId, defenderUnitId, activePlayerId
 }
 
 /** Whether `attacker` could attack `base` right now: it's enemy-owned (not neutral, not the
- * attacker's own), and `attacker` is in range with an attack and an action left. Exported for the
- * same reason as `isValidAttackTarget` (§1). */
-export function isValidAttackBaseTarget(attacker, base) {
+ * attacker's own), in range with line of sight clear if needed (see `isValidAttackTarget`), and
+ * `attacker` has an attack and an action left. Exported for the same reason as
+ * `isValidAttackTarget` (§1). */
+export function isValidAttackBaseTarget(state, grid, attacker, base) {
   if (!base || base.ownerId === null || base.ownerId === attacker.ownerId) return false;
   if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return false;
-  return offsetDistance(attacker, base) <= UNIT_TYPES[attacker.unitType].attackRange;
+  const stats = UNIT_TYPES[attacker.unitType];
+  if (offsetDistance(attacker, base) > stats.attackRange) return false;
+  return !stats.needsLOS || hasLineOfSight(state, grid, attacker, base);
 }
 
 /** Attacking a claimed (enemy-owned) base (game spec §4): damage first destroys garrisoned
@@ -237,11 +256,11 @@ export function isValidAttackBaseTarget(attacker, base) {
  * Costs 1 action + 1 of the attacker's attacks this turn. No-op if either side is missing,
  * `attackerUnitId` isn't owned by `activePlayerId`, or the target isn't valid
  * (`isValidAttackBaseTarget`). */
-export function attackBase(state, attackerUnitId, baseId, activePlayerId) {
+export function attackBase(state, grid, attackerUnitId, baseId, activePlayerId) {
   const attacker = state.units.find((u) => u.id === attackerUnitId);
   if (!attacker || attacker.ownerId !== activePlayerId) return state;
   const base = state.bases.find((b) => b.id === baseId);
-  if (!isValidAttackBaseTarget(attacker, base)) return state;
+  if (!isValidAttackBaseTarget(state, grid, attacker, base)) return state;
 
   attacker.remainingActions -= 1;
   attacker.remainingAttacks -= 1;
