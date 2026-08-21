@@ -1,13 +1,21 @@
 // Game room screen — per implementation-spec.md §8 "Game room".
 import { hasSave } from "../save/save-load.js";
 
-/** @param {{ onNewGame: () => void, onLoadGame: () => void }} handlers */
-export function initGameRoom({ onNewGame, onLoadGame }) {
+const isDevMode = new URLSearchParams(window.location.search).has("dev");
+
+/** @param {{ onNewGame: () => void, onLoadGame: () => void, onLoadTestGame: () => void }} handlers */
+export function initGameRoom({ onNewGame, onLoadGame, onLoadTestGame }) {
   const newGameButton = document.querySelector("#new-game-button");
   const loadGameButton = document.querySelector("#load-game-button");
+  const loadTestGameButton = document.querySelector("#load-test-game-button");
 
   newGameButton.addEventListener("click", onNewGame);
   loadGameButton.addEventListener("click", onLoadGame);
+
+  if (isDevMode) {
+    loadTestGameButton.hidden = false;
+    loadTestGameButton.addEventListener("click", onLoadTestGame);
+  }
 
   return {
     // Call whenever the game room is (re-)shown, so Load Game reflects the save slot's current

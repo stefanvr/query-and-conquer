@@ -65,6 +65,19 @@ test("mid-turn Save then Quit then Load Game round-trips back into the match", a
   await expect(page.locator("#screen-game")).toBeVisible();
 });
 
+test("dev-only Load Test Game is hidden by default and works behind ?dev", async ({ page }) => {
+  await page.click("#start-button");
+  await expect(page.locator("#load-test-game-button")).toBeHidden();
+
+  await page.goto("/?dev");
+  await page.evaluate(() => localStorage.clear());
+  await page.click("#start-button");
+  await expect(page.locator("#load-test-game-button")).toBeVisible();
+
+  await page.click("#load-test-game-button");
+  await expect(page.locator("#screen-game")).toBeVisible();
+});
+
 test("dragging the map canvas pans the camera without errors", async ({ page }) => {
   // Pointer Events unify mouse and touch in map-canvas.js's own input handling, so a
   // mouse-driven drag here exercises the same code path a touch drag would; the

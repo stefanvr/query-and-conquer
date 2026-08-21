@@ -36,6 +36,10 @@ const gameRoom = initGameRoom({
     const state = loadGame();
     if (state) enterGameScreen(state);
   },
+  onLoadTestGame: async () => {
+    const state = await (await fetch("assets/dev-save.json")).json();
+    enterGameScreen(state);
+  },
 });
 
 const optionsMenu = initOptionsMenu({
