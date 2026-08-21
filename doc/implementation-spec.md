@@ -66,6 +66,15 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - No multi-hex pathfinding or path preview for human play in v1 — click-to-move one hex at a
   time. (Hard AI's "full pathfinding," §8/Stage 12, is a separate AI-quality concern, not this.)
 
+### Unload destination picker
+- Clicking a filled, owned garrison slot (§2) closes the base panel and enters unload-preview
+  mode: the garrisoned unit's own token (style-guide.md §9) draws on top of the base hex, and
+  every valid adjacent destination (passable for its type, unoccupied, affordable within its
+  full action budget) highlights.
+- Clicking the base hex, or the previewed unit's own hex, cancels back to the base panel.
+  Clicking a highlighted hex confirms — unloads the unit there (§2) and opens its unit panel
+  (§3). Clicking anything else is a no-op; stays in preview mode.
+
 ## 2. Bases
 *(game spec §2 — base info panel, build/queue interaction, capacity display, repair status)*
 
@@ -87,19 +96,31 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 
 ### Base panel (side menu, §7)
 - Opens on selecting a base (§1). Shows: base type, SP (`20/20`, style-guide.md §8's text
-  treatment), garrison count / capacity (`X/15`), build queue (up to 5 slots, in-progress
-  item's remaining turns per style-guide.md §8's `Building: [unit]` treatment).
+  treatment), garrison count / capacity (`X/15`).
+- Three labeled slot grids (icon + label per slot, style-guide.md §9's token styling; empty
+  slots dimmed):
+  - **Building** — 1 slot: current in-progress build (`unit type` + `remaining/total` turns), or
+    idle.
+  - **Queue** — 5 slots: one per queued item, in order.
+  - **Garrison** — `capacity - 1` slots (`14`), growing to fit if the garrison count ever
+    exceeds that (no build in progress); filled front-to-back in entry order.
+- Queue slot click (own base/turn only, filled slot): toggles that slot's inline controls —
+  Remove, Move up (disabled at index 0), Move down (disabled at the last index). Only one slot's
+  controls are open at a time.
+- Garrison slot click (own base/turn only, filled slot): enters unload-preview mode (§1) instead
+  of anything within the panel itself.
+- A base selected while it isn't the active player's own turn (or isn't owned by the active
+  player) still shows all three grids, read-only — no slot click handlers, no build buttons.
 - One build button per unit type the base's category allows (game spec §2: Land → Tank; Port →
   Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — Fighter/Bomber/Fregat/
   Transporter/Carrier buttons exist now even though those unit types have no movement/combat
   until their own stage (boats: 7, planes: 8) lands; they just sit garrisoned until then.
 - Build button disabled when the queue already holds 5 pending items — not when capacity is
   full, since queuing (unlike starting) doesn't consume a capacity slot (game spec §2).
-- Unload: one "Unload" control per garrisoned unit. Enabled only if the unit has a
-  valid adjacent destination (passable for its type, unoccupied) and it's the active player's
-  own base/turn. Costs 1 action + the destination's move cost (game spec §3), taken from the
-  unit's own action budget as it becomes a field unit — picks the first valid adjacent hex
-  automatically for v1 (no destination picker UI yet).
+- Unload has no dedicated button — triggered via the garrison slot click above (§1's unload
+  destination picker), which lets the player choose the destination instead of auto-picking.
+  Costs 1 action + the destination's move cost (game spec §3), taken from the unit's own action
+  budget as it becomes a field unit.
 
 ### Turn-start build processing
 - When a player's turn begins (including cascading through AI turns): tick down that
