@@ -94,10 +94,13 @@ equivalently, a `brightness(0.70)` filter on the tile). Applies to the tile's te
 units are not shown at all in the "explored, not visible" state (per the design doc — units are
 always hidden outside current view, only terrain stays revealed once explored).
 
-## 8. State / selection / highlight states 
-Use **text only** — no color-coded highlight boxes, icons, or glow effects yet. This is
-an intentional placeholder; dedicated UI elements (selection rings, health bars, range overlays)
-are expected to replace this in a later pass.
+## 8. State / selection / highlight states
+Scope: status rendered **on the map itself** (canvas), not off-map UI (side panels, HUD, menus)
+— those already use the full component vocabulary elsewhere in this doc (§9's buttons/panels/
+dropdowns). On the map, use **text only** — no color-coded highlight boxes, icons, or glow
+effects yet. This is an intentional placeholder to limit canvas-drawing complexity; dedicated
+map UI elements (selection rings, health bars, range overlays) are expected to replace this in a
+later pass.
 
 | State | treatment |
 |---|---|

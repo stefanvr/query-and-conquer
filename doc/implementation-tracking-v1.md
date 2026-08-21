@@ -74,6 +74,9 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
 - [ ] Unit unload from base
 - [ ] Unit load into base
 - [ ] Extend dev save game with tank next to base
+- [ ] Fix: a base's map label can render partly overlapped by a later-drawn terrain hex —
+      map-canvas.js's draw() interleaves terrain and label drawing in one pass; labels need
+      their own pass after all terrain tiles are drawn
 
 ## Stage 6 — Combat, base capture & repair economy
 *Repair only becomes testable once a unit can move, take damage, and re-enter a base to
