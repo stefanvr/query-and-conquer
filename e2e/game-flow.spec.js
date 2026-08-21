@@ -158,13 +158,12 @@ test("queuing a build updates capacity, and its progress ticks down exactly once
   await firstButton.click();
   await expect(page.locator("#base-panel-capacity")).toContainText("1/15");
 
-  const queueText = await page.locator("#base-panel-queue").textContent();
-  const match = queueText.match(/Building: (\S+) \((\d+) turns left\)/);
-  expect(match?.[1]).toBe(unitType);
-  const initialTurns = Number(match[2]);
+  await expect(page.locator("#base-panel-build-slot")).toContainText(unitType.toUpperCase());
+  const buildSlotText = await page.locator("#base-panel-build-slot").textContent();
+  const initialTurns = Number(buildSlotText.match(/(\d+) left/)[1]);
 
   await page.click("#end-turn-button");
-  await expect(page.locator("#base-panel-queue")).toContainText(`Building: ${unitType} (${initialTurns - 1} turns left)`);
+  await expect(page.locator("#base-panel-build-slot")).toContainText(`${initialTurns - 1} left`);
 });
 
 test("Surrender shows an in-app confirmation (not a native dialog) before returning to the main menu", async ({ page }) => {

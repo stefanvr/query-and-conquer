@@ -333,25 +333,84 @@ body {
   margin: 0 32px 12px 0;
 }
 
-.base-panel-queue {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 12px 0;
-  font-size: 13px;
+.base-panel-section-label {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--steel);
 }
 
-.base-panel-queue .garrison-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+/* --- Base panel slot grids (Building/Queue/Garrison, Stage 5b) --- */
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
 }
 
-.base-panel-queue .btn-primary {
-  font-size: 12px;
-  padding: 6px 12px;
+.slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 44px;
+  border: 1px solid var(--steel);
+  border-radius: 3px;
+  padding: 2px;
+  font-family: var(--font-body);
+  font-size: 9px;
+  line-height: 1.15;
+  text-align: center;
+  overflow: hidden;
+  color: var(--parchment);
+  background: var(--ink);
+}
+
+.slot-empty {
+  opacity: 0.35;
+}
+
+/* The Building slot is always shown (dashed border) even when idle, so its position never shifts
+   the Queue/Garrison grids below it. */
+.slot-building {
+  border-style: dashed;
+}
+
+button.slot {
+  cursor: pointer;
+}
+
+button.slot:hover {
+  border-color: var(--signal);
+}
+
+.slot-selected {
+  border: 2px solid #FFFFFF;
+  background: var(--olive);
+}
+
+.slot-icon {
+  width: 10px;
+  height: 10px;
+  background: var(--signal);
+}
+
+.slot-icon-circle {
+  border-radius: 50%;
+}
+
+/* Inline Remove/Move up/Move down controls for a selected queue slot (Stage 5b). */
+.slot-controls {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.slot-controls button {
+  flex: 1;
+  font-size: 11px;
+  padding: 6px 0;
 }
 
 .base-panel-build-buttons {

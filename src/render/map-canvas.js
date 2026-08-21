@@ -28,7 +28,7 @@ const TERRAIN_VAR = {
 
 // Unit token shape per style-guide.md §9. Only Tank is spawnable before Stages 7/8 add the rest;
 // unimplemented shapes fall back to a circle rather than crashing.
-const UNIT_SHAPES = { tank: "square" };
+export const UNIT_SHAPES = { tank: "square" };
 
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();

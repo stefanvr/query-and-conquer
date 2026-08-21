@@ -69,10 +69,10 @@ test("loading the tank into the base moves it into the garrison, and it can be u
   const base = await screenPosFor(page, 0, 2);
   await page.mouse.click(base.x, base.y);
   await expect(page.locator("#base-panel")).toBeVisible();
-  await expect(page.locator("#base-panel-garrison")).toContainText("tank");
+  await expect(page.locator("#base-panel-garrison")).toContainText("TANK"); // slot label, style-guide.md §9 uppercase
   await expect(page.locator("#base-panel-capacity")).toContainText("1/15");
 
-  await page.click("#base-panel-garrison button"); // Unload
-  await expect(page.locator("#base-panel-garrison")).toBeEmpty();
+  await page.click("#base-panel-garrison button"); // the filled garrison slot -- unloads it
+  await expect(page.locator("#base-panel-garrison")).not.toContainText("TANK");
   await expect(page.locator("#base-panel-capacity")).toContainText("0/15");
 });

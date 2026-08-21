@@ -1,16 +1,54 @@
 // Game screen — HUD + map canvas + base/unit panels + mid-turn menu, per implementation-spec.md
 // §1/§2/§3/§6/§7/§8.
 import { activePlayer, playerBase, baseAtHex, unitAtHex, PLAYER_COLOR_VARS } from "../state/game-state.js";
-import { endTurn, terminate, queueBuild, processTurnStart, moveUnit, unloadUnit, loadUnit } from "../state/commands.js";
+import {
+  endTurn,
+  terminate,
+  queueBuild,
+  cancelQueuedBuild,
+  reorderQueuedBuild,
+  processTurnStart,
+  moveUnit,
+  unloadUnit,
+  loadUnit,
+} from "../state/commands.js";
 import { getVisibleState } from "../state/queries.js";
 import { saveGame } from "../save/save-load.js";
-import { createMapCamera } from "../render/map-canvas.js";
+import { createMapCamera, UNIT_SHAPES } from "../render/map-canvas.js";
 import { buildableUnitTypes, UNIT_TYPES, BASE_CATEGORIES, moveCost } from "../state/unit-types.js";
 import { deserializeGrid } from "../map/map-serialize.js";
 import { offsetDistance } from "../map/hex-coords.js";
 
 const BASE_TYPE_LABEL = { land: "Land Base", port: "Port Base", mountain: "Mountain Base" };
 const MAX_BASE_CAPACITY = 15;
+const QUEUE_SLOT_COUNT = 5; // mirrors commands.js's MAX_QUEUE_LENGTH
+
+/** Small colored square/circle before a slot's label, shape by unit type (style-guide.md §9),
+ * same shape table the canvas token uses. */
+function slotIcon(unitType) {
+  const icon = document.createElement("span");
+  icon.className = UNIT_SHAPES[unitType] === "square" ? "slot-icon" : "slot-icon slot-icon-circle";
+  return icon;
+}
+
+function emptySlot() {
+  const el = document.createElement("div");
+  el.className = "slot slot-empty";
+  return el;
+}
+
+/** Fills a slot element (button or div, caller's choice) with icon + type label + an optional
+ * second line (e.g. a queue position or a build timer). */
+function fillSlotContent(el, unitType, secondLine) {
+  const label = document.createElement("span");
+  label.textContent = unitType.toUpperCase();
+  el.append(slotIcon(unitType), label);
+  if (secondLine) {
+    const sub = document.createElement("span");
+    sub.textContent = secondLine;
+    el.appendChild(sub);
+  }
+}
 
 /** @param {{ onQuit: () => void, onTerminate: () => void }} handlers */
 export function initGameScreen({ onQuit, onTerminate }) {
@@ -34,6 +72,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   const basePanelTitle = document.querySelector("#base-panel-title");
   const basePanelSp = document.querySelector("#base-panel-sp");
   const basePanelCapacity = document.querySelector("#base-panel-capacity");
+  const basePanelBuildSlot = document.querySelector("#base-panel-build-slot");
   const basePanelQueue = document.querySelector("#base-panel-queue");
   const basePanelGarrison = document.querySelector("#base-panel-garrison");
   const basePanelBuildButtons = document.querySelector("#base-panel-build-buttons");
@@ -49,6 +88,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   let camera = null;
   let selectedBase = null;
   let selectedUnit = null;
+  let selectedQueueIndex = null; // which base-panel queue slot has its Remove/Move controls open
 
   function refreshHud() {
     const visible = getVisibleState(state, activePlayer(state).id);
@@ -64,39 +104,103 @@ export function initGameScreen({ onQuit, onTerminate }) {
     const used = base.garrison.length + (base.inProgress ? 1 : 0);
     basePanelCapacity.textContent = `${used}/${MAX_BASE_CAPACITY} capacity`;
 
-    basePanelQueue.innerHTML = "";
-    if (base.inProgress) {
-      const line = document.createElement("div");
-      line.textContent = `Building: ${base.inProgress.unitType} (${base.inProgress.remainingTurns} turns left)`;
-      basePanelQueue.appendChild(line);
-    }
-    base.queue.forEach((item, i) => {
-      const line = document.createElement("div");
-      line.textContent = `Queued ${i + 1}: ${item.unitType}`;
-      basePanelQueue.appendChild(line);
-    });
-
     const isOwnTurn = base.ownerId === activePlayer(state).id;
 
-    basePanelGarrison.innerHTML = "";
-    if (isOwnTurn) {
-      for (const garrisoned of base.garrison) {
-        const line = document.createElement("div");
-        line.className = "garrison-line";
-        const label = document.createElement("span");
-        label.textContent = garrisoned.unitType;
-        const unloadButton = document.createElement("button");
-        unloadButton.type = "button";
-        unloadButton.className = "btn-primary";
-        unloadButton.textContent = "Unload";
-        unloadButton.addEventListener("click", () => {
-          unloadUnit(state, grid, base.id, garrisoned.id);
-          renderBasePanel(base);
-          camera?.draw();
-        });
-        line.append(label, unloadButton);
-        basePanelGarrison.appendChild(line);
+    // --- Building slot: always shown (even idle), so Queue/Garrison below never shift. ---
+    basePanelBuildSlot.innerHTML = "";
+    const buildSlot = document.createElement("div");
+    buildSlot.className = "slot slot-building" + (base.inProgress ? "" : " slot-empty");
+    if (base.inProgress) fillSlotContent(buildSlot, base.inProgress.unitType, `${base.inProgress.remainingTurns} left`);
+    else buildSlot.textContent = "Idle";
+    basePanelBuildSlot.appendChild(buildSlot);
+
+    // --- Queue slots: click a filled one (own turn only) to open Remove/Move up/Move down. ---
+    basePanelQueue.innerHTML = "";
+    for (let i = 0; i < QUEUE_SLOT_COUNT; i++) {
+      const item = base.queue[i];
+      if (!item) {
+        basePanelQueue.appendChild(emptySlot());
+        continue;
       }
+      if (!isOwnTurn) {
+        const el = document.createElement("div");
+        el.className = "slot";
+        fillSlotContent(el, item.unitType, `#${i + 1}`);
+        basePanelQueue.appendChild(el);
+        continue;
+      }
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "slot" + (selectedQueueIndex === i ? " slot-selected" : "");
+      fillSlotContent(el, item.unitType, `#${i + 1}`);
+      el.addEventListener("click", () => {
+        selectedQueueIndex = selectedQueueIndex === i ? null : i;
+        renderBasePanel(base);
+      });
+      basePanelQueue.appendChild(el);
+    }
+    if (isOwnTurn && base.queue[selectedQueueIndex]) {
+      const controls = document.createElement("div");
+      controls.className = "slot-controls";
+      const upButton = document.createElement("button");
+      upButton.type = "button";
+      upButton.className = "btn-primary";
+      upButton.textContent = "Move up";
+      upButton.disabled = selectedQueueIndex === 0;
+      upButton.addEventListener("click", () => {
+        reorderQueuedBuild(state, base.id, selectedQueueIndex, -1);
+        selectedQueueIndex -= 1;
+        renderBasePanel(base);
+      });
+      const downButton = document.createElement("button");
+      downButton.type = "button";
+      downButton.className = "btn-primary";
+      downButton.textContent = "Move down";
+      downButton.disabled = selectedQueueIndex === base.queue.length - 1;
+      downButton.addEventListener("click", () => {
+        reorderQueuedBuild(state, base.id, selectedQueueIndex, 1);
+        selectedQueueIndex += 1;
+        renderBasePanel(base);
+      });
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "btn-primary";
+      removeButton.textContent = "Remove";
+      removeButton.addEventListener("click", () => {
+        cancelQueuedBuild(state, base.id, selectedQueueIndex);
+        selectedQueueIndex = null;
+        renderBasePanel(base);
+      });
+      controls.append(upButton, downButton, removeButton);
+      basePanelQueue.appendChild(controls);
+    }
+
+    // --- Garrison slots: click a filled, owned one to unload it. ---
+    basePanelGarrison.innerHTML = "";
+    const garrisonSlotCount = Math.max(MAX_BASE_CAPACITY - 1, base.garrison.length);
+    for (let i = 0; i < garrisonSlotCount; i++) {
+      const garrisoned = base.garrison[i];
+      if (!garrisoned) {
+        basePanelGarrison.appendChild(emptySlot());
+        continue;
+      }
+      if (!isOwnTurn) {
+        const el = document.createElement("div");
+        el.className = "slot";
+        fillSlotContent(el, garrisoned.unitType);
+        basePanelGarrison.appendChild(el);
+        continue;
+      }
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "slot";
+      fillSlotContent(el, garrisoned.unitType);
+      el.addEventListener("click", () => {
+        unloadUnit(state, grid, base.id, garrisoned.id);
+        renderBasePanel(base);
+        camera?.draw();
+      });
+      basePanelGarrison.appendChild(el);
     }
 
     basePanelBuildButtons.innerHTML = "";
@@ -158,6 +262,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   function closeAllPanels() {
     selectedBase = null;
     selectedUnit = null;
+    selectedQueueIndex = null;
     basePanel.hidden = true;
     unitPanel.hidden = true;
     camera?.setSelectedHex(null);
@@ -166,6 +271,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   function openBasePanel(base) {
     selectedBase = base;
     selectedUnit = null;
+    selectedQueueIndex = null;
     unitPanel.hidden = true;
     basePanel.hidden = false;
     camera.setSelectedHex({ col: base.col, row: base.row });
