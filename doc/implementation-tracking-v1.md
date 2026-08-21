@@ -61,12 +61,12 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
 - [x] Add dev-only "load test game" option
 
 ## Stage 4 — Base build economy
-- [ ] Spec
-- [ ] Unit spec with build cost table (§2)
-- [ ] Game start: deployment bases
-- [ ] Turn option: build unit / queue unit (max 5 queued, 15 total capacity)
-- [ ] Turn start: unit ready / build next from queue
-- [ ] Update save/load for bases
+- [x] Spec
+- [x] Unit spec with build cost table (§2)
+- [x] Game start: deployment bases
+- [x] Turn option: build unit / queue unit (max 5 queued, 15 total capacity)
+- [x] Turn start: unit ready / build next from queue
+- [x] Update save/load for bases
 
 ## Stage 5 — Tank
 - [ ] Spec
