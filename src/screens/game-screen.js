@@ -12,6 +12,12 @@ import {
   unloadUnit,
   isValidUnloadTarget,
   loadUnit,
+  isValidAttackTarget,
+  attackUnit,
+  isValidAttackBaseTarget,
+  attackBase,
+  isValidClaimTarget,
+  claimBase,
 } from "../state/commands.js";
 import { getVisibleState } from "../state/queries.js";
 import { saveGame } from "../save/save-load.js";
@@ -51,6 +57,14 @@ function fillSlotContent(el, unitType, secondLine) {
   }
 }
 
+/** "Human"/`AI n` + accent color for a player, or "Neutral"/steel-gray for an unowned base
+ * (`player` null) — shared by the HUD turn indicator and the base panel's owner line
+ * (implementation-spec.md §2/§4/§6). */
+function playerLabel(player) {
+  if (!player) return { text: "Neutral", colorVar: "--steel" };
+  return { text: player.isHuman ? "Human" : `AI ${player.slot}`, colorVar: PLAYER_COLOR_VARS[player.slot] };
+}
+
 /** @param {{ onQuit: () => void, onTerminate: () => void }} handlers */
 export function initGameScreen({ onQuit, onTerminate }) {
   const canvas = document.querySelector("#map-canvas");
@@ -71,6 +85,8 @@ export function initGameScreen({ onQuit, onTerminate }) {
   const basePanel = document.querySelector("#base-panel");
   const basePanelClose = document.querySelector("#base-panel-close");
   const basePanelTitle = document.querySelector("#base-panel-title");
+  const basePanelOwner = document.querySelector("#base-panel-owner");
+  const basePanelOwnDetails = document.querySelector("#base-panel-own-details");
   const basePanelSp = document.querySelector("#base-panel-sp");
   const basePanelCapacity = document.querySelector("#base-panel-capacity");
   const basePanelBuildSlot = document.querySelector("#base-panel-build-slot");
@@ -87,6 +103,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   let state = null;
   let grid = null; // cached TerrainGrid — state.map is plain JSON, doesn't change during a match
   let camera = null;
+  let humanId = null; // the *viewing* player — distinct from activePlayer(state).id (§2/§4)
   let selectedBase = null;
   let selectedUnit = null;
   let selectedQueueIndex = null; // which base-panel queue slot has its Remove/Move controls open
@@ -95,13 +112,22 @@ export function initGameScreen({ onQuit, onTerminate }) {
   function refreshHud() {
     const visible = getVisibleState(state, activePlayer(state).id);
     const player = activePlayer(visible);
-    const label = player.isHuman ? "Human" : `AI ${player.slot}`;
-    turnIndicator.textContent = `Turn ${visible.turnNumber} — ${label}`;
-    turnIndicator.style.color = `var(${PLAYER_COLOR_VARS[player.slot]})`;
+    const { text, colorVar } = playerLabel(player);
+    turnIndicator.textContent = `Turn ${visible.turnNumber} — ${text}`;
+    turnIndicator.style.color = `var(${colorVar})`;
   }
 
   function renderBasePanel(base) {
     basePanelTitle.textContent = BASE_TYPE_LABEL[base.type];
+    const owner = state.players.find((p) => p.id === base.ownerId) ?? null;
+    const { text, colorVar } = playerLabel(owner);
+    basePanelOwner.textContent = text;
+    basePanelOwner.style.color = `var(${colorVar})`;
+
+    const isOwnBase = base.ownerId === humanId;
+    basePanelOwnDetails.hidden = !isOwnBase;
+    if (!isOwnBase) return; // enemy base: type + owner is all it discloses (§2/§4)
+
     basePanelSp.textContent = `${base.sp}/${base.maxSp} SP`;
     const used = base.garrison.length + (base.inProgress ? 1 : 0);
     basePanelCapacity.textContent = `${used}/${MAX_BASE_CAPACITY} capacity`;
@@ -331,6 +357,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
    * mirrors moveUnit's own validation so an invalid adjacent tap falls back to plain selection
    * instead of silently no-op'ing as a failed move (implementation-spec.md §1 "Movement targeting"). */
   function isValidMoveTarget(unit, col, row) {
+    if (unit.ownerId !== activePlayer(state).id) return false;
     if (offsetDistance(unit, { col, row }) !== 1) return false;
     if (!grid.isInMap(col, row)) return false;
     if (baseAtHex(state, col, row) || unitAtHex(state, col, row)) return false;
@@ -358,6 +385,32 @@ export function initGameScreen({ onQuit, onTerminate }) {
         return;
       }
       return; // anything else: no-op, stays in the picker
+    }
+
+    // Attack & claim targeting (implementation-spec.md §1) takes priority over Movement
+    // targeting below — an occupied hex never matches isValidMoveTarget anyway, so there's no
+    // overlap to resolve, only a fallback when the attack/claim itself isn't currently valid.
+    if (selectedUnit && selectedUnit.ownerId === activePlayer(state).id) {
+      const targetUnit = unitAtHex(state, col, row);
+      if (targetUnit && isValidAttackTarget(selectedUnit, targetUnit)) {
+        attackUnit(state, selectedUnit.id, targetUnit.id, activePlayer(state).id);
+        renderUnitPanel(selectedUnit);
+        camera.draw();
+        return;
+      }
+      const targetBase = baseAtHex(state, col, row);
+      if (targetBase && isValidAttackBaseTarget(selectedUnit, targetBase)) {
+        attackBase(state, selectedUnit.id, targetBase.id, activePlayer(state).id);
+        renderUnitPanel(selectedUnit);
+        camera.draw();
+        return;
+      }
+      if (targetBase && isValidClaimTarget(grid, selectedUnit, targetBase)) {
+        claimBase(state, grid, selectedUnit.id, targetBase.id, activePlayer(state).id);
+        closeAllPanels(); // the claiming unit is gone -- garrisoned into the base it just took
+        camera.draw();
+        return;
+      }
     }
 
     if (selectedUnit && isValidMoveTarget(selectedUnit, col, row)) {
@@ -459,11 +512,13 @@ export function initGameScreen({ onQuit, onTerminate }) {
       advanceCascadeToHuman(); // turn order is randomized (§7) — a match can start on an AI's turn
 
       const human = state.players.find((p) => p.isHuman);
+      humanId = human.id;
       const myBase = playerBase(state, human.id);
       camera = createMapCamera(canvas, state.map, {
         bases: state.bases,
         units: state.units,
         players: state.players,
+        viewerId: humanId,
         onSelectHex: selectHex,
         centerOnCol: myBase?.col,
         centerOnRow: myBase?.row,

@@ -37,15 +37,15 @@ function cssVar(name) {
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {object} mapData - parsed map JSON (width, height, rows)
- * @param {{ bases?: object[], units?: object[], players?: object[], selectedHex?: {col:number,row:number}|null,
- *   onSelectHex?: (col: number, row: number) => void }} [options]
+ * @param {{ bases?: object[], units?: object[], players?: object[], viewerId?: number|null,
+ *   selectedHex?: {col:number,row:number}|null, onSelectHex?: (col: number, row: number) => void }} [options]
  * @returns {{ draw: () => void, zoomIn: () => void, zoomOut: () => void, centerOn: (col:number,row:number) => void,
  *   setSelectedHex: (hex: {col:number,row:number}|null) => void,
  *   setPendingUnload: (preview: {col:number,row:number,ownerId:number,unitType:string,targets:{col:number,row:number}[]}|null) => void,
  *   destroy: () => void }}
  */
 export function createMapCamera(canvas, mapData, options = {}) {
-  const { bases = [], units = [], players = [] } = options;
+  const { bases = [], units = [], players = [], viewerId = null } = options;
   const onSelectHex = options.onSelectHex;
   let selectedHex = options.selectedHex ?? null;
 
@@ -89,6 +89,9 @@ export function createMapCamera(canvas, mapData, options = {}) {
     ctx.strokeStyle = cssVar(ownerColorVar(base.ownerId));
     ctx.stroke();
 
+    // An enemy-owned base's marker has no label at all — it discloses no interior state
+    // (implementation-spec.md §1/§2/§4), same as its panel.
+    if (base.ownerId !== viewerId) return;
     ctx.font = `${Math.max(11, size * 0.55)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     let ty = sy + size + Math.max(10, size * 0.6);

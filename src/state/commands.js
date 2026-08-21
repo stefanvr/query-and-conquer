@@ -214,21 +214,28 @@ export function attackUnit(state, attackerUnitId, defenderUnitId, activePlayerId
   return state;
 }
 
+/** Whether `attacker` could attack `base` right now: it's enemy-owned (not neutral, not the
+ * attacker's own), and `attacker` is in range with an attack and an action left. Exported for the
+ * same reason as `isValidAttackTarget` (§1). */
+export function isValidAttackBaseTarget(attacker, base) {
+  if (!base || base.ownerId === null || base.ownerId === attacker.ownerId) return false;
+  if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return false;
+  return offsetDistance(attacker, base) <= UNIT_TYPES[attacker.unitType].attackRange;
+}
+
 /** Attacking a claimed (enemy-owned) base (game spec §4): damage first destroys garrisoned
  * units, oldest-entered first, 1 SP of damage each regardless of their own strength stat; any
  * remaining damage spills onto the base's own sp. A unit still under construction is never
  * destroyed. If the base's sp reaches 0, it goes neutral (`ownerId` null) and remembers
  * `lastOwnerId` for §4's recapture rule — a build already in progress survives this unaborted.
  * Costs 1 action + 1 of the attacker's attacks this turn. No-op if either side is missing,
- * `attackerUnitId` isn't owned by `activePlayerId`, the base is unowned or owned by the
- * attacker, or the attacker is out of range/attacks/actions. */
+ * `attackerUnitId` isn't owned by `activePlayerId`, or the target isn't valid
+ * (`isValidAttackBaseTarget`). */
 export function attackBase(state, attackerUnitId, baseId, activePlayerId) {
   const attacker = state.units.find((u) => u.id === attackerUnitId);
   if (!attacker || attacker.ownerId !== activePlayerId) return state;
   const base = state.bases.find((b) => b.id === baseId);
-  if (!base || base.ownerId === null || base.ownerId === attacker.ownerId) return state;
-  if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return state;
-  if (offsetDistance(attacker, base) > UNIT_TYPES[attacker.unitType].attackRange) return state;
+  if (!isValidAttackBaseTarget(attacker, base)) return state;
 
   attacker.remainingActions -= 1;
   attacker.remainingAttacks -= 1;
@@ -249,29 +256,35 @@ export function attackBase(state, attackerUnitId, baseId, activePlayerId) {
   return state;
 }
 
+/** Whether `unit` could claim `base` right now: `base` is neutral, `unit`'s type can capture
+ * (tank/fighter/fregat) and its category is one `base` accepts, adjacent, and `unit` can afford
+ * 1 action + the base's terrain move cost. Exported for the same reason as `isValidUnloadTarget`
+ * (§1). */
+export function isValidClaimTarget(grid, unit, base) {
+  if (!base || base.ownerId !== null) return false;
+  if (!CAPTURING_UNIT_TYPES.includes(unit.unitType)) return false;
+  if (!BASE_CATEGORIES[base.type].includes(UNIT_TYPES[unit.unitType].category)) return false;
+  if (offsetDistance(unit, base) !== 1) return false;
+  const cost = moveCost(unit.unitType, grid.get(base.col, base.row));
+  if (cost === null) return false;
+  return 1 + cost <= unit.remainingActions;
+}
+
 /** Claims a neutral base (`ownerId` null — bases start the match already owned by a player, game
  * spec §5, so this only ever applies post-combat) with a unit of a capturing type
  * (tank/fighter/fregat, game spec §4), terrain-gated the same as any base entry. Ownership
  * transfers to the claiming unit's owner, the unit garrisons inside, and sp resets to 4. Only a
  * claim by an owner different from the base's `lastOwnerId` (an actual capture, as opposed to a
  * recapture) clears the queue and in-progress build. Costs 1 action + the base's terrain move
- * cost, same as loading (§2). No-op if the base isn't neutral, the unit's category isn't
- * accepted, or `unitId` isn't owned by `activePlayerId`. */
+ * cost, same as loading (§2). No-op if `unitId` isn't owned by `activePlayerId` or the target
+ * isn't valid (`isValidClaimTarget`). */
 export function claimBase(state, grid, unitId, baseId, activePlayerId) {
   const index = state.units.findIndex((u) => u.id === unitId);
   if (index === -1) return state;
   const unit = state.units[index];
   if (unit.ownerId !== activePlayerId) return state;
   const base = state.bases.find((b) => b.id === baseId);
-  if (!base || base.ownerId !== null) return state;
-  if (!CAPTURING_UNIT_TYPES.includes(unit.unitType)) return state;
-  if (!BASE_CATEGORIES[base.type].includes(UNIT_TYPES[unit.unitType].category)) return state;
-  if (offsetDistance(unit, base) !== 1) return state;
-
-  const cost = moveCost(unit.unitType, grid.get(base.col, base.row));
-  if (cost === null) return state;
-  const totalCost = 1 + cost;
-  if (totalCost > unit.remainingActions) return state;
+  if (!isValidClaimTarget(grid, unit, base)) return state;
 
   const isRecapture = base.lastOwnerId === unit.ownerId;
   state.units.splice(index, 1);

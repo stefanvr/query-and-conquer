@@ -113,7 +113,7 @@ garrison — this stage comes right after Tank so both halves land together, dam
 recovery, on the same reference unit.*
 - [x] Spec
 - [x] Unit `remainingAttacks` (resets each turn like `remainingActions`, §3's Attacks/turn cap)
-- [ ] Attack targeting: with a unit selected, click an adjacent enemy unit or enemy-owned base to
+- [x] Attack targeting: with a unit selected, click an adjacent enemy unit or enemy-owned base to
       attack instead of move (mirrors move-targeting's click pattern)
 - [x] Open-field unit-vs-unit combat: attacker's ground/air atk (by defender's target type)
       subtracted from defender's SP; destroyed at 0 (§3)
@@ -137,13 +137,15 @@ recovery, on the same reference unit.*
       units/bases today, so nothing stops a direct call from acting on someone else's. Add the
       check to those commands and the new attack/claim ones, now that acting on another player's
       unit or base is a real mistake to guard against, not just a hypothetical one
-- [ ] An enemy-owned base discloses no interior state — no SP, garrison, queue, or in-progress
+- [x] An enemy-owned base discloses no interior state — no SP, garrison, queue, or in-progress
       build, on its map marker label or its panel; only type + owner (already visible without
       clicking it). Matches build-v1's own precedent ("a base's strength stays unknown until it's
       demolished"). Requires telling "is this base mine" apart from "is it currently my turn" —
       today's `isOwnTurn` check conflates the two, which happens to have been harmless so far
       since it only ever gated interactivity, never display
-- [ ] Combat/capture feedback (attack result, base-neutral/capture/recapture indicators)
+- [x] Combat/capture feedback (attack result, base-neutral/capture/recapture indicators) — already
+      covered by the panel/marker work above (live SP/owner display) plus the map's own token
+      removal on death; no dedicated animation/toast for v1 (§4)
 - [ ] Extend dev save game with a damaged base, a damaged garrisoned tank, and a neutral
       (unclaimed) base near the human's own — the last one hand-placed for this save only, ahead
       of the real map-generation feature (Stage 13 backlog above), so the Claim command has

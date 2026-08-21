@@ -69,15 +69,20 @@
       <div id="base-panel" class="side-panel" hidden>
         <button id="base-panel-close" class="side-panel-close" type="button" aria-label="Close">&times;</button>
         <h2 id="base-panel-title" class="side-panel-title"></h2>
-        <p id="base-panel-sp" class="menu-body-text"></p>
-        <p id="base-panel-capacity" class="menu-body-text"></p>
-        <p class="base-panel-section-label">Building</p>
-        <div id="base-panel-build-slot" class="slot-grid"></div>
-        <p class="base-panel-section-label">Queue</p>
-        <div id="base-panel-queue" class="slot-grid"></div>
-        <p class="base-panel-section-label">Garrison</p>
-        <div id="base-panel-garrison" class="slot-grid"></div>
-        <div id="base-panel-build-buttons" class="base-panel-build-buttons"></div>
+        <p id="base-panel-owner" class="menu-body-text"></p>
+        <!-- Only your own base's interior state is ever shown (implementation-spec.md §2/§4) --
+             an enemy base's panel stops at type + owner above. -->
+        <div id="base-panel-own-details">
+          <p id="base-panel-sp" class="menu-body-text"></p>
+          <p id="base-panel-capacity" class="menu-body-text"></p>
+          <p class="base-panel-section-label">Building</p>
+          <div id="base-panel-build-slot" class="slot-grid"></div>
+          <p class="base-panel-section-label">Queue</p>
+          <div id="base-panel-queue" class="slot-grid"></div>
+          <p class="base-panel-section-label">Garrison</p>
+          <div id="base-panel-garrison" class="slot-grid"></div>
+          <div id="base-panel-build-buttons" class="base-panel-build-buttons"></div>
+        </div>
       </div>
       <div id="unit-panel" class="side-panel" hidden>
         <button id="unit-panel-close" class="side-panel-close" type="button" aria-label="Close">&times;</button>
