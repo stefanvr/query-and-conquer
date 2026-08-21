@@ -82,10 +82,13 @@ function isBlockedForMovement(state, col, row) {
 }
 
 /** Moves a field unit one hex, if the target is adjacent, passable, unoccupied, and affordable
- * from the unit's remaining actions (game spec §3). No-op otherwise. */
-export function moveUnit(state, grid, unitId, targetCol, targetRow) {
+ * from the unit's remaining actions (game spec §3). No-op otherwise; also a no-op if `unit` isn't
+ * owned by `activePlayerId` — previously enforced only by the UI wiring up controls for the
+ * player's own units, which stopped being safe to rely on once attack/claim exist (§3). */
+export function moveUnit(state, grid, unitId, targetCol, targetRow, activePlayerId) {
   const unit = state.units.find((u) => u.id === unitId);
   if (!unit) return state;
+  if (unit.ownerId !== activePlayerId) return state;
   if (offsetDistance(unit, { col: targetCol, row: targetRow }) !== 1) return state;
   if (!grid.isInMap(targetCol, targetRow)) return state;
   if (isBlockedForMovement(state, targetCol, targetRow)) return state;
@@ -115,10 +118,12 @@ export function isValidUnloadTarget(state, grid, base, garrisoned, targetCol, ta
 /** Unloads a garrisoned unit from `base` onto the given (player-chosen) adjacent hex —
  * implementation-spec.md §1's unload destination picker. Costs 1 action + the destination's move
  * cost, from the unit's own fresh action budget (game spec §3). No-op if the destination isn't a
- * valid unload target. */
-export function unloadUnit(state, grid, baseId, unitId, targetCol, targetRow) {
+ * valid unload target, or if `base` isn't owned by `activePlayerId` (§3 — see moveUnit's own doc
+ * comment for why this is enforced here now, not just by the UI). */
+export function unloadUnit(state, grid, baseId, unitId, targetCol, targetRow, activePlayerId) {
   const base = state.bases.find((b) => b.id === baseId);
   if (!base) return state;
+  if (base.ownerId !== activePlayerId) return state;
   const index = base.garrison.findIndex((u) => u.id === unitId);
   if (index === -1) return state;
 
@@ -134,20 +139,22 @@ export function unloadUnit(state, grid, baseId, unitId, targetCol, targetRow) {
     unitType: garrisoned.unitType,
     col: targetCol,
     row: targetRow,
-    sp: stats.strength,
+    sp: garrisoned.sp, // carried over — a damaged unit stays damaged when it exits (§3/§4)
     maxSp: stats.strength,
     remainingActions: stats.actionsPerTurn - (1 + cost),
+    remainingAttacks: stats.attacksPerTurn,
   });
   return state;
 }
 
 /** Loads a field unit into an adjacent friendly base of a type that accepts its category, if the
  * base has spare capacity and the unit can afford 1 action + the base's own terrain's move cost
- * (game spec §2/§3). No-op otherwise. */
-export function loadUnit(state, grid, unitId) {
+ * (game spec §2/§3). No-op otherwise, or if `unit` isn't owned by `activePlayerId` (§3). */
+export function loadUnit(state, grid, unitId, activePlayerId) {
   const index = state.units.findIndex((u) => u.id === unitId);
   if (index === -1) return state;
   const unit = state.units[index];
+  if (unit.ownerId !== activePlayerId) return state;
   const category = UNIT_TYPES[unit.unitType].category;
 
   const target = grid
@@ -163,7 +170,7 @@ export function loadUnit(state, grid, unitId) {
   if (totalCost > unit.remainingActions) return state;
 
   state.units.splice(index, 1);
-  target.garrison.push({ id: unit.id, unitType: unit.unitType });
+  target.garrison.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp }); // sp carried over (§3/§4)
   return state;
 }
 
@@ -181,7 +188,8 @@ export function processTurnStart(state, playerId) {
     if (base.inProgress) {
       base.inProgress.remainingTurns -= 1;
       if (base.inProgress.remainingTurns <= 0) {
-        base.garrison.push({ id: state.nextUnitId++, unitType: base.inProgress.unitType });
+        const unitType = base.inProgress.unitType;
+        base.garrison.push({ id: state.nextUnitId++, unitType, sp: UNIT_TYPES[unitType].strength });
         base.inProgress = null;
       }
     }
@@ -191,6 +199,7 @@ export function processTurnStart(state, playerId) {
   for (const unit of state.units) {
     if (unit.ownerId !== playerId) continue;
     unit.remainingActions = UNIT_TYPES[unit.unitType].actionsPerTurn;
+    unit.remainingAttacks = UNIT_TYPES[unit.unitType].attacksPerTurn;
   }
   return state;
 }

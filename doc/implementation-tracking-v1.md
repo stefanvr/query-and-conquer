@@ -112,7 +112,7 @@ auto-picked unload destination were meant as v1 placeholders, not the intended e
 garrison — this stage comes right after Tank so both halves land together, damage and its
 recovery, on the same reference unit.*
 - [x] Spec
-- [ ] Unit `remainingAttacks` (resets each turn like `remainingActions`, §3's Attacks/turn cap)
+- [x] Unit `remainingAttacks` (resets each turn like `remainingActions`, §3's Attacks/turn cap)
 - [ ] Attack targeting: with a unit selected, click an adjacent enemy unit or enemy-owned base to
       attack instead of move (mirrors move-targeting's click pattern)
 - [ ] Open-field unit-vs-unit combat: attacker's ground/air atk (by defender's target type)
@@ -130,9 +130,9 @@ recovery, on the same reference unit.*
       completion (§7's per-turn sequence order)
 - [ ] Per-unit repair: up to 5 damaged garrisoned units repaired in parallel, 5 SP/turn each (10
       SP/bbr), first-come = garrison array order
-- [ ] Garrisoned-unit SP persists through load/unload (currently dropped on load, reset to full
+- [x] Garrisoned-unit SP persists through load/unload (currently dropped on load, reset to full
       on unload — a damaged unit needs to carry its SP through both)
-- [ ] Bug fix found while planning this stage: `moveUnit`/`loadUnit`/`unloadUnit` don't check the
+- [x] Bug fix found while planning this stage: `moveUnit`/`loadUnit`/`unloadUnit` don't check the
       acting unit/base is the active player's own — only the UI wires up controls for your own
       units/bases today, so nothing stops a direct call from acting on someone else's. Add the
       check to those commands and the new attack/claim ones, now that acting on another player's

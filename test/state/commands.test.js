@@ -225,11 +225,11 @@ test("a completed build never starts the next queued item if the base is at max 
 test("unloadUnit places the garrisoned unit on the given adjacent hex, deducting 1 action + move cost", () => {
   const s = state([0], 0);
   const grid = allLandGrid();
-  const base = landBase({ col: 5, row: 5, garrison: [{ id: 0, unitType: "tank" }] });
+  const base = landBase({ col: 5, row: 5, garrison: [{ id: 0, unitType: "tank", sp: UNIT_TYPES.tank.strength }] });
   s.bases.push(base);
   const [dest] = grid.neighborsOf(base.col, base.row);
 
-  unloadUnit(s, grid, base.id, 0, dest.col, dest.row);
+  unloadUnit(s, grid, base.id, 0, dest.col, dest.row, 0);
 
   assert.equal(base.garrison.length, 0);
   assert.equal(s.units.length, 1);
@@ -251,7 +251,7 @@ test("unloadUnit is a no-op if the given hex isn't a valid destination (occupied
   const [dest] = grid.neighborsOf(base.col, base.row);
   s.units.push({ id: 100, ownerId: 1, unitType: "tank", col: dest.col, row: dest.row, sp: 10, maxSp: 10, remainingActions: 0 });
 
-  unloadUnit(s, grid, base.id, 0, dest.col, dest.row);
+  unloadUnit(s, grid, base.id, 0, dest.col, dest.row, 0);
   assert.equal(base.garrison.length, 1, "unit never left the base");
 });
 
@@ -261,8 +261,33 @@ test("unloadUnit is a no-op if the given hex isn't adjacent to the base", () => 
   const base = landBase({ col: 5, row: 5, garrison: [{ id: 0, unitType: "tank" }] });
   s.bases.push(base);
 
-  unloadUnit(s, grid, base.id, 0, 9, 9);
+  unloadUnit(s, grid, base.id, 0, 9, 9, 0);
   assert.equal(base.garrison.length, 1, "unit never left the base");
+});
+
+test("unloadUnit is a no-op if the base isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const base = landBase({ ownerId: 1, col: 5, row: 5, garrison: [{ id: 0, unitType: "tank", sp: UNIT_TYPES.tank.strength }] });
+  s.bases.push(base);
+  const [dest] = grid.neighborsOf(base.col, base.row);
+
+  unloadUnit(s, grid, base.id, 0, dest.col, dest.row, 0); // active player 0, base owned by 1
+  assert.equal(base.garrison.length, 1, "unit never left the base");
+  assert.equal(s.units.length, 0);
+});
+
+test("unloadUnit carries a damaged garrisoned unit's sp through, not a reset to full", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const base = landBase({ col: 5, row: 5, garrison: [{ id: 0, unitType: "tank", sp: 3 }] });
+  s.bases.push(base);
+  const [dest] = grid.neighborsOf(base.col, base.row);
+
+  unloadUnit(s, grid, base.id, 0, dest.col, dest.row, 0);
+
+  assert.equal(s.units[0].sp, 3);
+  assert.equal(s.units[0].maxSp, UNIT_TYPES.tank.strength);
 });
 
 test("moveUnit steps onto an adjacent passable, unoccupied hex and spends the move cost", () => {
@@ -272,7 +297,7 @@ test("moveUnit steps onto an adjacent passable, unoccupied hex and spends the mo
   s.units.push(unit);
   const [dest] = grid.neighborsOf(5, 5);
 
-  moveUnit(s, grid, 0, dest.col, dest.row);
+  moveUnit(s, grid, 0, dest.col, dest.row, 0);
 
   assert.equal(unit.col, dest.col);
   assert.equal(unit.row, dest.row);
@@ -285,9 +310,20 @@ test("moveUnit rejects a non-adjacent destination", () => {
   const unit = { id: 0, ownerId: 0, unitType: "tank", col: 5, row: 5, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  moveUnit(s, grid, 0, 10, 10);
+  moveUnit(s, grid, 0, 10, 10, 0);
   assert.deepEqual([unit.col, unit.row], [5, 5]);
   assert.equal(unit.remainingActions, 5);
+});
+
+test("moveUnit is a no-op if the unit isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const unit = { id: 0, ownerId: 1, unitType: "tank", col: 5, row: 5, sp: 10, maxSp: 10, remainingActions: 5 };
+  s.units.push(unit);
+  const [dest] = grid.neighborsOf(5, 5);
+
+  moveUnit(s, grid, 0, dest.col, dest.row, 0); // active player 0, unit owned by 1
+  assert.deepEqual([unit.col, unit.row], [5, 5]);
 });
 
 test("moveUnit rejects impassable terrain", () => {
@@ -298,7 +334,7 @@ test("moveUnit rejects impassable terrain", () => {
   const [dest] = grid.neighborsOf(5, 5);
   grid.set(dest.col, dest.row, "mountain"); // impassable for tank
 
-  moveUnit(s, grid, 0, dest.col, dest.row);
+  moveUnit(s, grid, 0, dest.col, dest.row, 0);
   assert.deepEqual([unit.col, unit.row], [5, 5]);
 });
 
@@ -309,7 +345,7 @@ test("moveUnit rejects when the unit can't afford the move cost", () => {
   s.units.push(unit);
   const [dest] = grid.neighborsOf(5, 5);
 
-  moveUnit(s, grid, 0, dest.col, dest.row);
+  moveUnit(s, grid, 0, dest.col, dest.row, 0);
   assert.deepEqual([unit.col, unit.row], [5, 5]);
 });
 
@@ -322,12 +358,27 @@ test("loadUnit moves an adjacent field unit into a friendly base's garrison", ()
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7);
+  loadUnit(s, grid, 7, 0);
 
   assert.equal(s.units.length, 0);
   assert.equal(base.garrison.length, 1);
   assert.equal(base.garrison[0].id, 7);
   assert.equal(base.garrison[0].unitType, "tank");
+  assert.equal(base.garrison[0].sp, 10);
+});
+
+test("loadUnit is a no-op if the unit isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const base = landBase({ id: 0, ownerId: 0, col: 5, row: 5 });
+  s.bases.push(base);
+  const [adjacent] = grid.neighborsOf(5, 5);
+  const unit = { id: 7, ownerId: 1, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
+  s.units.push(unit);
+
+  loadUnit(s, grid, 7, 0); // active player 0, unit owned by 1
+  assert.equal(s.units.length, 1, "tank stays in the field");
+  assert.equal(base.garrison.length, 0);
 });
 
 test("loadUnit is a no-op if the adjacent base doesn't accept the unit's category", () => {
@@ -340,7 +391,7 @@ test("loadUnit is a no-op if the adjacent base doesn't accept the unit's categor
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7);
+  loadUnit(s, grid, 7, 0);
   assert.equal(s.units.length, 1, "tank stays in the field");
   assert.equal(base.garrison.length, 0);
 });
@@ -354,7 +405,7 @@ test("loadUnit is a no-op if the base is at max capacity", () => {
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7);
+  loadUnit(s, grid, 7, 0);
   assert.equal(s.units.length, 1);
   assert.equal(base.garrison.length, 15);
 });

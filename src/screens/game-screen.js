@@ -253,7 +253,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
       button.textContent = "Load into base";
       button.disabled = totalCost > unit.remainingActions;
       button.addEventListener("click", () => {
-        loadUnit(state, grid, unit.id);
+        loadUnit(state, grid, unit.id, activePlayer(state).id);
         if (state.units.includes(unit)) {
           // Still in the field — loadUnit was a no-op (shouldn't happen with the button
           // disabled above, but don't silently pretend success if it does).
@@ -350,7 +350,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
       }
       const targets = computeUnloadTargets(base, garrisoned);
       if (targets.some((t) => t.col === col && t.row === row)) {
-        unloadUnit(state, grid, base.id, garrisoned.id, col, row);
+        unloadUnit(state, grid, base.id, garrisoned.id, col, row, activePlayer(state).id);
         closeUnloadPreview();
         const placedUnit = state.units.find((u) => u.id === garrisoned.id);
         if (placedUnit) openUnitPanel(placedUnit);
@@ -361,7 +361,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
     }
 
     if (selectedUnit && isValidMoveTarget(selectedUnit, col, row)) {
-      moveUnit(state, grid, selectedUnit.id, col, row);
+      moveUnit(state, grid, selectedUnit.id, col, row, activePlayer(state).id);
       camera.setSelectedHex({ col: selectedUnit.col, row: selectedUnit.row });
       renderUnitPanel(selectedUnit);
       camera.draw();
