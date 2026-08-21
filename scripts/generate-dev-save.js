@@ -12,13 +12,19 @@
 // (map generation only ever places bases already owned, one per player, §5 — a real
 // pre-neutral/contestable base is Stage 13 backlog, not built yet) so the Claim command has
 // something to test the same way.
+//
+// Stage 7 additions: the dev map is land-only (no water anywhere, so no port base could ever
+// come from real placement either), so a small coastal patch and a port base are hand-carved in
+// after placement has already settled the rest — same reasoning as the neutral base above. A
+// transporter carrying a tank sits on the water next to it, for cargo/boat-entry testing without
+// needing to build and sail one out first.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGameState, playerBase } from "../src/state/game-state.js";
 import { queueBuild, processTurnStart, unloadUnit } from "../src/state/commands.js";
-import { deserializeGrid } from "../src/map/map-serialize.js";
-import { buildTurns } from "../src/state/unit-types.js";
+import { deserializeGrid, serializeGrid } from "../src/map/map-serialize.js";
+import { buildTurns, UNIT_TYPES } from "../src/state/unit-types.js";
 import { mulberry32 } from "../src/map/prng.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -65,6 +71,43 @@ state.bases.push({
   garrison: [],
   queue: [],
   inProgress: null,
+});
+
+// Coastal patch: (5,2)/(6,2) turned to deep water, a couple hexes east of the neutral base so
+// nothing collides. (4,2) stays land for the port base itself; (5,2) is its east neighbor
+// (always adjacent regardless of column parity), satisfying both "port needs adjacent water" and
+// "carrier needs adjacent deep water" (game spec §2) in one cell.
+grid.set(5, 2, "deep");
+grid.set(6, 2, "deep");
+state.map.rows = serializeGrid(grid);
+
+const portBase = {
+  id: state.bases.length,
+  ownerId: 0,
+  lastOwnerId: null,
+  type: "port",
+  col: 4,
+  row: 2,
+  adjacentToDeepWater: true,
+  sp: 20,
+  maxSp: 20,
+  garrison: [],
+  queue: [],
+  inProgress: null,
+};
+state.bases.push(portBase);
+
+state.units.push({
+  id: state.nextUnitId++,
+  ownerId: 0,
+  unitType: "transporter",
+  col: 5,
+  row: 2,
+  sp: UNIT_TYPES.transporter.strength,
+  maxSp: UNIT_TYPES.transporter.strength,
+  remainingActions: UNIT_TYPES.transporter.actionsPerTurn,
+  remainingAttacks: UNIT_TYPES.transporter.attacksPerTurn,
+  cargo: [{ id: state.nextUnitId++, unitType: "tank", sp: UNIT_TYPES.tank.strength }],
 });
 
 fs.writeFileSync(path.join(repoRoot, "assets", "dev-save.json"), JSON.stringify(state));

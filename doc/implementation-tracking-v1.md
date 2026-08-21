@@ -156,8 +156,9 @@ recovery, on the same reference unit.*
 
 ## Stage 7 — Boats: Fregat, Transporter, Carrier
 - [x] Spec
-- [ ] Movement over water terrain, per unit — already generic (moveUnit/isBlockedForMovement
-      aren't unit-type-specific); confirm + dev-save coverage, no new movement code expected
+- [x] Movement over water terrain, per unit — already generic (moveUnit/isBlockedForMovement
+      aren't unit-type-specific); confirmed via e2e coverage against the dev save's transporter,
+      no new movement code needed
 - [x] Real line-of-sight blocking: hex-line tracing (cube-coordinate lerp + round, per hex step)
       between attacker and target, blocked by a mountain cell, a unit, or a base anywhere along
       it (game spec §1) — deferred since Stage 6 since every actionable unit had range 1 until
@@ -180,11 +181,12 @@ recovery, on the same reference unit.*
       unenterable. Fixed to use the entering unit's own current cell instead (`enterCost`),
       consistent with query-and-conquer.md §3's "for a boat this can happen anywhere water is
       adjacent to land"
-- [ ] Base claim via fregat (port bases only — fregats can't move onto land) — already generic
-      via claimBase's existing capturing-type + category checks; confirm + dev-save coverage
-- [ ] Port base build restriction: carrier only buildable adjacent to deep water — already
-      implemented (buildableUnitTypes); confirm + dev-save coverage
-- [ ] Extend dev save game with a hand-placed coastal patch + port base (the land-only dev map
+- [x] Base claim via fregat (port bases only — fregats can't move onto land) — already generic
+      via claimBase's existing capturing-type + category checks; confirmed via a dedicated
+      node:test (fregat claiming a neutral port base)
+- [x] Port base build restriction: carrier only buildable adjacent to deep water — already
+      implemented (buildableUnitTypes), already covered by an existing node:test
+- [x] Extend dev save game with a hand-placed coastal patch + port base (the land-only dev map
       has neither, and base placement already ran before boats existed as a concept — same
       hand-splice pattern as Stage 6's neutral base) plus boats with cargo
 

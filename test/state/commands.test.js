@@ -700,6 +700,22 @@ test("claimBase captures a neutral base, transferring ownership and clearing its
   assert.equal(base.inProgress, null);
 });
 
+test("claimBase works for a fregat claiming a neutral port base (game spec §4: fregats can only ever claim a port)", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow"); // the fregat's own cell -- enterCost reads from here
+  const fregat = { id: 0, ownerId: 0, unitType: "fregat", col: 5, row: 5, remainingActions: UNIT_TYPES.fregat.actionsPerTurn };
+  s.units.push(fregat);
+  const base = landBase({ type: "port", ownerId: null, lastOwnerId: 1, col: 6, row: 5, sp: 0 });
+  s.bases.push(base);
+
+  claimBase(s, grid, fregat.id, base.id, 0);
+
+  assert.equal(s.units.length, 0);
+  assert.equal(base.ownerId, 0);
+  assert.equal(base.garrison[0].unitType, "fregat");
+});
+
 test("claimBase recaptures a neutral base for its own lastOwnerId without clearing the in-progress build", () => {
   const s = state([1], 0);
   const unit = tank({ ownerId: 1, col: 5, row: 5 });
