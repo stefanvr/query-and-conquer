@@ -70,9 +70,16 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
 
 ## Stage 5 — Tank
 - [ ] Spec
-- [ ] Unit movement (action points, terrain cost table)
-- [ ] Unit unload from base
-- [ ] Unit load into base
+- [ ] Extend unit type data with full stats (§3: actions/turn, attacks/turn, attack range, needs
+      LOS, view, strength, ground/air atk) — full table for all 6 units now, even though only
+      Tank becomes actionable this stage, same pattern as Stage 4's build-cost table
+- [ ] Unit movement: single-hop click-to-move (click an adjacent, passable, unoccupied hex;
+      spends that terrain's AP cost from the unit's remaining actions/turn). No multi-hex
+      pathfinding/path-preview for v1 human play — that's an AI-difficulty concern (§8, Stage
+      12), not a human-UX one
+- [ ] Unit selection + panel (AP remaining), distinct from the base panel (§4)
+- [ ] Unit unload from base (choose a valid adjacent destination hex; costs 1 action + move cost)
+- [ ] Unit load into base (costs 1 action + move cost; base needs capacity)
 - [ ] Extend dev save game with tank next to base
 - [ ] Fix: a base's map label can render partly overlapped by a later-drawn terrain hex —
       map-canvas.js's draw() interleaves terrain and label drawing in one pass; labels need
