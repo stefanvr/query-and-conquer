@@ -289,3 +289,67 @@ body {
 #mid-turn-menu[hidden] {
   display: none;
 }
+
+/* --- Base panel (side panel over the map canvas, Stage 4) --- */
+.side-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(300px, 80vw);
+  background: var(--olive);
+  border-left: 1px solid var(--steel);
+  padding: 20px 16px;
+  overflow-y: auto;
+  z-index: 5;
+}
+
+.side-panel[hidden] {
+  display: none;
+}
+
+.side-panel-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid var(--steel);
+  background: var(--ink);
+  color: var(--parchment);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.side-panel-close:hover {
+  border-color: var(--signal);
+}
+
+.side-panel-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+  margin: 0 32px 12px 0;
+}
+
+.base-panel-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+  font-size: 13px;
+  color: var(--steel);
+}
+
+.base-panel-build-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.base-panel-build-buttons .btn-primary {
+  font-size: 14px;
+  padding: 10px 16px;
+}
