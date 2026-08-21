@@ -39,6 +39,9 @@ export const MIN_BODY_EXTENT = 4;
 /** Maximum width of a shallow-water band before it must be enclosed by land (§1). */
 export const MAX_SHALLOW_CHAIN = 3;
 
+/** Minimum hex-distance between any two bases, regardless of owner (§1). */
+export const MIN_BASE_DISTANCE = 5;
+
 /** Candidate maps pre-generated per size x type combination (§1 "Generation"). */
 export const CANDIDATES_PER_COMBO = 10;
 
