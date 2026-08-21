@@ -10,6 +10,10 @@ import {
   moveUnit,
   unloadUnit,
   loadUnit,
+  isValidAttackTarget,
+  attackUnit,
+  attackBase,
+  claimBase,
 } from "../../src/state/commands.js";
 import { buildTurns, UNIT_TYPES } from "../../src/state/unit-types.js";
 import { TerrainGrid } from "../../src/map/grid.js";
@@ -28,6 +32,7 @@ function landBase(overrides = {}) {
   return {
     id: 0,
     ownerId: 0,
+    lastOwnerId: null,
     type: "land",
     adjacentToDeepWater: false,
     sp: 20,
@@ -419,4 +424,284 @@ test("processTurnStart resets only the given player's field units back to full a
   processTurnStart(s, 0);
   assert.equal(s.units[0].remainingActions, UNIT_TYPES.tank.actionsPerTurn);
   assert.equal(s.units[1].remainingActions, 1, "other player's unit untouched");
+});
+
+test("processTurnStart also resets remainingAttacks", () => {
+  const s = state([0], 0);
+  s.units.push({ id: 0, ownerId: 0, unitType: "tank", col: 0, row: 0, sp: 10, maxSp: 10, remainingActions: 0, remainingAttacks: 0 });
+  processTurnStart(s, 0);
+  assert.equal(s.units[0].remainingAttacks, UNIT_TYPES.tank.attacksPerTurn);
+});
+
+// --- Combat (Stage 6) ---
+
+function tank(overrides = {}) {
+  return {
+    id: 0,
+    ownerId: 0,
+    unitType: "tank",
+    col: 5,
+    row: 5,
+    sp: UNIT_TYPES.tank.strength,
+    maxSp: UNIT_TYPES.tank.strength,
+    remainingActions: UNIT_TYPES.tank.actionsPerTurn,
+    remainingAttacks: UNIT_TYPES.tank.attacksPerTurn,
+    ...overrides,
+  };
+}
+
+test("isValidAttackTarget accepts an adjacent enemy in range with attacks/actions left", () => {
+  const attacker = tank({ col: 5, row: 5 });
+  const defender = tank({ id: 1, ownerId: 1, col: 6, row: 5 });
+  assert.equal(isValidAttackTarget(attacker, defender), true);
+});
+
+test("isValidAttackTarget rejects same owner, out of range, or no attacks/actions left", () => {
+  const attacker = tank({ col: 5, row: 5 });
+  const friendly = tank({ id: 1, ownerId: 0, col: 6, row: 5 });
+  const farEnemy = tank({ id: 2, ownerId: 1, col: 8, row: 5 });
+  assert.equal(isValidAttackTarget(attacker, friendly), false, "same owner");
+  assert.equal(isValidAttackTarget(attacker, farEnemy), false, "out of range");
+  assert.equal(isValidAttackTarget(tank({ col: 5, row: 5, remainingAttacks: 0 }), farEnemy), false, "no attacks left");
+  assert.equal(isValidAttackTarget(tank({ col: 5, row: 5, remainingActions: 0 }), farEnemy), false, "no actions left");
+});
+
+test("attackUnit applies the attacker's ground atk against a ground defender's sp, spending 1 action + 1 attack", () => {
+  const s = state([0], 0);
+  const attacker = tank({ col: 5, row: 5 });
+  const defender = tank({ id: 1, ownerId: 1, col: 6, row: 5 });
+  s.units.push(attacker, defender);
+
+  attackUnit(s, 0, 1, 0);
+
+  assert.equal(defender.sp, UNIT_TYPES.tank.strength - UNIT_TYPES.tank.groundAtk);
+  assert.equal(attacker.remainingActions, UNIT_TYPES.tank.actionsPerTurn - 1);
+  assert.equal(attacker.remainingAttacks, UNIT_TYPES.tank.attacksPerTurn - 1);
+});
+
+test("attackUnit uses the attacker's air atk against an air-target-type defender", () => {
+  const s = state([0], 0);
+  const attacker = tank({ col: 5, row: 5 });
+  const defender = { id: 1, ownerId: 1, unitType: "fighter", col: 6, row: 5, sp: UNIT_TYPES.fighter.strength, maxSp: UNIT_TYPES.fighter.strength, remainingActions: 5, remainingAttacks: 1 };
+  s.units.push(attacker, defender);
+
+  attackUnit(s, 0, 1, 0);
+
+  assert.equal(defender.sp, UNIT_TYPES.fighter.strength - UNIT_TYPES.tank.airAtk);
+});
+
+test("attackUnit destroys the defender (removed from state.units) once sp reaches 0", () => {
+  const s = state([0], 0);
+  const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
+  const defender = tank({ id: 1, ownerId: 1, col: 6, row: 5, sp: 1 });
+  s.units.push(attacker, defender);
+
+  attackUnit(s, 0, 1, 0);
+
+  assert.equal(s.units.length, 1);
+  assert.equal(s.units[0].id, 0);
+});
+
+test("attackUnit is a no-op if the attacker isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const attacker = tank({ col: 5, row: 5, ownerId: 1 });
+  const defender = tank({ id: 1, ownerId: 0, col: 6, row: 5 });
+  s.units.push(attacker, defender);
+
+  attackUnit(s, 0, 1, 0); // active player 0, attacker owned by 1
+  assert.equal(defender.sp, UNIT_TYPES.tank.strength, "no damage dealt");
+});
+
+test("attackBase destroys garrisoned units oldest-first before any damage spills onto base sp", () => {
+  const s = state([0], 0);
+  const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
+  s.units.push(attacker);
+  const base = landBase({
+    ownerId: 1,
+    col: 6,
+    row: 5,
+    sp: 20,
+    garrison: [
+      { id: 10, unitType: "tank", sp: 10 },
+      { id: 11, unitType: "tank", sp: 10 },
+    ],
+  });
+  s.bases.push(base);
+
+  attackBase(s, 0, base.id, 0); // groundAtk 4 -> kills both garrisoned units (1 SP each), 2 damage carries onto base
+
+  assert.equal(base.garrison.length, 0);
+  assert.equal(base.sp, 18);
+  assert.equal(base.ownerId, 1, "still owned -- sp didn't reach 0");
+});
+
+test("attackBase drops the base to neutral once sp hits 0, remembering lastOwnerId", () => {
+  const s = state([0], 0);
+  const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
+  s.units.push(attacker);
+  const base = landBase({ ownerId: 1, col: 6, row: 5, sp: 3, garrison: [] });
+  s.bases.push(base);
+
+  attackBase(s, 0, base.id, 0);
+
+  assert.equal(base.sp, 0);
+  assert.equal(base.ownerId, null);
+  assert.equal(base.lastOwnerId, 1);
+});
+
+test("attackBase never destroys a unit still under construction", () => {
+  const s = state([0], 0);
+  const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
+  s.units.push(attacker);
+  const base = landBase({ ownerId: 1, col: 6, row: 5, sp: 3, garrison: [], inProgress: { unitType: "tank", remainingTurns: 2 } });
+  s.bases.push(base);
+
+  attackBase(s, 0, base.id, 0);
+
+  assert.equal(base.ownerId, null);
+  assert.deepEqual(base.inProgress, { unitType: "tank", remainingTurns: 2 });
+});
+
+test("attackBase is a no-op against a neutral or friendly base", () => {
+  const s = state([0], 0);
+  const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
+  s.units.push(attacker);
+  const neutral = landBase({ id: 1, ownerId: null, col: 6, row: 5, sp: 0 });
+  const friendly = landBase({ id: 2, ownerId: 0, col: 5, row: 6, sp: 20 });
+  s.bases.push(neutral, friendly);
+
+  attackBase(s, 0, neutral.id, 0);
+  attackBase(s, 0, friendly.id, 0);
+
+  assert.equal(neutral.sp, 0);
+  assert.equal(friendly.sp, 20);
+});
+
+test("claimBase captures a neutral base, transferring ownership and clearing its queue/build", () => {
+  const s = state([0], 0);
+  const unit = tank({ col: 5, row: 5 });
+  s.units.push(unit);
+  const grid = allLandGrid();
+  const base = landBase({
+    ownerId: null,
+    lastOwnerId: 1,
+    col: 6,
+    row: 5,
+    sp: 0,
+    queue: [{ unitType: "tank" }],
+    inProgress: { unitType: "tank", remainingTurns: 3 },
+  });
+  s.bases.push(base);
+
+  claimBase(s, grid, unit.id, base.id, 0); // claimer 0, lastOwnerId 1 -- an actual capture
+
+  assert.equal(s.units.length, 0);
+  assert.equal(base.ownerId, 0);
+  assert.equal(base.sp, 4);
+  assert.equal(base.garrison.length, 1);
+  assert.equal(base.garrison[0].id, unit.id);
+  assert.deepEqual(base.queue, []);
+  assert.equal(base.inProgress, null);
+});
+
+test("claimBase recaptures a neutral base for its own lastOwnerId without clearing the in-progress build", () => {
+  const s = state([1], 0);
+  const unit = tank({ ownerId: 1, col: 5, row: 5 });
+  s.units.push(unit);
+  const grid = allLandGrid();
+  const base = landBase({
+    ownerId: null,
+    lastOwnerId: 1,
+    col: 6,
+    row: 5,
+    sp: 0,
+    inProgress: { unitType: "tank", remainingTurns: 3 },
+  });
+  s.bases.push(base);
+
+  claimBase(s, grid, unit.id, base.id, 1); // claimer 1 == lastOwnerId -- a recapture
+
+  assert.equal(base.ownerId, 1);
+  assert.equal(base.sp, 4);
+  assert.deepEqual(base.inProgress, { unitType: "tank", remainingTurns: 3 });
+});
+
+test("claimBase is a no-op if the base isn't neutral, or the unit type can't capture", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const owned = landBase({ id: 1, ownerId: 1, col: 6, row: 5 });
+  const neutral = landBase({ id: 2, ownerId: null, col: 5, row: 6 });
+  s.bases.push(owned, neutral);
+  const capturer = tank({ id: 0, col: 5, row: 5 });
+  // (4, 6) is neutral's west neighbor -- col-1 same row is always adjacent regardless of parity.
+  const nonCapturer = { id: 1, ownerId: 0, unitType: "transporter", col: 4, row: 6, sp: 30, maxSp: 30, remainingActions: 8, remainingAttacks: 1 };
+  s.units.push(capturer, nonCapturer);
+
+  claimBase(s, grid, capturer.id, owned.id, 0);
+  claimBase(s, grid, nonCapturer.id, neutral.id, 0);
+
+  assert.equal(owned.ownerId, 1, "still owned -- can't claim a non-neutral base");
+  assert.equal(neutral.ownerId, null, "transporter can't capture");
+});
+
+test("processTurnStart repairs a damaged owned base by 1 SP, capped at max", () => {
+  const s = state([0], 0);
+  const base = landBase({ sp: 18, maxSp: 20 });
+  s.bases.push(base);
+  processTurnStart(s, 0);
+  assert.equal(base.sp, 19);
+
+  base.sp = 20;
+  processTurnStart(s, 0);
+  assert.equal(base.sp, 20, "never exceeds max");
+});
+
+test("processTurnStart repairs up to 5 damaged garrisoned units in parallel, entry order, +5 SP capped at their own max", () => {
+  const s = state([0], 0);
+  const garrison = Array.from({ length: 6 }, (_, i) => ({ id: i, unitType: "tank", sp: 2 }));
+  garrison[5].sp = 2; // the 6th (index 5) is damaged too, but only the first 5 repair this turn
+  const base = landBase({ garrison });
+  s.bases.push(base);
+
+  processTurnStart(s, 0);
+
+  assert.deepEqual(
+    garrison.map((g) => g.sp),
+    [7, 7, 7, 7, 7, 2],
+  );
+});
+
+test("processTurnStart auto-recaptures a neutral base once its lastOwnerId's build completes, at 1 SP", () => {
+  const s = state([0], 0);
+  const base = landBase({ ownerId: null, lastOwnerId: 0, sp: 0, inProgress: { unitType: "tank", remainingTurns: 1 } });
+  s.bases.push(base);
+
+  processTurnStart(s, 0);
+
+  assert.equal(base.ownerId, 0);
+  assert.equal(base.sp, 1);
+  assert.equal(base.garrison.length, 1);
+  assert.equal(base.inProgress, null);
+});
+
+test("processTurnStart leaves a neutral base neutral if its lastOwnerId's build hasn't completed yet", () => {
+  const s = state([0], 0);
+  const base = landBase({ ownerId: null, lastOwnerId: 0, sp: 0, inProgress: { unitType: "tank", remainingTurns: 3 } });
+  s.bases.push(base);
+
+  processTurnStart(s, 0);
+
+  assert.equal(base.ownerId, null);
+  assert.equal(base.inProgress.remainingTurns, 2);
+});
+
+test("processTurnStart never auto-recaptures for a player who isn't the neutral base's lastOwnerId", () => {
+  const s = state([1], 0);
+  const base = landBase({ ownerId: null, lastOwnerId: 0, sp: 0, inProgress: { unitType: "tank", remainingTurns: 1 } });
+  s.bases.push(base);
+
+  processTurnStart(s, 1); // player 1's turn, but lastOwnerId is 0
+
+  assert.equal(base.ownerId, null, "player 1 has no claim to it");
+  assert.equal(base.inProgress.remainingTurns, 1, "not this player's base to tick either");
 });

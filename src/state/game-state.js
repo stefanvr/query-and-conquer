@@ -30,6 +30,7 @@ export function createGameState(options, mapData, rng) {
   const bases = sites.map((site, i) => ({
     id: i,
     ownerId: site.ownerId,
+    lastOwnerId: null, // set when a base goes neutral (§4) — who to auto-recapture it for
     type: site.type,
     col: site.col,
     row: site.row,

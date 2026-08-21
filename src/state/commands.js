@@ -6,6 +6,7 @@ import { baseAtHex, unitAtHex } from "./game-state.js";
 
 const MAX_QUEUE_LENGTH = 5; // §2
 const MAX_BASE_CAPACITY = 15; // §2: garrisoned + in-progress builds count against it
+const CAPTURING_UNIT_TYPES = ["tank", "fighter", "fregat"]; // §4: no other unit type can capture a base
 
 /** Advances to the next player in turn order, wrapping around; bumps turnNumber on wraparound.
  * Stage 3 has no AI logic yet (Stage 11+), so an AI turn has nothing to do — callers should keep
@@ -174,16 +175,147 @@ export function loadUnit(state, grid, unitId, activePlayerId) {
   return state;
 }
 
-/** Turn-start processing (game spec §7's "complete any builds whose timer expired") for
- * whichever player's turn is beginning:
- * - ticks down that player's bases' in-progress build timers, garrisoning the unit on completion
- *   and starting the next queued item if there's room;
- * - resets that player's field units back to their full actions/turn (game spec §3).
- * Passive base repair and neutral-base recapture, also part of §7's turn-start sequence, stay
- * deferred to Stage 6. */
+// --- Combat (game spec §3's Actions, §4's base capture) ---
+
+/** Whether `attacker` could attack `defender` right now: different owner, within attack range
+ * (game spec §3's per-unit table), and `attacker` still has both an attack and an action left
+ * this turn. Exported so the UI can route a click to attack without duplicating this logic
+ * (implementation-spec.md §1). No LOS-blocking check yet — every actionable unit's range is 1
+ * (Tank) until boats/planes land, so "in range" and "adjacent" already coincide with nothing in
+ * between to block. */
+export function isValidAttackTarget(attacker, defender) {
+  if (!attacker || !defender) return false;
+  if (attacker.ownerId === defender.ownerId) return false;
+  if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return false;
+  return offsetDistance(attacker, defender) <= UNIT_TYPES[attacker.unitType].attackRange;
+}
+
+/** Open-field unit-vs-unit combat (game spec §3): `attacker`'s atk value against `defender`'s
+ * target type (ground/air) is subtracted from `defender`'s sp; destroyed (removed from
+ * `state.units`) at 0. Costs 1 action + 1 of the attacker's attacks this turn. No-op if either
+ * unit is missing, `attackerUnitId` isn't owned by `activePlayerId`, or the target isn't valid
+ * (`isValidAttackTarget`). */
+export function attackUnit(state, attackerUnitId, defenderUnitId, activePlayerId) {
+  const attacker = state.units.find((u) => u.id === attackerUnitId);
+  if (!attacker || attacker.ownerId !== activePlayerId) return state;
+  const defenderIndex = state.units.findIndex((u) => u.id === defenderUnitId);
+  if (defenderIndex === -1) return state;
+  const defender = state.units[defenderIndex];
+  if (!isValidAttackTarget(attacker, defender)) return state;
+
+  const atkStats = UNIT_TYPES[attacker.unitType];
+  const targetType = UNIT_TYPES[defender.unitType].targetType;
+  const damage = targetType === "air" ? atkStats.airAtk : atkStats.groundAtk;
+
+  attacker.remainingActions -= 1;
+  attacker.remainingAttacks -= 1;
+  defender.sp -= damage;
+  if (defender.sp <= 0) state.units.splice(defenderIndex, 1);
+  return state;
+}
+
+/** Attacking a claimed (enemy-owned) base (game spec §4): damage first destroys garrisoned
+ * units, oldest-entered first, 1 SP of damage each regardless of their own strength stat; any
+ * remaining damage spills onto the base's own sp. A unit still under construction is never
+ * destroyed. If the base's sp reaches 0, it goes neutral (`ownerId` null) and remembers
+ * `lastOwnerId` for §4's recapture rule — a build already in progress survives this unaborted.
+ * Costs 1 action + 1 of the attacker's attacks this turn. No-op if either side is missing,
+ * `attackerUnitId` isn't owned by `activePlayerId`, the base is unowned or owned by the
+ * attacker, or the attacker is out of range/attacks/actions. */
+export function attackBase(state, attackerUnitId, baseId, activePlayerId) {
+  const attacker = state.units.find((u) => u.id === attackerUnitId);
+  if (!attacker || attacker.ownerId !== activePlayerId) return state;
+  const base = state.bases.find((b) => b.id === baseId);
+  if (!base || base.ownerId === null || base.ownerId === attacker.ownerId) return state;
+  if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return state;
+  if (offsetDistance(attacker, base) > UNIT_TYPES[attacker.unitType].attackRange) return state;
+
+  attacker.remainingActions -= 1;
+  attacker.remainingAttacks -= 1;
+
+  const atkStats = UNIT_TYPES[attacker.unitType];
+  let damage = atkStats.groundAtk; // bases are always "ground" targets (§3)
+  while (damage > 0 && base.garrison.length > 0) {
+    base.garrison.shift(); // oldest-entered first, 1 SP each regardless of their own strength
+    damage -= 1;
+  }
+  if (damage > 0) {
+    base.sp = Math.max(0, base.sp - damage);
+    if (base.sp === 0) {
+      base.lastOwnerId = base.ownerId;
+      base.ownerId = null;
+    }
+  }
+  return state;
+}
+
+/** Claims a neutral base (`ownerId` null — bases start the match already owned by a player, game
+ * spec §5, so this only ever applies post-combat) with a unit of a capturing type
+ * (tank/fighter/fregat, game spec §4), terrain-gated the same as any base entry. Ownership
+ * transfers to the claiming unit's owner, the unit garrisons inside, and sp resets to 4. Only a
+ * claim by an owner different from the base's `lastOwnerId` (an actual capture, as opposed to a
+ * recapture) clears the queue and in-progress build. Costs 1 action + the base's terrain move
+ * cost, same as loading (§2). No-op if the base isn't neutral, the unit's category isn't
+ * accepted, or `unitId` isn't owned by `activePlayerId`. */
+export function claimBase(state, grid, unitId, baseId, activePlayerId) {
+  const index = state.units.findIndex((u) => u.id === unitId);
+  if (index === -1) return state;
+  const unit = state.units[index];
+  if (unit.ownerId !== activePlayerId) return state;
+  const base = state.bases.find((b) => b.id === baseId);
+  if (!base || base.ownerId !== null) return state;
+  if (!CAPTURING_UNIT_TYPES.includes(unit.unitType)) return state;
+  if (!BASE_CATEGORIES[base.type].includes(UNIT_TYPES[unit.unitType].category)) return state;
+  if (offsetDistance(unit, base) !== 1) return state;
+
+  const cost = moveCost(unit.unitType, grid.get(base.col, base.row));
+  if (cost === null) return state;
+  const totalCost = 1 + cost;
+  if (totalCost > unit.remainingActions) return state;
+
+  const isRecapture = base.lastOwnerId === unit.ownerId;
+  state.units.splice(index, 1);
+  base.garrison.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp });
+  base.ownerId = unit.ownerId;
+  base.sp = 4;
+  if (!isRecapture) {
+    base.queue = [];
+    base.inProgress = null;
+  }
+  return state;
+}
+
+/** Turn-start processing (game spec §7's per-turn sequence) for whichever player's turn is
+ * beginning, in order (implementation-spec.md §2):
+ * 1. Passive base repair: +1 SP/turn (capped at max) for every base this player owns and is
+ *    damaged, regardless of garrison.
+ * 2. Per-unit repair: the first 5 damaged garrisoned units in entry order at each of this
+ *    player's bases repair +5 SP/turn each (10 SP per bbr = 2 turns), capped at their own max.
+ * 3. Build-timer tick + completion: ticks down in-progress builds; on completion, adds the unit
+ *    to the garrison (at full sp) and starts the next queued item if there's room.
+ * 4. Automatic neutral-base recapture (game spec §4): also runs for a base this player doesn't
+ *    currently own, if it's neutral and they're its `lastOwnerId` — a build survives its base
+ *    going neutral, so this is where it finally resolves. Ownership returns to this player and sp
+ *    resets to 1 (lower than a manual claim, commands.js's claimBase) once that build completes.
+ * Also resets this player's field units back to full actions/attacks per turn (game spec §3). */
 export function processTurnStart(state, playerId) {
   for (const base of state.bases) {
-    if (base.ownerId !== playerId) continue;
+    const ownsIt = base.ownerId === playerId;
+    const awaitingRecapture = base.ownerId === null && base.lastOwnerId === playerId;
+    if (!ownsIt && !awaitingRecapture) continue;
+
+    if (ownsIt) {
+      if (base.sp < base.maxSp) base.sp = Math.min(base.maxSp, base.sp + 1);
+
+      let repairing = 0;
+      for (const garrisoned of base.garrison) {
+        if (repairing >= 5) break;
+        const maxSp = UNIT_TYPES[garrisoned.unitType].strength;
+        if (garrisoned.sp >= maxSp) continue;
+        garrisoned.sp = Math.min(maxSp, garrisoned.sp + 5);
+        repairing += 1;
+      }
+    }
 
     if (base.inProgress) {
       base.inProgress.remainingTurns -= 1;
@@ -191,9 +323,13 @@ export function processTurnStart(state, playerId) {
         const unitType = base.inProgress.unitType;
         base.garrison.push({ id: state.nextUnitId++, unitType, sp: UNIT_TYPES[unitType].strength });
         base.inProgress = null;
+        if (awaitingRecapture) {
+          base.ownerId = playerId;
+          base.sp = 1;
+        }
       }
     }
-    maybeStartNextBuild(base);
+    if (base.ownerId === playerId) maybeStartNextBuild(base);
   }
 
   for (const unit of state.units) {

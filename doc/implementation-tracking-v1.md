@@ -115,20 +115,20 @@ recovery, on the same reference unit.*
 - [x] Unit `remainingAttacks` (resets each turn like `remainingActions`, §3's Attacks/turn cap)
 - [ ] Attack targeting: with a unit selected, click an adjacent enemy unit or enemy-owned base to
       attack instead of move (mirrors move-targeting's click pattern)
-- [ ] Open-field unit-vs-unit combat: attacker's ground/air atk (by defender's target type)
+- [x] Open-field unit-vs-unit combat: attacker's ground/air atk (by defender's target type)
       subtracted from defender's SP; destroyed at 0 (§3)
-- [ ] Claim command: enter (garrison into) a neutral base with a tank/fighter/fregat, terrain-
+- [x] Claim command: enter (garrison into) a neutral base with a tank/fighter/fregat, terrain-
       gated per unit type — tank-only testable until boats/planes land (§4)
-- [ ] Attack a claimed base: garrisoned units die first (oldest-entered, 1 SP each flat — not
+- [x] Attack a claimed base: garrisoned units die first (oldest-entered, 1 SP each flat — not
       their own strength stat), remaining damage spills onto base SP (§4)
-- [ ] Base hits 0 SP → neutral (`ownerId` null); records who to auto-recapture for
-- [ ] Turn-start: auto-recapture via the original owner's completed build (SP → 1) — this must
+- [x] Base hits 0 SP → neutral (`ownerId` null); records who to auto-recapture for
+- [x] Turn-start: auto-recapture via the original owner's completed build (SP → 1) — this must
       run on that owner's turn even though the base currently has no owner
-- [ ] Claim resolution: both open capture (different owner) and manual recapture (original owner
+- [x] Claim resolution: both open capture (different owner) and manual recapture (original owner
       walks a unit in) set SP to 4; only capture (not recapture) clears the queue/in-progress build
-- [ ] Passive base repair: 1 SP/turn per owned, damaged base, at turn-start, before build
+- [x] Passive base repair: 1 SP/turn per owned, damaged base, at turn-start, before build
       completion (§7's per-turn sequence order)
-- [ ] Per-unit repair: up to 5 damaged garrisoned units repaired in parallel, 5 SP/turn each (10
+- [x] Per-unit repair: up to 5 damaged garrisoned units repaired in parallel, 5 SP/turn each (10
       SP/bbr), first-come = garrison array order
 - [x] Garrisoned-unit SP persists through load/unload (currently dropped on load, reset to full
       on unload — a damaged unit needs to carry its SP through both)
