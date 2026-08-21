@@ -31,7 +31,16 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 ### Maps preview page (dev-only)
 - Static grid render of each pre-generated map, flat terrain colors (style-guide.md §4), no
   pan/zoom/interaction — a visual check on generation output, not the real game camera.
-- In-game camera (pan/zoom/selection) lands in Stage 3.
+
+### In-game map render
+- Canvas render (tech-stack.md), viewport-clipped — only draws cells currently on screen, never
+  the full map (up to 12,000 cells).
+- Pan: mouse/touch drag. Zoom: scroll wheel / pinch, plus on-screen +/- buttons as a fallback.
+  `touch-action: none` on the canvas element only.
+- Initial camera: centered on the map. Base-relative start focus is deferred to Stage 4 (no
+  bases exist yet this stage).
+- No hex selection/highlight/hover interaction yet — nothing to select on an empty map. Lands
+  with Bases/Units (§2/§3) in later stages.
 
 ## 2. Bases
 *(game spec §2 — base info panel, build/queue interaction, capacity display, repair status)*
@@ -55,7 +64,9 @@ _Not started._
 ## 6. HUD
 *(app-only — persistent on-screen chrome: turn/player indicator, end-turn control, AI-speed
 control, entry point to the mid-turn menu)*
-_Not started._
+- Persistent bar: current player/turn indicator, End Turn button.
+- Entry point (button/icon) opening the mid-turn menu (§8).
+- AI-speed control deferred — no visible AI actions to pace until Stage 11.
 
 ## 7. Side menu & selection panel
 *(app-only — the contextual detail/action panel shown for whatever's currently selected, base
@@ -74,13 +85,36 @@ _Not started._
 - `dev/style-guide.html` — living reference of style-guide.md's tokens/components, not part of
   the shipped app. Pulls the app's own CSS rather than duplicating values.
 
+### Game room
+- Shown after Start (replaces the Stage 1 stub in `src/main.js`).
+- Two entries: New game (→ game options menu) and Load game (enabled only when the save slot has
+  a save, §10).
+- Dev-only entry: "Load test game", loads the fixed dev save (§10). Gated behind a `?dev` URL
+  query param, not a build-time flag — no build step exists to gate it at (tech-stack.md).
+
+### Game options menu
+- Controls: AI count (1–5), per-AI difficulty (Easy only — Hard stays disabled until Stage 12),
+  map size, map type (Islands option disabled when size = Small), fog of war toggle.
+- Dropdowns per style-guide.md §9 "Selection components".
+- Confirm: picks a random map from `assets/maps/` matching the chosen size + type, randomizes
+  turn order, navigates to the game screen.
+
+### Mid-turn menu
+- Reached via the HUD's entry point (§6), any time during the human player's own turn.
+- Three actions: Save (§10), Quit (return to game room; save slot untouched), Terminate
+  (instant elimination — confirm before applying, since it's irreversible).
+
 ## 9. Stats display
 *(app-only — running in-HUD stats if any, and the end-of-game stats dialog per game spec §7)*
 _Not started._
 
 ## 10. Save/Load
 *(app-only — save/load UI flow, dev save game and dev-only load-test-game option)*
-_Not started._
+- Single save slot, localStorage-backed (tech-stack.md), exact mid-turn canonical state.
+- Only the mid-turn menu's Save action writes to the slot — quitting does not autosave.
+- Dev save: a fixed, hand-authored save (small test map, no bases/units yet — those land in
+  Stage 4+) separate from the player's slot, reached via the game room's `?dev`-gated "Load test
+  game" entry (§8).
 
 ## 11. AI behavior UX
 *(game spec §8 — visible per-action animation during an AI turn, and how the instant/fast/slow
