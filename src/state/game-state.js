@@ -1,7 +1,6 @@
 // Canonical game state — the "command" side of tech-stack.md's CQRS-lite split. Only
 // commands.js mutates this; everything else (rendering, UI, easy AI) reads through
-// queries.js's getVisibleState. No unit representation beyond garrisoned build output yet
-// (Stage 5+ adds real map units) — units.js name is reserved for that.
+// queries.js's getVisibleState.
 import { shuffle } from "../map/prng.js";
 import { deserializeGrid } from "../map/map-serialize.js";
 import { placeBases } from "./base-placement.js";
@@ -47,7 +46,8 @@ export function createGameState(options, mapData, rng) {
     map: mapData,
     players,
     bases,
-    nextUnitId: 0, // shared counter for garrisoned-unit ids, bumped as builds complete
+    units: [], // field units (Stage 5+) — garrisoned units live in their base's own garrison instead
+    nextUnitId: 0, // shared counter for unit ids, bumped as builds complete
     turnOrder: shuffle(rng, players.map((p) => p.id)), // randomized once at game start (§7)
     turnIndex: 0,
     turnNumber: 1,
@@ -61,4 +61,12 @@ export function activePlayer(state) {
 
 export function playerBase(state, playerId) {
   return state.bases.find((b) => b.ownerId === playerId);
+}
+
+export function baseAtHex(state, col, row) {
+  return state.bases.find((b) => b.col === col && b.row === row);
+}
+
+export function unitAtHex(state, col, row) {
+  return state.units.find((u) => u.col === col && u.row === row);
 }
