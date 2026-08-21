@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildTurns, buildableUnitTypes, BASE_BUILD_TIME, UNIT_TYPES } from "../../src/state/unit-types.js";
+import { buildTurns, buildableUnitTypes, moveCost, BASE_BUILD_TIME, UNIT_TYPES } from "../../src/state/unit-types.js";
 
 test("buildTurns applies the cost multiplier to bbt", () => {
   assert.equal(buildTurns("tank"), 1 * BASE_BUILD_TIME);
@@ -26,9 +26,30 @@ test("port base can build vehicles and boats, but carrier only if adjacent to de
   assert.ok(withDeep.includes("carrier"));
 });
 
-test("every UNIT_TYPES entry has a category and a positive cost multiplier", () => {
+test("every UNIT_TYPES entry has a full, sane stat block", () => {
   for (const [name, def] of Object.entries(UNIT_TYPES)) {
     assert.ok(["vehicle", "plane", "boat"].includes(def.category), `${name} category`);
-    assert.ok(def.buildCostMultiplier > 0, `${name} cost`);
+    assert.ok(def.buildCostMultiplier > 0, `${name} buildCostMultiplier`);
+    assert.ok(["ground", "air"].includes(def.targetType), `${name} targetType`);
+    assert.ok(def.actionsPerTurn > 0, `${name} actionsPerTurn`);
+    assert.ok(def.attacksPerTurn > 0, `${name} attacksPerTurn`);
+    assert.ok(def.attackRange > 0, `${name} attackRange`);
+    assert.equal(typeof def.needsLOS, "boolean", `${name} needsLOS`);
+    assert.ok(def.view > 0, `${name} view`);
+    assert.ok(def.strength > 0, `${name} strength`);
+    assert.ok(def.groundAtk >= 0, `${name} groundAtk`);
+    assert.ok(def.airAtk >= 0, `${name} airAtk`);
+    for (const terrain of ["gras", "gravel", "mountain", "sand", "shallow", "deep"]) {
+      assert.ok(terrain in def.moveCost, `${name} moveCost.${terrain}`);
+    }
   }
+});
+
+test("moveCost returns the terrain's cost, or null if impassable", () => {
+  assert.equal(moveCost("tank", "gras"), 1);
+  assert.equal(moveCost("tank", "sand"), 3);
+  assert.equal(moveCost("tank", "mountain"), null);
+  assert.equal(moveCost("tank", "deep"), null);
+  assert.equal(moveCost("fregat", "shallow"), 1);
+  assert.equal(moveCost("fregat", "gras"), null);
 });

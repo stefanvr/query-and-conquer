@@ -1,15 +1,100 @@
-// Unit type data for the build economy — game spec §2's build cost table. This is all Stage 4
-// needs (what the base panel's build buttons and capacity accounting run on); full per-unit
-// stats/movement/combat land with each unit's own stage (Tank: 5, boats: 7, planes: 8).
+// Unit type data — game spec §2's build cost table and §3's unit/move-cost tables, combined
+// into one data source. Full stat block for all 6 units, even though only Tank is actionable
+// until boats (Stage 7) and planes (Stage 8) land — same pattern as the build-cost table itself.
 export const BASE_BUILD_TIME = 5; // "bbt", in turns (§2)
 
+// Move cost is action points spent to enter a cell of that terrain; 0 = impassable, not free (§3).
 export const UNIT_TYPES = {
-  tank: { category: "vehicle", buildCostMultiplier: 1 },
-  fighter: { category: "plane", buildCostMultiplier: 2 },
-  bomber: { category: "plane", buildCostMultiplier: 5 },
-  fregat: { category: "boat", buildCostMultiplier: 3 },
-  transporter: { category: "boat", buildCostMultiplier: 1 },
-  carrier: { category: "boat", buildCostMultiplier: 8 },
+  tank: {
+    category: "vehicle",
+    buildCostMultiplier: 1,
+    targetType: "ground",
+    actionsPerTurn: 5,
+    attacksPerTurn: 2,
+    attackRange: 1,
+    needsLOS: true,
+    view: 3,
+    strength: 10,
+    groundAtk: 4,
+    airAtk: 1,
+    moveCost: { gras: 1, gravel: 2, mountain: 0, sand: 3, shallow: 0, deep: 0 },
+  },
+  fighter: {
+    category: "plane",
+    buildCostMultiplier: 2,
+    targetType: "air",
+    actionsPerTurn: 8,
+    attacksPerTurn: 1,
+    attackRange: 2,
+    needsLOS: false,
+    view: 5,
+    strength: 15,
+    groundAtk: 2,
+    airAtk: 4,
+    moveCost: { gras: 1, gravel: 1, mountain: 2, sand: 1, shallow: 1, deep: 1 },
+    maxStrikes: 4, // before returning to base/carrier to rearm
+    roundTripRange: 100,
+  },
+  bomber: {
+    category: "plane",
+    buildCostMultiplier: 5,
+    targetType: "air",
+    actionsPerTurn: 6,
+    attacksPerTurn: 1,
+    attackRange: 1,
+    needsLOS: false,
+    view: 8,
+    strength: 10,
+    groundAtk: 8,
+    airAtk: 1,
+    moveCost: { gras: 1, gravel: 1, mountain: 1, sand: 1, shallow: 1, deep: 1 },
+    maxStrikes: 2, // before returning to base to rearm
+    roundTripRange: 200,
+  },
+  fregat: {
+    category: "boat",
+    buildCostMultiplier: 3,
+    targetType: "ground",
+    actionsPerTurn: 5,
+    attacksPerTurn: 1,
+    attackRange: 2,
+    needsLOS: true,
+    view: 6,
+    strength: 15,
+    groundAtk: 6,
+    airAtk: 4,
+    moveCost: { gras: 0, gravel: 0, mountain: 0, sand: 0, shallow: 1, deep: 1 },
+  },
+  transporter: {
+    category: "boat",
+    buildCostMultiplier: 1,
+    targetType: "ground",
+    actionsPerTurn: 8,
+    attacksPerTurn: 1,
+    attackRange: 1,
+    needsLOS: true,
+    view: 3,
+    strength: 30,
+    groundAtk: 0,
+    airAtk: 0,
+    moveCost: { gras: 0, gravel: 0, mountain: 0, sand: 0, shallow: 1, deep: 1 },
+    holdCapacity: 5, // tanks
+  },
+  carrier: {
+    category: "boat",
+    buildCostMultiplier: 8,
+    targetType: "ground",
+    actionsPerTurn: 3,
+    attacksPerTurn: 1,
+    attackRange: 4,
+    needsLOS: false,
+    view: 5,
+    strength: 25,
+    groundAtk: 8,
+    airAtk: 4,
+    moveCost: { gras: 0, gravel: 0, mountain: 0, sand: 0, shallow: 0, deep: 1 },
+    holdCapacity: 5, // planes
+  },
 };
 
 /** Which unit categories each base type can build (§2). */
@@ -35,4 +120,10 @@ export function buildableUnitTypes(baseType, adjacentToDeepWater) {
       return true;
     })
     .map(([name]) => name);
+}
+
+/** Move cost to enter a cell of the given terrain, or null if impassable for this unit type (§3). */
+export function moveCost(unitType, terrain) {
+  const cost = UNIT_TYPES[unitType].moveCost[terrain];
+  return cost > 0 ? cost : null;
 }
