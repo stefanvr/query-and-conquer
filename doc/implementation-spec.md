@@ -43,6 +43,9 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - Pan: mouse/touch drag. Zoom: scroll wheel / pinch, plus on-screen +/- buttons as a fallback.
   `touch-action: none` on the canvas element only.
 - Initial camera: centered on the human player's own base.
+- Base markers: owner's accent-color stroke, or steel-gray if unowned (§2/§4). A label under
+  your own base shows its SP and, if a build's in progress, `Building: [unit type]` — an
+  enemy-owned base's marker has no label at all, matching its panel's own non-disclosure (§2/§4).
 - Field units: drawn per style-guide.md §9 — shape by unit type (Tank: square),
   owner's accent-color fill, white stroke if selected else `rgba(0,0,0,0.5)`, radius `0.4 ×
   hexSize`. Plain-text AP label near the token (style-guide.md §8), same pattern as base labels.
@@ -75,6 +78,22 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   Clicking a highlighted hex confirms — unloads the unit there (§2) and opens its unit panel
   (§3). Clicking anything else is a no-op; stays in preview mode.
 
+### Attack & claim targeting
+- With a unit selected, tapping/clicking an adjacent hex resolves in priority order before
+  falling back to Movement targeting or normal selection: an enemy unit or enemy-owned base
+  there → attack; a neutral base there, if the unit's type can capture it (tank/fighter/fregat,
+  game spec §4) → claim.
+- **Attack**: costs 1 action and 1 of the unit's remaining attacks this turn (game spec §3's
+  Attacks/turn cap, §3 below); no-op if either is exhausted or the target's outside attack range.
+  Tank's range of 1 makes "adjacent" and "in range" the same check for now — a longer-range
+  unit's targeting (boats: Stage 7, planes: Stage 8) needs its own reachable-target computation,
+  not just adjacency.
+- **Claim**: costs 1 action + the base's terrain move cost (same pattern as loading, §2) and
+  garrisons the claiming unit inside, transferring ownership (§4). Terrain-gated per unit type
+  same as any base entry — tank-claiming is the only path testable until boats/planes land.
+- Either action refreshes the acting unit's own panel (updated AP/attacks-remaining) and redraws
+  the map afterward; no dedicated animation/toast for v1 (§4).
+
 ## 2. Bases
 *(game spec §2 — base info panel, build/queue interaction, capacity display, repair status)*
 
@@ -95,22 +114,33 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - Base SP starts at full strength (20, §2) — no damage exists yet (combat lands Stage 6).
 
 ### Base panel (side menu, §7)
-- Opens on selecting a base (§1). Shows: base type, SP (`20/20`, style-guide.md §8's text
-  treatment), garrison count / capacity (`X/15`).
-- Three labeled slot grids (icon + label per slot, style-guide.md §9's token styling; empty
-  slots dimmed):
+- Opens on selecting a base (§1). Always shows: base type, owner (the same "Human"/`AI n` label +
+  accent color the HUD turn indicator uses, or "Neutral" in steel-gray if unowned, game spec §4).
+- **Your own base** (regardless of whose turn it currently is) additionally shows SP (`20/20`,
+  style-guide.md §8's text treatment — no longer always full once combat/repair land, §4),
+  garrison count / capacity (`X/15`), and the three labeled slot grids below (icon + label per
+  slot, style-guide.md §9's token styling; empty slots dimmed):
   - **Building** — 1 slot: current in-progress build (`unit type` + `remaining/total` turns), or
     idle.
   - **Queue** — 5 slots: one per queued item, in order.
   - **Garrison** — `capacity - 1` slots (`14`), growing to fit if the garrison count ever
     exceeds that (no build in progress); filled front-to-back in entry order.
-- Queue slot click (own base/turn only, filled slot): toggles that slot's inline controls —
+- **An enemy-owned base** shows nothing past type + owner — no SP, capacity, or slot grids. It
+  discloses no interior state (game spec §4: "a base's strength stays unknown until it's
+  demolished" — build-v1's own phrasing, matching this build's intent too), unlike an enemy
+  *unit*'s panel, which does show its SP (§3). A neutral base has no interior state to hide
+  (SP sits near 0 while unclaimed either way), so it's unaffected by this distinction.
+- "Your own base" here means owned by the *viewing* player, not "owned by whoever's turn it
+  currently is" — those differ when your own base's panel is left open while an AI's cascaded
+  turn plays out; it should stay fully visible. Interactivity (queue/garrison slot clicks, build
+  buttons) still separately requires it being that owner's actual turn, per the bullets below.
+- Queue slot click (own base, own turn, filled slot): toggles that slot's inline controls —
   Remove, Move up (disabled at index 0), Move down (disabled at the last index). Only one slot's
   controls are open at a time.
-- Garrison slot click (own base/turn only, filled slot): enters unload-preview mode (§1) instead
+- Garrison slot click (own base, own turn, filled slot): enters unload-preview mode (§1) instead
   of anything within the panel itself.
-- A base selected while it isn't the active player's own turn (or isn't owned by the active
-  player) still shows all three grids, read-only — no slot click handlers, no build buttons.
+- Your own base, viewed on a turn that isn't yours, shows the same full grids read-only — no slot
+  click handlers, no build buttons.
 - One build button per unit type the base's category allows (game spec §2: Land → Tank; Port →
   Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — Fighter/Bomber/Fregat/
   Transporter/Carrier buttons exist now even though those unit types have no movement/combat
@@ -122,13 +152,19 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   Costs 1 action + the destination's move cost (game spec §3), taken from the unit's own action
   budget as it becomes a field unit.
 
-### Turn-start build processing
-- When a player's turn begins (including cascading through AI turns): tick down that
-  player's bases' in-progress build timers; on completion, add the unit to the garrison and, if
-  capacity allows, pull the next queued item into "in-progress" with a fresh timer
-  (cost-multiplier × bbt, game spec §2).
-- Passive base repair and neutral-base recapture — also part of game spec §7's turn-start
-  sequence — stay deferred to Stage 6 along with the rest of the repair economy.
+### Turn-start processing (game spec §7)
+- Order, per player's turn-start (including cascading through AI turns): (1) passive base
+  repair, (2) per-unit repair, (3) build-timer tick + completion, (4) automatic neutral-base
+  recapture (§4 — runs here too, keyed off a different base field than the rest of this list; see
+  that section for the full rule).
+- Passive base repair: +1 SP/turn (capped at max) for every base the player currently owns and
+  that's damaged, regardless of garrison (game spec §2).
+- Per-unit repair: the first 5 damaged garrisoned units in entry order at each base repair +5
+  SP/turn each (10 SP per bbr = 2 turns), capped at their own max strength (game spec §2). No
+  separate repair-queue data — just derived each turn from garrison order + damage state.
+- Build-timer tick + completion: tick down in-progress builds; on completion, add the unit to the
+  garrison (starting SP: its own max strength) and, if capacity allows, pull the next queued item
+  into "in-progress" with a fresh timer (cost-multiplier × bbt, game spec §2).
 
 ## 3. Units
 *(game spec §3 — selection, movement (path preview, action-point display), attack targeting,
@@ -139,14 +175,30 @@ load/unload and cargo interaction)*
   needs LOS, view, strength, ground/air atk, move cost per terrain, game spec §3).
 
 ### Field units
-- A unit leaving a base (unload, §2) becomes a field entry: id (carried over from its
-  garrisoned id), ownerId, unitType, col/row, sp (starts at the type's max strength — no damage
-  exists yet, Stage 6), remainingActions (starts at the type's full actions/turn *before* the
-  unload's own 1-action + move-cost is deducted, so a freshly-unloaded unit can still act with
-  whatever's left that same turn). Resets to the full actions/turn again at the owner's next
+- A unit leaving a base (unload, §2) becomes a field entry: id (carried over from its garrisoned
+  id), ownerId, unitType, col/row, sp (carried over from its garrisoned sp — no longer always
+  full once repair/damage exist, §4), remainingActions (starts at the type's full actions/turn
+  *before* the unload's own 1-action + move-cost is deducted, so a freshly-unloaded unit can
+  still act with whatever's left that same turn), remainingAttacks (starts at the type's full
+  attacks/turn, game spec §3's Attacks/turn cap — separate budget from remainingActions, though
+  each individual attack spends 1 of *both*). Both reset to full again at the owner's next
   turn-start, alongside build processing (game spec §7).
+- Garrisoned units carry the same sp field (no longer just `{id, unitType}`) so damage persists
+  across load/unload rather than resetting — loading keeps the unit's current sp, unloading keeps
+  it too (only a freshly-completed build starts at full sp).
 - Move cost is spent from remainingActions per hex entered (game spec §3's terrain cost table;
   `0` = impassable, not free). A unit with 0 remaining actions can't move or load/unload.
+- Both moveUnit and loadUnit/unloadUnit (and the new attack/claim commands, §1) reject a unit
+  that isn't owned by the currently active player — previously enforced only by the UI only
+  wiring up controls for the player's own units/bases; now enforced in the commands themselves,
+  since attack/claim make acting on another player's unit or base a real (not just
+  hypothetical) mistake to guard against.
+
+### Open-field combat
+- Attacker's atk value against the defender's target type (ground or air, game spec §3's per-unit
+  table) is subtracted from the defender's sp; destroyed (removed from `state.units`) at 0.
+- Boats and bases are always "ground" targets for this purpose; a garrisoned unit is too, but
+  garrisoned combat instead follows §4's base-attack rule, not this one.
 
 ### Unit panel (side menu, §7)
 - Opens on selecting a field unit (§1). Shows: unit type, SP (`10/10`), actions
@@ -158,7 +210,41 @@ load/unload and cargo interaction)*
 ## 4. Combat & capture
 *(game spec §4 — attack feedback/animation, damage display, capture and neutral-base
 indicators)*
-_Not started._
+
+### Attacking a claimed (enemy-owned) base
+- Damage first destroys garrisoned units, oldest-entered first, 1 SP of damage each regardless
+  of their own strength stat — a garrisoned unit is either alive or destroyed, never partially
+  damaged this way (only open-field damage, §3, is partial). Remaining damage (if any) spills
+  onto the base's own SP.
+- A unit still under construction (`inProgress`) is never destroyed by an attack.
+
+### Neutral base lifecycle
+- A base's SP hitting 0 sets `ownerId` to `null` (neutral) and records `lastOwnerId` — whoever
+  owned it right before, distinct from the base's original placement owner if it's changed hands
+  more than once. A build already in progress survives this transition unaborted.
+- Turn-start (§2's turn-start processing, step 4): if the neutral base's in-progress build
+  completes on `lastOwnerId`'s own turn, it auto-recaptures — ownership returns to `lastOwnerId`,
+  SP resets to 1 (not 4 — lower than a manual claim below), and the completed unit garrisons as
+  normal.
+- Until then, it's open: any player, including `lastOwnerId` itself, can claim it (§1's Attack &
+  claim targeting) on their own turn, whichever happens first.
+
+### Claim
+- Only a neutral base (`ownerId` null) can be claimed — bases start the match already owned by
+  a player (game spec §5), so this only ever applies post-combat.
+- Ownership transfers to the claiming unit's owner and the unit garrisons inside (§1); SP resets
+  to 4 either way.
+- Only a claim by an owner *different* from `lastOwnerId` (an actual capture) clears the base's
+  queue and in-progress build. A claim by `lastOwnerId` itself (a manual recapture, as opposed to
+  the automatic one above) leaves an in-progress build running uninterrupted.
+
+### Feedback & indicators
+- Neutral base: steel-gray owner stroke instead of a player accent color (map-canvas.js's
+  `ownerColorVar`, extended with a "no owner" case) — same treatment the base panel's owner line
+  uses (§2).
+- No dedicated attack/capture animation or toast for v1 — the base/unit panel's own SP/owner
+  display (§2/§3, already live) and the map's own token/marker removal on death are the only
+  feedback. A full pass on this belongs to Stage 13's UI/UX polish, not here.
 
 ## 5. Fog of war
 *(game spec §6 — visual treatment of hidden / explored-but-not-visible / currently-visible

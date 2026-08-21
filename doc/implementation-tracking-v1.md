@@ -111,20 +111,43 @@ auto-picked unload destination were meant as v1 placeholders, not the intended e
 *Repair only becomes testable once a unit can move, take damage, and re-enter a base to
 garrison — this stage comes right after Tank so both halves land together, damage and its
 recovery, on the same reference unit.*
-- [ ] Spec
-- [ ] Open-field unit-vs-unit combat resolution (§3)
-- [ ] Claim an unclaimed base (tank/fighter/fregat only, terrain-gated per unit type — tank
-      claiming is the only one testable until Boats/Planes land)
-- [ ] Attack a claimed base: garrisoned units die first (oldest-entered), spillover hits base SP
-      (§4)
-- [ ] Base hits 0 SP → neutral; original-owner auto-recapture on completed build; open capture by
-      anyone else
-- [ ] Capture by attacker: clear queue/in-progress build, reset SP to 4
-- [ ] Recapture by original owner: reset SP to 4, in-progress build keeps going
-- [ ] Passive base repair (1 SP/turn)
-- [ ] Per-unit repair (10 SP per bbr, up to 5 units in parallel, first-come queue beyond that)
-- [ ] Extend dev save game with a damaged base and a damaged garrisoned tank, to exercise repair
-      without having to play out a full battle each time
+- [x] Spec
+- [ ] Unit `remainingAttacks` (resets each turn like `remainingActions`, §3's Attacks/turn cap)
+- [ ] Attack targeting: with a unit selected, click an adjacent enemy unit or enemy-owned base to
+      attack instead of move (mirrors move-targeting's click pattern)
+- [ ] Open-field unit-vs-unit combat: attacker's ground/air atk (by defender's target type)
+      subtracted from defender's SP; destroyed at 0 (§3)
+- [ ] Claim command: enter (garrison into) a neutral base with a tank/fighter/fregat, terrain-
+      gated per unit type — tank-only testable until boats/planes land (§4)
+- [ ] Attack a claimed base: garrisoned units die first (oldest-entered, 1 SP each flat — not
+      their own strength stat), remaining damage spills onto base SP (§4)
+- [ ] Base hits 0 SP → neutral (`ownerId` null); records who to auto-recapture for
+- [ ] Turn-start: auto-recapture via the original owner's completed build (SP → 1) — this must
+      run on that owner's turn even though the base currently has no owner
+- [ ] Claim resolution: both open capture (different owner) and manual recapture (original owner
+      walks a unit in) set SP to 4; only capture (not recapture) clears the queue/in-progress build
+- [ ] Passive base repair: 1 SP/turn per owned, damaged base, at turn-start, before build
+      completion (§7's per-turn sequence order)
+- [ ] Per-unit repair: up to 5 damaged garrisoned units repaired in parallel, 5 SP/turn each (10
+      SP/bbr), first-come = garrison array order
+- [ ] Garrisoned-unit SP persists through load/unload (currently dropped on load, reset to full
+      on unload — a damaged unit needs to carry its SP through both)
+- [ ] Bug fix found while planning this stage: `moveUnit`/`loadUnit`/`unloadUnit` don't check the
+      acting unit/base is the active player's own — only the UI wires up controls for your own
+      units/bases today, so nothing stops a direct call from acting on someone else's. Add the
+      check to those commands and the new attack/claim ones, now that acting on another player's
+      unit or base is a real mistake to guard against, not just a hypothetical one
+- [ ] An enemy-owned base discloses no interior state — no SP, garrison, queue, or in-progress
+      build, on its map marker label or its panel; only type + owner (already visible without
+      clicking it). Matches build-v1's own precedent ("a base's strength stays unknown until it's
+      demolished"). Requires telling "is this base mine" apart from "is it currently my turn" —
+      today's `isOwnTurn` check conflates the two, which happens to have been harmless so far
+      since it only ever gated interactivity, never display
+- [ ] Combat/capture feedback (attack result, base-neutral/capture/recapture indicators)
+- [ ] Extend dev save game with a damaged base, a damaged garrisoned tank, and a neutral
+      (unclaimed) base near the human's own — the last one hand-placed for this save only, ahead
+      of the real map-generation feature (Stage 13 backlog above), so the Claim command has
+      something to test without playing out a full battle to neutral first
 
 ## Stage 7 — Boats: Fregat, Transporter, Carrier
 - [ ] Spec
@@ -191,6 +214,14 @@ recovery, on the same reference unit.*
         clicking a panel's own close button first rather than tapping through it. Needs an actual
         layout fix (e.g. panel width/position that never covers canvas-center, or canvas taps
         during an open panel routing to the hex regardless of panel bounds).
+- [ ] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
+      §5's placement is currently exactly N seeds for N players, so every base starts owned —
+      "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra
+      pre-neutral bases would give players a real land-grab to contest from turn 1, not just a
+      post-battle mechanic. Requires revisiting §5's own placement algorithm/text, not just the
+      implementation, since it changes a stated game rule. Stage 6 front-runs this for its own
+      dev-save testing by hand-placing one neutral base near the human's, rather than waiting on
+      the real map-generation feature.
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 
