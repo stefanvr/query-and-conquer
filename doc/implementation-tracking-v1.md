@@ -182,6 +182,12 @@ recovery, on the same reference unit.*
 - [ ] Spec
 - [ ] Edge-case sweep against query-and-conquer.md
 - [ ] UI/UX pass
+  - [ ] On narrow (mobile) viewports, an open side panel (base/unit) can visually overlap
+        canvas-center, so a tap there hits the panel instead of the hex underneath it — known
+        since Stage 5's movement tests, worked around there and in Stage 5b's e2e tests by
+        clicking a panel's own close button first rather than tapping through it. Needs an actual
+        layout fix (e.g. panel width/position that never covers canvas-center, or canvas taps
+        during an open panel routing to the hex regardless of panel bounds).
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 
