@@ -155,14 +155,31 @@ recovery, on the same reference unit.*
       same gap and were missed at the time. Give them the same `activePlayerId` check
 
 ## Stage 7 — Boats: Fregat, Transporter, Carrier
-- [ ] Spec
-- [ ] Movement over water terrain, per unit
-- [ ] Load/unload cargo: transporter holds 5 tanks, carrier holds 5 planes
-- [ ] Boat entering a base with cargo unloads for free if the base has spare capacity for boat +
-      cargo
-- [ ] Base claim via fregat (port bases only — fregats can't move onto land) (§4)
-- [ ] Port base build restriction: carrier only buildable adjacent to deep water
-- [ ] Extend dev save game with boats + cargo
+- [x] Spec
+- [ ] Movement over water terrain, per unit — already generic (moveUnit/isBlockedForMovement
+      aren't unit-type-specific); confirm + dev-save coverage, no new movement code expected
+- [x] Real line-of-sight blocking: hex-line tracing (cube-coordinate lerp + round, per hex step)
+      between attacker and target, blocked by a mountain cell, a unit, or a base anywhere along
+      it (game spec §1) — deferred since Stage 6 since every actionable unit had range 1 until
+      now; Fregat (range 2, needs LOS) is the first that needs it for real
+- [ ] Generalize load/unload/the destination-picker command layer to work against either a base
+      or a boat ("container" concept) — cargo entries share the garrison entry's `{id, unitType,
+      sp}` shape
+- [ ] Load destination picker (§1): unit panel's Load button becomes a single button + map-click
+      picker (highlights every valid adjacent base/boat; click one to confirm, click the unit's
+      own hex to cancel) — replaces one-button-per-target, which breaks once more than one
+      target can be adjacent at once (bases are ≥5 apart, but boats aren't)
+- [ ] Cargo: transporter holds 5 tanks, carrier holds 5 planes (game spec §3); unit panel shows a
+      boat's cargo as a slot row (§3)
+- [ ] Boat entry with cargo unloads for free into a base with spare capacity for boat + cargo
+      combined; rejected entirely (all-or-nothing) if there isn't room (§2)
+- [ ] Base claim via fregat (port bases only — fregats can't move onto land) — already generic
+      via claimBase's existing capturing-type + category checks; confirm + dev-save coverage
+- [ ] Port base build restriction: carrier only buildable adjacent to deep water — already
+      implemented (buildableUnitTypes); confirm + dev-save coverage
+- [ ] Extend dev save game with a hand-placed coastal patch + port base (the land-only dev map
+      has neither, and base placement already ran before boats existed as a concept — same
+      hand-splice pattern as Stage 6's neutral base) plus boats with cargo
 
 ## Stage 8 — Planes: Fighter, Bomber
 - [ ] Spec

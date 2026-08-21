@@ -70,27 +70,43 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   time. (Hard AI's "full pathfinding," §8/Stage 12, is a separate AI-quality concern, not this.)
 
 ### Unload destination picker
-- Clicking a filled, owned garrison slot (§2) closes the base panel and enters unload-preview
-  mode: the garrisoned unit's own token (style-guide.md §9) draws on top of the base hex, and
-  every valid adjacent destination (passable for its type, unoccupied, affordable within its
-  full action budget) highlights.
-- Clicking the base hex, or the previewed unit's own hex, cancels back to the base panel.
-  Clicking a highlighted hex confirms — unloads the unit there (§2) and opens its unit panel
+- Clicking a filled, owned garrison/cargo slot (§2/§3) closes the base/unit panel and enters
+  unload-preview mode: the garrisoned/cargo unit's own token (style-guide.md §9) draws on top of
+  the base or boat's hex, and every valid adjacent destination (passable for its type,
+  unoccupied, affordable within its full action budget) highlights.
+- Clicking the base/boat hex, or the previewed unit's own hex, cancels back to its panel.
+  Clicking a highlighted hex confirms — unloads the unit there (§2/§3) and opens its unit panel
   (§3). Clicking anything else is a no-op; stays in preview mode.
 
+### Load destination picker
+- The unit panel's Load button (§3) is a single button, shown whenever at least one adjacent
+  base or boat could accept this unit right now (friendly, category-compatible, spare capacity,
+  affordable) — not one button per candidate. A friendly base/boat is independently selectable on
+  its own (to inspect or act on later), so a plain click-to-load with no explicit mode-entry step
+  would collide with that — especially on touch, with no hover to disambiguate intent first.
+- Clicking it doesn't act immediately: it closes the unit panel and enters load-preview mode,
+  mirroring the unload picker above — every valid adjacent base/boat highlights.
+- Clicking the unit's own hex cancels back to its panel. Clicking a highlighted hex confirms —
+  loads the unit into that base or boat (§2/§3); its panel opens if it's still a field unit
+  afterward, otherwise the map/HUD alone reflects the change. Clicking anything else is a no-op;
+  stays in preview mode.
+
 ### Attack & claim targeting
-- With a unit selected, tapping/clicking an adjacent hex resolves in priority order before
-  falling back to Movement targeting or normal selection: an enemy unit or enemy-owned base
-  there → attack; a neutral base there, if the unit's type can capture it (tank/fighter/fregat,
-  game spec §4) → claim.
+- With a unit selected, tapping/clicking a hex resolves in priority order before falling back to
+  Movement targeting or normal selection: an enemy unit or enemy-owned base there → attack; a
+  neutral base there, if the unit's type can capture it (tank/fighter/fregat, game spec §4) →
+  claim. Unlike Movement targeting, the target doesn't have to be adjacent — attack range can
+  exceed 1 (game spec §3's per-unit table; Fregat's is 2).
 - **Attack**: costs 1 action and 1 of the unit's remaining attacks this turn (game spec §3's
-  Attacks/turn cap, §3 below); no-op if either is exhausted or the target's outside attack range.
-  Tank's range of 1 makes "adjacent" and "in range" the same check for now — a longer-range
-  unit's targeting (boats: Stage 7, planes: Stage 8) needs its own reachable-target computation,
-  not just adjacency.
+  Attacks/turn cap, §3 below); no-op if either is exhausted, the target's outside attack range,
+  or (for a unit with `needsLOS`) line of sight to it is blocked (game spec §1: mountain cells,
+  units, or bases anywhere along the hex line between attacker and target — not just the
+  endpoints). Every actionable unit through Stage 6 had range 1, where "in range" and "adjacent"
+  coincided with nothing in between to block; Fregat (range 2, needs LOS) is the first that
+  doesn't, so this is where the real check starts mattering.
 - **Claim**: costs 1 action + the base's terrain move cost (same pattern as loading, §2) and
   garrisons the claiming unit inside, transferring ownership (§4). Terrain-gated per unit type
-  same as any base entry — tank-claiming is the only path testable until boats/planes land.
+  same as any base entry.
 - Either action refreshes the acting unit's own panel (updated AP/attacks-remaining) and redraws
   the map afterward; no dedicated animation/toast for v1 (§4).
 
@@ -142,15 +158,26 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - Your own base, viewed on a turn that isn't yours, shows the same full grids read-only — no slot
   click handlers, no build buttons.
 - One build button per unit type the base's category allows (game spec §2: Land → Tank; Port →
-  Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — Fighter/Bomber/Fregat/
-  Transporter/Carrier buttons exist now even though those unit types have no movement/combat
-  until their own stage (boats: 7, planes: 8) lands; they just sit garrisoned until then.
+  Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — Fighter/Bomber buttons exist now
+  even though those unit types have no movement/combat until their own stage (planes: 8) lands;
+  they just sit garrisoned until then. Fregat/Transporter/Carrier are fully actionable as of this
+  stage (§3/§4).
 - Build button disabled when the queue already holds 5 pending items — not when capacity is
   full, since queuing (unlike starting) doesn't consume a capacity slot (game spec §2).
 - Unload has no dedicated button — triggered via the garrison slot click above (§1's unload
   destination picker), which lets the player choose the destination instead of auto-picking.
   Costs 1 action + the destination's move cost (game spec §3), taken from the unit's own action
   budget as it becomes a field unit.
+
+### Boat entry (cargo, game spec §2/§3)
+- A transporter/carrier entering a friendly base (via the Load destination picker, §1) that's
+  currently carrying cargo unloads for free — itself and every unit it's carrying join the
+  garrison directly, at no extra action cost beyond the boat's own entry. Only possible if the
+  base has enough spare capacity for the boat *and* everything it's carrying; otherwise the
+  whole entry is rejected (all-or-nothing) — same 1 action + move cost as any other Load, still
+  spent from the boat's own budget, but only on success.
+- An empty boat, or a unit loading into a boat, follows the ordinary Load rule above — no free
+  bulk behavior; that's specific to a boat's own cargo riding along with it into a base.
 
 ### Turn-start processing (game spec §7)
 - Order, per player's turn-start (including cascading through AI turns): (1) passive base
@@ -200,12 +227,24 @@ load/unload and cargo interaction)*
 - Boats and bases are always "ground" targets for this purpose; a garrisoned unit is too, but
   garrisoned combat instead follows §4's base-attack rule, not this one.
 
+### Cargo (boats)
+- A transporter holds up to 5 vehicle-category units (tanks); a carrier holds up to 5
+  plane-category units (game spec §3's `holdCapacity`). Cargo entries carry the same shape as a
+  base's garrison (`{id, unitType, sp}`) — sp persists the same way across load/unload (§2).
+- A unit loads into an adjacent friendly boat with spare capacity the same way it loads into a
+  base — same Load destination picker (§1), same 1 action + move cost, gated to the one category
+  the boat's own type accepts. Unloading cargo uses the same destination-picker pattern as
+  unloading from a base (§1).
+- A boat can't load into another boat — only into a base (§2's Boat entry). Cargo is strictly
+  unit-into-boat; boats themselves are the "garrisonable" side when it comes to entering
+  something.
+
 ### Unit panel (side menu, §7)
 - Opens on selecting a field unit (§1). Shows: unit type, SP (`10/10`), actions
-  (`X/5 AP`, style-guide.md §8).
-- Load button: shown when adjacent to a friendly base with spare capacity: costs 1 action + the
-  base's own terrain's move cost, removes the unit from the map and appends it back to that
-  base's garrison (game spec §2).
+  (`X/5 AP`, style-guide.md §8) — plus, for a boat (`holdCapacity` > 0), its cargo as a slot row
+  below (same slot styling as the base panel's garrison, style-guide.md §9).
+- Load button: single button, shown whenever at least one adjacent base or boat could accept
+  this unit (§1's Load destination picker) — opens the picker rather than acting immediately.
 
 ## 4. Combat & capture
 *(game spec §4 — attack feedback/animation, damage display, capture and neutral-base
