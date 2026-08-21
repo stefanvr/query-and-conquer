@@ -342,6 +342,18 @@ body {
   color: var(--steel);
 }
 
+.base-panel-queue .garrison-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.base-panel-queue .btn-primary {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
 .base-panel-build-buttons {
   display: flex;
   flex-direction: column;
