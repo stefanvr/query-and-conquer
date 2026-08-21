@@ -3,9 +3,14 @@
 // edge hexes); a full-map redraw would not hold an acceptable frame rate at Extra Large's
 // 12,000 cells (tech-stack.md's Mobile & touch support). Pointer Events unify mouse and touch
 // input in one listener set, per that same section's "one input-handling layer" requirement.
+//
+// draw() is two passes — every terrain tile first, then every base/unit marker+label on top —
+// so a marker/label is never painted over by a later-drawn terrain tile (they used to be
+// interleaved in one pass, per-cell, which let that happen near a hex's bottom edge).
 import { deserializeGrid } from "../map/map-serialize.js";
 import { hexToPixel, hexCorners, pixelToHex } from "../map/hex-pixel.js";
 import { PLAYER_COLOR_VARS } from "../state/game-state.js";
+import { UNIT_TYPES } from "../state/unit-types.js";
 
 const MIN_HEX_SIZE = 4;
 const MAX_HEX_SIZE = 32;
@@ -21,6 +26,10 @@ const TERRAIN_VAR = {
   deep: "--t-deep",
 };
 
+// Unit token shape per style-guide.md §9. Only Tank is spawnable before Stages 7/8 add the rest;
+// unimplemented shapes fall back to a circle rather than crashing.
+const UNIT_SHAPES = { tank: "square" };
+
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
@@ -28,12 +37,13 @@ function cssVar(name) {
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {object} mapData - parsed map JSON (width, height, rows)
- * @param {{ bases?: object[], players?: object[], selectedHex?: {col:number,row:number}|null,
+ * @param {{ bases?: object[], units?: object[], players?: object[], selectedHex?: {col:number,row:number}|null,
  *   onSelectHex?: (col: number, row: number) => void }} [options]
  * @returns {{ draw: () => void, zoomIn: () => void, zoomOut: () => void, centerOn: (col:number,row:number) => void, destroy: () => void }}
  */
 export function createMapCamera(canvas, mapData, options = {}) {
-  const { bases = [], players = [], onSelectHex } = options;
+  const { bases = [], units = [], players = [] } = options;
+  const onSelectHex = options.onSelectHex;
   let selectedHex = options.selectedHex ?? null;
 
   const grid = deserializeGrid(mapData.width, mapData.height, mapData.rows);
@@ -49,6 +59,19 @@ export function createMapCamera(canvas, mapData, options = {}) {
     return player ? PLAYER_COLOR_VARS[player.slot] : "--steel";
   }
 
+  /** Draws a small ink-backed text label under (cx, startY), returning the y just past it —
+   * shared by base and unit markers so both use the same style-guide.md §8 treatment. */
+  function drawLabelLine(cx, y, size, text) {
+    const lineHeight = Math.max(10, size * 0.6);
+    const padding = 3;
+    const width = ctx.measureText(text).width + padding * 2;
+    ctx.fillStyle = cssVar("--ink");
+    ctx.fillRect(cx - width / 2, y - lineHeight * 0.75, width, lineHeight);
+    ctx.fillStyle = cssVar("--parchment");
+    ctx.fillText(text, cx, y);
+    return y + lineHeight;
+  }
+
   function drawBaseMarker(sx, sy, size, base) {
     const corners = hexCorners(sx, sy, size);
     ctx.beginPath();
@@ -58,22 +81,34 @@ export function createMapCamera(canvas, mapData, options = {}) {
     ctx.strokeStyle = cssVar(ownerColorVar(base.ownerId));
     ctx.stroke();
 
-    // Plain-text status, per style-guide.md §8's phase-1 treatment.
-    const label = base.inProgress ? `Building: ${base.inProgress.unitType}` : null;
-    const spLabel = `${base.sp}/${base.maxSp} SP`;
     ctx.font = `${Math.max(11, size * 0.55)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
-    const lineHeight = Math.max(10, size * 0.6);
-    let ty = sy + size + lineHeight;
-    for (const text of [spLabel, label].filter(Boolean)) {
-      const padding = 3;
-      const width = ctx.measureText(text).width + padding * 2;
-      ctx.fillStyle = cssVar("--ink");
-      ctx.fillRect(sx - width / 2, ty - lineHeight * 0.75, width, lineHeight);
-      ctx.fillStyle = cssVar("--parchment");
-      ctx.fillText(text, sx, ty);
-      ty += lineHeight;
+    let ty = sy + size + Math.max(10, size * 0.6);
+    ty = drawLabelLine(sx, ty, size, `${base.sp}/${base.maxSp} SP`);
+    if (base.inProgress) drawLabelLine(sx, ty, size, `Building: ${base.inProgress.unitType}`);
+  }
+
+  function drawUnitToken(sx, sy, size, unit, isSelected) {
+    const radius = size * 0.4;
+    const shape = UNIT_SHAPES[unit.unitType] ?? "circle";
+    ctx.beginPath();
+    if (shape === "square") {
+      const s = radius * Math.SQRT2; // square with the same nominal radius as a circle token
+      ctx.rect(sx - s / 2, sy - s / 2, s, s);
+    } else {
+      ctx.arc(sx, sy, radius, 0, Math.PI * 2);
     }
+    ctx.fillStyle = cssVar(ownerColorVar(unit.ownerId));
+    ctx.fill();
+    ctx.lineWidth = Math.max(1, size * 0.08);
+    ctx.strokeStyle = isSelected ? "#FFFFFF" : "rgba(0,0,0,0.5)";
+    ctx.stroke();
+
+    ctx.font = `${Math.max(11, size * 0.55)}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    const ty = sy + radius + Math.max(10, size * 0.6);
+    const maxActions = UNIT_TYPES[unit.unitType].actionsPerTurn;
+    drawLabelLine(sx, ty, size, `${unit.remainingActions}/${maxActions} AP`);
   }
 
   function draw() {
@@ -88,6 +123,7 @@ export function createMapCamera(canvas, mapData, options = {}) {
     const minRow = Math.max(0, Math.floor(camera.y / rowStep) - pad);
     const maxRow = Math.min(mapData.height - 1, Math.ceil((camera.y + canvas.height) / rowStep) + pad);
 
+    // Pass 1: every terrain tile (+ the selection outline, part of the tile itself).
     for (let col = minCol; col <= maxCol; col++) {
       for (let row = minRow; row <= maxRow; row++) {
         if (!grid.isInMap(col, row)) continue;
@@ -106,10 +142,20 @@ export function createMapCamera(canvas, mapData, options = {}) {
           ctx.strokeStyle = "#FFFFFF";
           ctx.stroke();
         }
-
-        const base = baseAt(col, row);
-        if (base) drawBaseMarker(sx, sy, size, base);
       }
+    }
+
+    // Pass 2: base and unit markers + labels, on top of every tile so nothing overwrites them.
+    for (const base of bases) {
+      if (base.col < minCol || base.col > maxCol || base.row < minRow || base.row > maxRow) continue;
+      const { x, y } = hexToPixel(base.col, base.row, size);
+      drawBaseMarker(x - camera.x, y - camera.y, size, base);
+    }
+    for (const unit of units) {
+      if (unit.col < minCol || unit.col > maxCol || unit.row < minRow || unit.row > maxRow) continue;
+      const { x, y } = hexToPixel(unit.col, unit.row, size);
+      const isSelected = Boolean(selectedHex && selectedHex.col === unit.col && selectedHex.row === unit.row);
+      drawUnitToken(x - camera.x, y - camera.y, size, unit, isSelected);
     }
   }
 
