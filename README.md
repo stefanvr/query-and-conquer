@@ -25,3 +25,10 @@ you'll see otherwise). With `npm run dev` running:
   tokens/components in [doc/style-guide.md](doc/style-guide.md).
 - `http://127.0.0.1:8080/dev/maps-preview.html` — static render of any pre-generated map in
   `assets/maps/`, picked from a dropdown.
+
+### Dev-only main menu option
+
+`http://127.0.0.1:8080/?dev` — the app itself, with the main menu's "Load Test Game" button
+revealed (hidden otherwise). Loads `assets/dev-save.json`, a fixed save with no combat/build
+progress, to jump straight into a match without playing through the game options menu each
+time.
