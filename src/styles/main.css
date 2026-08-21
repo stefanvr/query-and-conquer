@@ -400,17 +400,46 @@ button.slot:hover {
   border-radius: 50%;
 }
 
-/* Inline Remove/Move up/Move down controls for a selected queue slot (Stage 5b). */
+/* Inline Move earlier / Remove / Move later controls for a selected queue slot (Stage 5b).
+   grid-column: 1 / -1 spans the full row under the 5-column queue grid above it -- without it
+   this would auto-place as a single item inside that grid, squeezing into just the first
+   column's width instead. 1.5fr/2fr/1.5fr per the reviewed design (Remove reads more safely with
+   the extra width, being the irreversible one of the three). */
 .slot-controls {
-  display: flex;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1.5fr 2fr 1.5fr;
   gap: 4px;
   margin: 4px 0;
 }
 
-.slot-controls button {
-  flex: 1;
-  font-size: 11px;
-  padding: 6px 0;
+.slot-control-button {
+  font-family: var(--font-body);
+  font-size: 16px;
+  min-height: 44px;
+  border: 1px solid var(--steel);
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--parchment);
+  cursor: pointer;
+}
+
+.slot-control-button:hover:not(:disabled) {
+  border-color: var(--signal);
+}
+
+.slot-control-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.slot-control-remove {
+  background: var(--rust);
+  border-color: var(--rust);
+}
+
+.slot-control-remove:hover:not(:disabled) {
+  filter: brightness(1.15);
 }
 
 .base-panel-build-buttons {

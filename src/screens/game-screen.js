@@ -142,38 +142,48 @@ export function initGameScreen({ onQuit, onTerminate }) {
       basePanelQueue.appendChild(el);
     }
     if (isOwnTurn && base.queue[selectedQueueIndex]) {
+      // grid-column: 1 / -1 (main.css) spans the full row, 1.5fr/2fr/1.5fr — otherwise this
+      // would auto-place as a single grid item in the queue's own 5-column grid, squeezing into
+      // just the first slot's width instead of spanning the row under it.
       const controls = document.createElement("div");
       controls.className = "slot-controls";
+
       const upButton = document.createElement("button");
       upButton.type = "button";
-      upButton.className = "btn-primary";
-      upButton.textContent = "Move up";
+      upButton.className = "slot-control-button";
+      upButton.textContent = "←";
+      upButton.setAttribute("aria-label", "Move earlier in queue");
       upButton.disabled = selectedQueueIndex === 0;
       upButton.addEventListener("click", () => {
         reorderQueuedBuild(state, base.id, selectedQueueIndex, -1);
         selectedQueueIndex -= 1;
         renderBasePanel(base);
       });
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "slot-control-button slot-control-remove";
+      removeButton.textContent = "✕";
+      removeButton.setAttribute("aria-label", "Remove from queue");
+      removeButton.addEventListener("click", () => {
+        cancelQueuedBuild(state, base.id, selectedQueueIndex);
+        selectedQueueIndex = null;
+        renderBasePanel(base);
+      });
+
       const downButton = document.createElement("button");
       downButton.type = "button";
-      downButton.className = "btn-primary";
-      downButton.textContent = "Move down";
+      downButton.className = "slot-control-button";
+      downButton.textContent = "→";
+      downButton.setAttribute("aria-label", "Move later in queue");
       downButton.disabled = selectedQueueIndex === base.queue.length - 1;
       downButton.addEventListener("click", () => {
         reorderQueuedBuild(state, base.id, selectedQueueIndex, 1);
         selectedQueueIndex += 1;
         renderBasePanel(base);
       });
-      const removeButton = document.createElement("button");
-      removeButton.type = "button";
-      removeButton.className = "btn-primary";
-      removeButton.textContent = "Remove";
-      removeButton.addEventListener("click", () => {
-        cancelQueuedBuild(state, base.id, selectedQueueIndex);
-        selectedQueueIndex = null;
-        renderBasePanel(base);
-      });
-      controls.append(upButton, downButton, removeButton);
+
+      controls.append(upButton, removeButton, downButton);
       basePanelQueue.appendChild(controls);
     }
 
