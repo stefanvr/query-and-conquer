@@ -19,6 +19,11 @@ Start button, per style-guide.md §9" over a multi-paragraph explanation of why 
 was made or how it maps to CSS — that level of detail belongs in code comments or the tracking
 doc, not here.
 
+Each section describes the end state to reach once its stage finishes, not a chronological build
+log — drop current/past-stage references (e.g. "(Stage 4)") once they're no longer forward-looking;
+that history belongs in the tracking doc/git log, not here. References to a *future*, not-yet-built
+stage are fine and worth keeping — they explain why something isn't specced yet.
+
 ---
 
 ## 1. Map & camera
@@ -37,17 +42,29 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   the full map (up to 12,000 cells).
 - Pan: mouse/touch drag. Zoom: scroll wheel / pinch, plus on-screen +/- buttons as a fallback.
   `touch-action: none` on the canvas element only.
-- Initial camera: centered on the map at game start, until bases exist (Stage 4), then centered
-  on the human player's own base instead.
+- Initial camera: centered on the human player's own base.
+- Field units: drawn per style-guide.md §9 — shape by unit type (Tank: square),
+  owner's accent-color fill, white stroke if selected else `rgba(0,0,0,0.5)`, radius `0.4 ×
+  hexSize`. Plain-text AP label near the token (style-guide.md §8), same pattern as base labels.
+  Garrisoned units are never drawn as tokens (style-guide.md §9) — only the owning base's marker
+  shows.
 
 ### Hex selection (tap/click)
 - A tap/click that doesn't move (or moves under a small pixel threshold) selects the hex under
   the pointer; anything past that threshold is a pan, not a selection — reuses map-canvas.js's
   existing pointer tracking, no separate gesture system.
-- Selecting a hex with a base on it opens that base's panel (§2/§7); selecting empty terrain
-  clears the current selection. No unit selection yet (§3, later stages).
+- Selecting a hex with a base on it opens that base's panel (§2/§7); a hex with a field unit
+  opens the unit panel instead (§3/§7); selecting empty terrain clears the current selection.
 - Selected hex: white outline stroke on the hex (style-guide.md §9's existing selected-unit
   stroke rule extended to hexes — no new token needed).
+
+### Movement targeting
+- With a unit selected, tapping/clicking an adjacent (hex-distance 1), passable, unoccupied hex
+  moves the unit there instead of reselecting — spends that terrain's move cost (game spec §3)
+  from the unit's remaining actions. Tapping anything else (non-adjacent, impassable, occupied,
+  or no unit selected) falls back to normal selection/deselection.
+- No multi-hex pathfinding or path preview for human play in v1 — click-to-move one hex at a
+  time. (Hard AI's "full pathfinding," §8/Stage 12, is a separate AI-quality concern, not this.)
 
 ## 2. Bases
 *(game spec §2 — base info panel, build/queue interaction, capacity display, repair status)*
@@ -75,12 +92,17 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - One build button per unit type the base's category allows (game spec §2: Land → Tank; Port →
   Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — Fighter/Bomber/Fregat/
   Transporter/Carrier buttons exist now even though those unit types have no movement/combat
-  until their own stage (5, 7, 8) lands; they just sit garrisoned until then.
+  until their own stage (boats: 7, planes: 8) lands; they just sit garrisoned until then.
 - Build button disabled when the queue already holds 5 pending items — not when capacity is
   full, since queuing (unlike starting) doesn't consume a capacity slot (game spec §2).
+- Unload: one "Unload" control per garrisoned unit. Enabled only if the unit has a
+  valid adjacent destination (passable for its type, unoccupied) and it's the active player's
+  own base/turn. Costs 1 action + the destination's move cost (game spec §3), taken from the
+  unit's own action budget as it becomes a field unit — picks the first valid adjacent hex
+  automatically for v1 (no destination picker UI yet).
 
 ### Turn-start build processing
-- When a player's turn begins (including cascading through AI turns, Stage 3): tick down that
+- When a player's turn begins (including cascading through AI turns): tick down that
   player's bases' in-progress build timers; on completion, add the unit to the garrison and, if
   capacity allows, pull the next queued item into "in-progress" with a fresh timer
   (cost-multiplier × bbt, game spec §2).
@@ -91,12 +113,26 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 *(game spec §3 — selection, movement (path preview, action-point display), attack targeting,
 load/unload and cargo interaction)*
 
-### Unit type data (build economy only — Stage 4)
-- A data table (name, category [Vehicle/Plane/Boat], build cost ×bbt, game spec §2) is all
-  Stage 4 needs — it's what the base panel's build buttons and capacity accounting run on. Full
-  per-unit stats/movement/combat land with their own stage (Tank: 5, boats: 7, planes: 8).
-- A completed build starts garrisoned inside its base — nothing can leave a base yet (unload
-  lands with Tank in Stage 5).
+### Unit type data
+- full stat block added for all 6 units (actions/turn, attacks/turn, attack range,
+  needs LOS, view, strength, ground/air atk, move cost per terrain, game spec §3).
+
+### Field units
+- A unit leaving a base (unload, §2) becomes a field entry: id (carried over from its
+  garrisoned id), ownerId, unitType, col/row, sp (starts at the type's max strength — no damage
+  exists yet, Stage 6), remainingActions (starts at the type's full actions/turn *before* the
+  unload's own 1-action + move-cost is deducted, so a freshly-unloaded unit can still act with
+  whatever's left that same turn). Resets to the full actions/turn again at the owner's next
+  turn-start, alongside build processing (game spec §7).
+- Move cost is spent from remainingActions per hex entered (game spec §3's terrain cost table;
+  `0` = impassable, not free). A unit with 0 remaining actions can't move or load/unload.
+
+### Unit panel (side menu, §7)
+- Opens on selecting a field unit (§1). Shows: unit type, SP (`10/10`), actions
+  (`X/5 AP`, style-guide.md §8).
+- Load button: shown when adjacent to a friendly base with spare capacity: costs 1 action + the
+  base's own terrain's move cost, removes the unit from the map and appends it back to that
+  base's garrison (game spec §2).
 
 ## 4. Combat & capture
 *(game spec §4 — attack feedback/animation, damage display, capture and neutral-base
@@ -118,8 +154,8 @@ control, entry point to the mid-turn menu)*
 ## 7. Side menu & selection panel
 *(app-only — the contextual detail/action panel shown for whatever's currently selected, base
 or unit; hosts the interaction described in §2/§3 above)*
-- Stage 4 scaffold: one panel type (base panel, §2), shown/hidden based on the map's current
-  hex selection (§1). Extended, not rebuilt, when unit selection lands in later stages.
+- Two panel types (base panel §2, unit panel §3), same side-panel chrome, swapped by what's
+  currently selected (§1) — never both at once, since only one hex can be selected at a time.
 
 ## 8. Menus & screens
 *(app-only — start screen, main menu (new game / load game), game options menu, mid-turn menu
@@ -127,7 +163,7 @@ or unit; hosts the interaction described in §2/§3 above)*
 
 ### Start screen
 - Circular background visual + title + `Start` button, per style-guide.md §9.
-- `Start` is a placeholder for testing — no main menu to navigate to until Stage 3.
+- `Start` navigates to the main menu (§8, below).
 
 ### Dev style guide page (dev-only)
 - `dev/style-guide.html` — living reference of style-guide.md's tokens/components, not part of
@@ -138,7 +174,7 @@ or unit; hosts the interaction described in §2/§3 above)*
   connotes a multiplayer lobby (join/host, other players present), which doesn't exist yet.
   When multiplayer lands (tech-stack.md's future direction), it gets its own entry here
   pointing at an actual lobby screen, rather than this one being reinterpreted.
-- Shown after Start (replaces the Stage 1 stub in `src/main.js`).
+- Shown after Start.
 - Two entries: New game (→ game options menu) and Load game (enabled only when the save slot has
   a save, §10).
 - Dev-only entry: "Load test game", loads the fixed dev save (§10). Gated behind a `?dev` URL
@@ -170,7 +206,7 @@ _Not started._
 - Dev save: a fixed save built with the app's own `createGameState`/placement logic (not
   hand-authored — see `scripts/generate-dev-save.js`), separate from the player's slot, reached
   via the main menu's `?dev`-gated "Load test game" entry (§8). Regenerated whenever the state
-  shape changes (Stage 4 adds deployment bases; Stage 5 will add a tank next to one, etc.).
+  shape changes.
 
 ## 11. AI behavior UX
 *(game spec §8 — visible per-action animation during an AI turn, and how the instant/fast/slow
