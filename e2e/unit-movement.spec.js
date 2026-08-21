@@ -69,10 +69,11 @@ test("loading the tank into the base moves it into the garrison, and the destina
   const base = await screenPosFor(page, 0, 2);
   await page.mouse.click(base.x, base.y);
   await expect(page.locator("#base-panel")).toBeVisible();
-  await expect(page.locator("#base-panel-garrison")).toContainText("TANK"); // slot label, style-guide.md §9 uppercase
-  await expect(page.locator("#base-panel-capacity")).toContainText("1/15");
+  // The dev save already garrisons one (damaged) tank for repair testing (Stage 6) -- this makes
+  // a second, in the next slot.
+  await expect(page.locator("#base-panel-capacity")).toContainText("2/15");
 
-  await page.click("#base-panel-garrison button"); // enters the unload destination picker
+  await page.locator("#base-panel-garrison button").nth(1).click(); // the newly-loaded tank's slot
   await expect(page.locator("#base-panel")).toBeHidden();
 
   const dest = await screenPosFor(page, 1, 2); // back where it started -- adjacent, passable, empty
@@ -86,8 +87,7 @@ test("loading the tank into the base moves it into the garrison, and the destina
   // the panel, not the base hex underneath it.
   await page.click("#unit-panel-close");
   await page.mouse.click(base.x, base.y);
-  await expect(page.locator("#base-panel-garrison")).not.toContainText("TANK");
-  await expect(page.locator("#base-panel-capacity")).toContainText("0/15");
+  await expect(page.locator("#base-panel-capacity")).toContainText("1/15"); // back to just the damaged one
 });
 
 test("clicking the base while the unload destination picker is open cancels back to the base panel", async ({ page }) => {
@@ -97,11 +97,10 @@ test("clicking the base while the unload destination picker is open cancels back
 
   const base = await screenPosFor(page, 0, 2);
   await page.mouse.click(base.x, base.y);
-  await page.click("#base-panel-garrison button"); // enters the unload destination picker
+  await page.locator("#base-panel-garrison button").nth(1).click(); // the newly-loaded tank's slot
   await expect(page.locator("#base-panel")).toBeHidden();
 
   await page.mouse.click(base.x, base.y); // cancel
   await expect(page.locator("#base-panel")).toBeVisible();
-  await expect(page.locator("#base-panel-garrison")).toContainText("TANK");
-  await expect(page.locator("#base-panel-capacity")).toContainText("1/15");
+  await expect(page.locator("#base-panel-capacity")).toContainText("2/15");
 });

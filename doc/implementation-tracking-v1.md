@@ -146,7 +146,7 @@ recovery, on the same reference unit.*
 - [x] Combat/capture feedback (attack result, base-neutral/capture/recapture indicators) — already
       covered by the panel/marker work above (live SP/owner display) plus the map's own token
       removal on death; no dedicated animation/toast for v1 (§4)
-- [ ] Extend dev save game with a damaged base, a damaged garrisoned tank, and a neutral
+- [x] Extend dev save game with a damaged base, a damaged garrisoned tank, and a neutral
       (unclaimed) base near the human's own — the last one hand-placed for this save only, ahead
       of the real map-generation feature (Stage 13 backlog above), so the Claim command has
       something to test without playing out a full battle to neutral first
