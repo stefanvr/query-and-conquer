@@ -8,11 +8,12 @@ test("start screen renders title and Start button", async ({ page }) => {
   await expect(page.locator("#start-button")).toBeVisible();
 });
 
-test("Start button is clickable (touch and mouse both reach it)", async ({ page }) => {
+test("Start button is clickable (touch and mouse both reach it) and navigates to the game room", async ({ page }) => {
   await page.goto("/");
   const button = page.locator("#start-button");
   await button.tap({ trial: true }).catch(() => {}); // no-op on browsers without touch support
   await button.click();
-  // Stage 1 stub has no navigation yet (see src/main.js) — clicking should not throw/crash.
-  await expect(button).toBeVisible();
+  // Since Stage 3 (see doc/implementation-spec.md §8), Start navigates to the game room —
+  // full coverage of that flow lives in e2e/game-flow.spec.js.
+  await expect(page.locator("#screen-game-room")).toBeVisible();
 });
