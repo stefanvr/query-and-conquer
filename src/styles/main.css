@@ -11,10 +11,20 @@ body {
   background: var(--ink);
   font-family: var(--font-body);
   color: var(--parchment);
+}
+
+/* Screen routing: each top-level screen is a full-viewport container; main.js toggles the
+   [hidden] attribute between them (no URL routing — see implementation-spec.md §8). */
+.screen-view {
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px 12px;
+}
+
+.screen-view[hidden] {
+  display: none;
 }
 
 .screen {
@@ -78,4 +88,190 @@ body {
 .btn-primary:active {
   transform: translateY(4px);
   box-shadow: 0 0 0 var(--rust);
+}
+
+/* --- Game room / options menu / mid-turn menu — shared "panel" chrome. --- */
+.menu-panel {
+  background: var(--olive);
+  border: 1px solid var(--steel);
+  border-radius: 10px;
+  padding: 32px;
+  width: min(92vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.menu-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-align: center;
+}
+
+.menu-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.menu-stack .btn-primary {
+  font-size: 16px;
+  padding: 12px 24px;
+}
+
+.menu-stack .btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- Options form --- */
+.options-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.options-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--steel);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.options-form select {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--parchment);
+  background: var(--ink);
+  border: 1px solid var(--steel);
+  border-radius: 4px;
+  padding: 6px 10px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.options-form select:hover,
+.options-form select:focus {
+  outline: none;
+  border-color: var(--signal);
+}
+
+.checkbox-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.ai-difficulties {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-difficulties label {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* --- Game screen: full-bleed HUD + canvas, overrides .screen-view's centered layout. --- */
+#screen-game {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* #screen-game's own display:flex above (ID, 1-0-0) would otherwise beat
+   .screen-view[hidden]'s display:none (0-2-0) — this rule (1-1-0) makes hidden win. */
+#screen-game[hidden] {
+  display: none;
+}
+
+#hud {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--olive);
+  border-bottom: 1px solid var(--steel);
+  flex-wrap: wrap;
+}
+
+#hud-turn-indicator {
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+  margin-right: auto;
+}
+
+#hud .btn-primary {
+  font-size: 14px;
+  padding: 8px 20px;
+  min-height: 44px;
+}
+
+.canvas-wrap {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+#map-canvas {
+  /* position: absolute + inset: 0 alone doesn't size a *replaced* element like <canvas> — it
+     falls back to its intrinsic 300x150 default unless width/height are also given explicitly.
+     Percentage width/height do resolve correctly here specifically because the containing
+     block is the absolutely-positioned parent (.canvas-wrap); in normal flow, a flex-grown
+     parent's height isn't "definite" enough for percentage children to resolve against it. */
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--olive);
+  touch-action: none;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoom-controls button {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  border: 1px solid var(--steel);
+  background: var(--ink);
+  color: var(--parchment);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.zoom-controls button:hover {
+  border-color: var(--signal);
+}
+
+#mid-turn-menu {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+#mid-turn-menu[hidden] {
+  display: none;
 }

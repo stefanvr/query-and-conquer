@@ -10,9 +10,74 @@
 <link rel="stylesheet" href="src/styles/main.css">
 </head>
 <body>
-  <div class="screen">
-    <div class="title">QUERY &amp; <span>CONQUER</span></div>
-    <button id="start-button" class="btn-primary">Start</button>
+  <div id="screen-start" class="screen-view">
+    <div class="screen">
+      <div class="title">QUERY &amp; <span>CONQUER</span></div>
+      <button id="start-button" class="btn-primary">Start</button>
+    </div>
+  </div>
+
+  <div id="screen-game-room" class="screen-view" hidden>
+    <div class="menu-panel">
+      <h1 class="menu-title">Game Room</h1>
+      <div class="menu-stack">
+        <button id="new-game-button" class="btn-primary">New Game</button>
+        <button id="load-game-button" class="btn-primary" disabled>Load Game</button>
+        <button id="load-test-game-button" class="btn-primary" hidden>Load Test Game (dev)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-options" class="screen-view" hidden>
+    <div class="menu-panel">
+      <h1 class="menu-title">Game Options</h1>
+      <form id="options-form" class="options-form">
+        <label>AI opponents
+          <select id="opt-ai-count"></select>
+        </label>
+        <div id="opt-ai-difficulties" class="ai-difficulties"></div>
+        <label>Map size
+          <select id="opt-map-size"></select>
+        </label>
+        <label>Map type
+          <select id="opt-map-type"></select>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="opt-fog" checked>
+          Fog of war
+        </label>
+      </form>
+      <div class="menu-stack">
+        <button id="start-match-button" class="btn-primary">Start Match</button>
+        <button id="options-back-button" class="btn-primary">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-game" class="screen-view" hidden>
+    <div id="hud">
+      <span id="hud-turn-indicator"></span>
+      <button id="end-turn-button" class="btn-primary">End Turn</button>
+      <button id="menu-button" class="btn-primary">Menu</button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="map-canvas"></canvas>
+      <div class="zoom-controls">
+        <button id="zoom-in-button" type="button">+</button>
+        <button id="zoom-out-button" type="button">&minus;</button>
+      </div>
+    </div>
+    <div id="mid-turn-menu" hidden>
+      <div class="menu-panel">
+        <h1 class="menu-title">Menu</h1>
+        <div class="menu-stack">
+          <button id="save-button" class="btn-primary">Save</button>
+          <button id="quit-button" class="btn-primary">Quit</button>
+          <button id="terminate-button" class="btn-primary">Terminate</button>
+          <button id="menu-close-button" class="btn-primary">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="src/main.js"></script>
