@@ -19,6 +19,9 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
 3. **Implement with one commit per step.** Once the spec is confirmed, work through the stage's
    checklist items and commit each one separately rather than bundling the whole stage into a
    single commit.
+4. **Push the feature branch before merging to main.** Push the working branch (e.g. `build-v2`)
+   to its own remote first, so its full commit history is backed up on origin independent of
+   main, then merge/fast-forward main and push that.
 
 ---
 
