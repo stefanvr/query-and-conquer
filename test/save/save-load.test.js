@@ -57,8 +57,8 @@ test("a real game state, including bases with a queued/in-progress build and a g
   const state = createGameState(options, mapData, mulberry32(1));
 
   const base = state.bases[0];
-  queueBuild(state, base.id, "tank");
-  queueBuild(state, base.id, "tank"); // second one sits in the queue, not yet in-progress
+  queueBuild(state, base.id, "tank", base.ownerId);
+  queueBuild(state, base.id, "tank", base.ownerId); // second one sits in the queue, not yet in-progress
   processTurnStart(state, base.ownerId); // tick the in-progress build once
 
   saveGame(state);

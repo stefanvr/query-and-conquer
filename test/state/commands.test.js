@@ -68,7 +68,7 @@ test("queueBuild on an idle base starts immediately, leaving the queue empty", (
   const s = state([0], 0);
   const base = landBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank");
+  queueBuild(s, base.id, "tank", 0);
   assert.deepEqual(base.queue, []);
   assert.deepEqual(base.inProgress, { unitType: "tank", remainingTurns: buildTurns("tank") });
 });
@@ -77,7 +77,16 @@ test("queueBuild rejects a unit type the base can't build", () => {
   const s = state([0], 0);
   const base = landBase(); // land base: vehicles only
   s.bases.push(base);
-  queueBuild(s, base.id, "fighter");
+  queueBuild(s, base.id, "fighter", 0);
+  assert.equal(base.inProgress, null);
+  assert.deepEqual(base.queue, []);
+});
+
+test("queueBuild is a no-op if the base isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const base = landBase({ ownerId: 1 });
+  s.bases.push(base);
+  queueBuild(s, base.id, "tank", 0); // active player 0, base owned by 1
   assert.equal(base.inProgress, null);
   assert.deepEqual(base.queue, []);
 });
@@ -86,8 +95,8 @@ test("queueBuild queues (doesn't start) additional builds while one is already i
   const s = state([0], 0);
   const base = landBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank");
-  queueBuild(s, base.id, "tank");
+  queueBuild(s, base.id, "tank", 0);
+  queueBuild(s, base.id, "tank", 0);
   assert.equal(base.queue.length, 1);
   assert.ok(base.inProgress);
 });
@@ -96,10 +105,10 @@ test("queueBuild rejects once the queue already holds the max pending builds", (
   const s = state([0], 0);
   const base = landBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank"); // starts immediately
-  for (let i = 0; i < 5; i++) queueBuild(s, base.id, "tank"); // fills the 5-slot queue
+  queueBuild(s, base.id, "tank", 0); // starts immediately
+  for (let i = 0; i < 5; i++) queueBuild(s, base.id, "tank", 0); // fills the 5-slot queue
   assert.equal(base.queue.length, 5);
-  queueBuild(s, base.id, "tank"); // 6th queued build: rejected
+  queueBuild(s, base.id, "tank", 0); // 6th queued build: rejected
   assert.equal(base.queue.length, 5);
 });
 
@@ -113,12 +122,12 @@ test("cancelQueuedBuild removes only the targeted pending entry, leaving the res
   const s = state([0], 0);
   const base = portBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank"); // starts immediately, queue stays empty
-  queueBuild(s, base.id, "fregat");
-  queueBuild(s, base.id, "carrier");
+  queueBuild(s, base.id, "tank", 0); // starts immediately, queue stays empty
+  queueBuild(s, base.id, "fregat", 0);
+  queueBuild(s, base.id, "carrier", 0);
   assert.equal(base.queue.length, 2);
 
-  cancelQueuedBuild(s, base.id, 0);
+  cancelQueuedBuild(s, base.id, 0, 0);
   assert.deepEqual(
     base.queue.map((q) => q.unitType),
     ["carrier"],
@@ -129,30 +138,42 @@ test("cancelQueuedBuild is a no-op for an out-of-range index", () => {
   const s = state([0], 0);
   const base = portBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank");
-  queueBuild(s, base.id, "fregat");
+  queueBuild(s, base.id, "tank", 0);
+  queueBuild(s, base.id, "fregat", 0);
 
-  cancelQueuedBuild(s, base.id, 5);
+  cancelQueuedBuild(s, base.id, 5, 0);
   assert.equal(base.queue.length, 1);
+});
+
+test("cancelQueuedBuild is a no-op if the base isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const base = portBase();
+  s.bases.push(base);
+  queueBuild(s, base.id, "tank", 0);
+  queueBuild(s, base.id, "fregat", 0);
+
+  base.ownerId = 1; // simulate the base changing hands after the queue was built
+  cancelQueuedBuild(s, base.id, 0, 0); // active player 0, base owned by 1
+  assert.equal(base.queue.length, 1, "queue untouched");
 });
 
 test("reorderQueuedBuild swaps a queue entry with its neighbor towards the front or back", () => {
   const s = state([0], 0);
   const base = portBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank"); // starts immediately
-  queueBuild(s, base.id, "fregat");
-  queueBuild(s, base.id, "carrier");
-  queueBuild(s, base.id, "transporter");
+  queueBuild(s, base.id, "tank", 0); // starts immediately
+  queueBuild(s, base.id, "fregat", 0);
+  queueBuild(s, base.id, "carrier", 0);
+  queueBuild(s, base.id, "transporter", 0);
   // queue is now [fregat, carrier, transporter]
 
-  reorderQueuedBuild(s, base.id, 2, -1); // transporter moves up, swaps with carrier
+  reorderQueuedBuild(s, base.id, 2, -1, 0); // transporter moves up, swaps with carrier
   assert.deepEqual(
     base.queue.map((q) => q.unitType),
     ["fregat", "transporter", "carrier"],
   );
 
-  reorderQueuedBuild(s, base.id, 0, 1); // fregat moves back, swaps with transporter
+  reorderQueuedBuild(s, base.id, 0, 1, 0); // fregat moves back, swaps with transporter
   assert.deepEqual(
     base.queue.map((q) => q.unitType),
     ["transporter", "fregat", "carrier"],
@@ -163,15 +184,32 @@ test("reorderQueuedBuild is a no-op at either end of the queue", () => {
   const s = state([0], 0);
   const base = portBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank");
-  queueBuild(s, base.id, "fregat");
-  queueBuild(s, base.id, "carrier");
+  queueBuild(s, base.id, "tank", 0);
+  queueBuild(s, base.id, "fregat", 0);
+  queueBuild(s, base.id, "carrier", 0);
 
-  reorderQueuedBuild(s, base.id, 0, -1); // already at the front
-  reorderQueuedBuild(s, base.id, 1, 1); // already at the back
+  reorderQueuedBuild(s, base.id, 0, -1, 0); // already at the front
+  reorderQueuedBuild(s, base.id, 1, 1, 0); // already at the back
   assert.deepEqual(
     base.queue.map((q) => q.unitType),
     ["fregat", "carrier"],
+  );
+});
+
+test("reorderQueuedBuild is a no-op if the base isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const base = portBase();
+  s.bases.push(base);
+  queueBuild(s, base.id, "tank", 0);
+  queueBuild(s, base.id, "fregat", 0);
+  queueBuild(s, base.id, "carrier", 0);
+
+  base.ownerId = 1;
+  reorderQueuedBuild(s, base.id, 1, -1, 0); // active player 0, base owned by 1
+  assert.deepEqual(
+    base.queue.map((q) => q.unitType),
+    ["fregat", "carrier"],
+    "untouched",
   );
 });
 
@@ -179,7 +217,7 @@ test("processTurnStart ticks down the in-progress build and completes it exactly
   const s = state([0], 0);
   const base = landBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank");
+  queueBuild(s, base.id, "tank", 0);
   const turns = buildTurns("tank");
 
   for (let i = 0; i < turns - 1; i++) {
@@ -196,8 +234,8 @@ test("processTurnStart starts the next queued build once the current one complet
   const s = state([0], 0);
   const base = landBase();
   s.bases.push(base);
-  queueBuild(s, base.id, "tank");
-  queueBuild(s, base.id, "tank");
+  queueBuild(s, base.id, "tank", 0);
+  queueBuild(s, base.id, "tank", 0);
   for (let i = 0; i < buildTurns("tank"); i++) processTurnStart(s, 0);
   assert.equal(base.garrison.length, 1);
   assert.ok(base.inProgress, "second queued tank should now be in progress");
@@ -208,8 +246,8 @@ test("processTurnStart only affects bases owned by the given player", () => {
   const mine = landBase({ id: 0, ownerId: 0 });
   const theirs = landBase({ id: 1, ownerId: 1 });
   s.bases.push(mine, theirs);
-  queueBuild(s, mine.id, "tank");
-  queueBuild(s, theirs.id, "tank");
+  queueBuild(s, mine.id, "tank", 0);
+  queueBuild(s, theirs.id, "tank", 1);
   processTurnStart(s, 0);
   assert.equal(mine.inProgress.remainingTurns, buildTurns("tank") - 1);
   assert.equal(theirs.inProgress.remainingTurns, buildTurns("tank")); // untouched

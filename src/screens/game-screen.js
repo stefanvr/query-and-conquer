@@ -181,7 +181,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
       upButton.setAttribute("aria-label", "Move earlier in queue");
       upButton.disabled = selectedQueueIndex === 0;
       upButton.addEventListener("click", () => {
-        reorderQueuedBuild(state, base.id, selectedQueueIndex, -1);
+        reorderQueuedBuild(state, base.id, selectedQueueIndex, -1, activePlayer(state).id);
         selectedQueueIndex -= 1;
         renderBasePanel(base);
       });
@@ -192,7 +192,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
       removeButton.textContent = "✕";
       removeButton.setAttribute("aria-label", "Remove from queue");
       removeButton.addEventListener("click", () => {
-        cancelQueuedBuild(state, base.id, selectedQueueIndex);
+        cancelQueuedBuild(state, base.id, selectedQueueIndex, activePlayer(state).id);
         selectedQueueIndex = null;
         renderBasePanel(base);
       });
@@ -204,7 +204,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
       downButton.setAttribute("aria-label", "Move later in queue");
       downButton.disabled = selectedQueueIndex === base.queue.length - 1;
       downButton.addEventListener("click", () => {
-        reorderQueuedBuild(state, base.id, selectedQueueIndex, 1);
+        reorderQueuedBuild(state, base.id, selectedQueueIndex, 1, activePlayer(state).id);
         selectedQueueIndex += 1;
         renderBasePanel(base);
       });
@@ -246,7 +246,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
         button.textContent = `Build ${unitType}`;
         button.disabled = base.queue.length >= 5;
         button.addEventListener("click", () => {
-          queueBuild(state, base.id, unitType);
+          queueBuild(state, base.id, unitType, activePlayer(state).id);
           renderBasePanel(base);
           camera?.draw();
         });

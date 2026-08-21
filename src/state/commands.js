@@ -41,10 +41,13 @@ function maybeStartNextBuild(base) {
 
 /** Queues a build at `base` (§2: max 5 pending; queuing doesn't itself consume a capacity slot,
  * only starting does). Starts immediately if the base is idle and has room. No-op if the unit
- * type isn't buildable there or the queue is already full. */
-export function queueBuild(state, baseId, unitType) {
+ * type isn't buildable there, the queue is already full, or `base` isn't owned by
+ * `activePlayerId` (§3 — see moveUnit's own doc comment for why this is enforced here now, not
+ * just by the UI). */
+export function queueBuild(state, baseId, unitType, activePlayerId) {
   const base = state.bases.find((b) => b.id === baseId);
   if (!base) return state;
+  if (base.ownerId !== activePlayerId) return state;
   if (base.queue.length >= MAX_QUEUE_LENGTH) return state;
   if (!buildableUnitTypes(base.type, base.adjacentToDeepWater).includes(unitType)) return state;
 
@@ -54,10 +57,11 @@ export function queueBuild(state, baseId, unitType) {
 }
 
 /** Removes a pending (not-yet-started) queue entry (implementation-spec.md §2's queue slot
- * click). No-op if the index is out of range. */
-export function cancelQueuedBuild(state, baseId, queueIndex) {
+ * click). No-op if the index is out of range, or if `base` isn't owned by `activePlayerId` (§3). */
+export function cancelQueuedBuild(state, baseId, queueIndex, activePlayerId) {
   const base = state.bases.find((b) => b.id === baseId);
   if (!base) return state;
+  if (base.ownerId !== activePlayerId) return state;
   if (queueIndex < 0 || queueIndex >= base.queue.length) return state;
   base.queue.splice(queueIndex, 1);
   return state;
@@ -65,10 +69,12 @@ export function cancelQueuedBuild(state, baseId, queueIndex) {
 
 /** Swaps a queue entry with its neighbor one step towards the front (`direction: -1`) or back
  * (`direction: 1`) — implementation-spec.md §2's Move up/Move down queue controls. No-op if
- * either index is out of range (already at that end of the queue). */
-export function reorderQueuedBuild(state, baseId, queueIndex, direction) {
+ * either index is out of range (already at that end of the queue), or if `base` isn't owned by
+ * `activePlayerId` (§3). */
+export function reorderQueuedBuild(state, baseId, queueIndex, direction, activePlayerId) {
   const base = state.bases.find((b) => b.id === baseId);
   if (!base) return state;
+  if (base.ownerId !== activePlayerId) return state;
   const target = queueIndex + direction;
   if (queueIndex < 0 || queueIndex >= base.queue.length) return state;
   if (target < 0 || target >= base.queue.length) return state;

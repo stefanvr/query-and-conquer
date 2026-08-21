@@ -39,8 +39,8 @@ const state = createGameState(options, mapData, mulberry32(1));
 const grid = deserializeGrid(state.map.width, state.map.height, state.map.rows);
 
 const humanBase = playerBase(state, 0);
-queueBuild(state, humanBase.id, "tank");
-queueBuild(state, humanBase.id, "tank");
+queueBuild(state, humanBase.id, "tank", 0);
+queueBuild(state, humanBase.id, "tank", 0);
 for (let i = 0; i < buildTurns("tank") * 2; i++) processTurnStart(state, 0);
 // (humanBase.col + 1, humanBase.row) — e2e tests assume the tank lands one hex east of the base.
 unloadUnit(state, grid, humanBase.id, humanBase.garrison[0].id, humanBase.col + 1, humanBase.row, 0);

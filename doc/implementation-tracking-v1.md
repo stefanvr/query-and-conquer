@@ -150,6 +150,9 @@ recovery, on the same reference unit.*
       (unclaimed) base near the human's own — the last one hand-placed for this save only, ahead
       of the real map-generation feature (Stage 13 backlog above), so the Claim command has
       something to test without playing out a full battle to neutral first
+- [x] Ad hoc: the ownership-guard bug fix above only named `moveUnit`/`loadUnit`/`unloadUnit`/the
+      new attack/claim commands — `queueBuild`/`cancelQueuedBuild`/`reorderQueuedBuild` had the
+      same gap and were missed at the time. Give them the same `activePlayerId` check
 
 ## Stage 7 — Boats: Fregat, Transporter, Carrier
 - [ ] Spec
