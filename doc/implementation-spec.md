@@ -101,8 +101,11 @@ _Not started._
 
 ### Mid-turn menu
 - Reached via the HUD's entry point (§6), any time during the human player's own turn.
-- Three actions: Save (§10), Quit (return to game room; save slot untouched), Terminate
-  (instant elimination — confirm before applying, since it's irreversible).
+- Three actions, in this order: Save (§10), Surrender (instant elimination — irreversible;
+  shows an in-app confirmation panel, not a native `confirm()`, before applying), Quit (return
+  to game room; save slot untouched).
+- The confirmation panel reuses the mid-turn menu's own overlay backdrop, swapping which inner
+  panel is shown, rather than stacking a second overlay on top.
 
 ## 9. Stats display
 *(app-only — running in-HUD stats if any, and the end-of-game stats dialog per game spec §7)*

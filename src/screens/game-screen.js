@@ -12,9 +12,13 @@ export function initGameScreen({ onQuit, onTerminate }) {
   const endTurnButton = document.querySelector("#end-turn-button");
   const menuButton = document.querySelector("#menu-button");
   const midTurnMenu = document.querySelector("#mid-turn-menu");
+  const midTurnMenuMain = document.querySelector("#mid-turn-menu-main");
+  const surrenderConfirm = document.querySelector("#surrender-confirm");
   const saveButton = document.querySelector("#save-button");
   const quitButton = document.querySelector("#quit-button");
-  const terminateButton = document.querySelector("#terminate-button");
+  const surrenderButton = document.querySelector("#surrender-button");
+  const surrenderConfirmYesButton = document.querySelector("#surrender-confirm-yes");
+  const surrenderConfirmCancelButton = document.querySelector("#surrender-confirm-cancel");
   const menuCloseButton = document.querySelector("#menu-close-button");
   const zoomInButton = document.querySelector("#zoom-in-button");
   const zoomOutButton = document.querySelector("#zoom-out-button");
@@ -39,11 +43,19 @@ export function initGameScreen({ onQuit, onTerminate }) {
     refreshHud();
   }
 
+  // The mid-turn menu and the surrender confirmation share one overlay backdrop (#mid-turn-menu)
+  // and swap which inner panel is shown, rather than stacking two separate overlays.
   function openMenu() {
+    midTurnMenuMain.hidden = false;
+    surrenderConfirm.hidden = true;
     midTurnMenu.hidden = false;
   }
   function closeMenu() {
     midTurnMenu.hidden = true;
+  }
+  function openSurrenderConfirm() {
+    midTurnMenuMain.hidden = true;
+    surrenderConfirm.hidden = false;
   }
 
   endTurnButton.addEventListener("click", advanceUntilHuman);
@@ -57,8 +69,9 @@ export function initGameScreen({ onQuit, onTerminate }) {
     closeMenu();
     onQuit();
   });
-  terminateButton.addEventListener("click", () => {
-    if (!window.confirm("Terminate the match? This cannot be undone.")) return;
+  surrenderButton.addEventListener("click", openSurrenderConfirm);
+  surrenderConfirmCancelButton.addEventListener("click", openMenu);
+  surrenderConfirmYesButton.addEventListener("click", () => {
     terminate(state);
     closeMenu();
     onTerminate();

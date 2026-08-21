@@ -102,10 +102,24 @@ body {
   gap: 20px;
 }
 
+/* .menu-panel's own display: flex above (class, 0-1-0) would otherwise beat the native
+   [hidden] default (0-1-0, but user-agent origin loses to any author rule regardless of
+   specificity) — #mid-turn-menu's two inner panels toggle via [hidden], so this must win. */
+.menu-panel[hidden] {
+  display: none;
+}
+
 .menu-title {
   font-family: var(--font-display);
   letter-spacing: 0.06em;
   margin: 0;
+  text-align: center;
+}
+
+.menu-body-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--steel);
   text-align: center;
 }
 

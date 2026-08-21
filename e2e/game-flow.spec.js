@@ -106,20 +106,30 @@ test("dragging the map canvas pans the camera without errors", async ({ page }) 
   expect(errors).toEqual([]);
 });
 
-test("Terminate asks for confirmation before returning to the game room", async ({ page }) => {
+test("Surrender shows an in-app confirmation (not a native dialog) before returning to the game room", async ({ page }) => {
+  let nativeDialogSeen = false;
+  page.on("dialog", async (dialog) => {
+    nativeDialogSeen = true;
+    await dialog.dismiss();
+  });
+
   await page.click("#start-button");
   await page.click("#new-game-button");
   await page.click("#start-match-button");
   await expect(page.locator("#screen-game")).toBeVisible();
 
-  let dialogMessage = null;
-  page.once("dialog", async (dialog) => {
-    dialogMessage = dialog.message();
-    await dialog.accept();
-  });
   await page.click("#menu-button");
-  await page.click("#terminate-button");
+  await page.click("#surrender-button");
+  await expect(page.locator("#surrender-confirm")).toBeVisible();
+  await expect(page.locator("#mid-turn-menu-main")).toBeHidden();
 
+  // Cancel returns to the main mid-turn menu without ending the match.
+  await page.click("#surrender-confirm-cancel");
+  await expect(page.locator("#mid-turn-menu-main")).toBeVisible();
+  await expect(page.locator("#screen-game")).toBeVisible();
+
+  await page.click("#surrender-button");
+  await page.click("#surrender-confirm-yes");
   await expect(page.locator("#screen-game-room")).toBeVisible();
-  expect(dialogMessage).toMatch(/terminate/i);
+  expect(nativeDialogSeen).toBe(false);
 });

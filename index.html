@@ -68,13 +68,21 @@
       </div>
     </div>
     <div id="mid-turn-menu" hidden>
-      <div class="menu-panel">
+      <div class="menu-panel" id="mid-turn-menu-main">
         <h1 class="menu-title">Menu</h1>
         <div class="menu-stack">
           <button id="save-button" class="btn-primary">Save</button>
+          <button id="surrender-button" class="btn-primary">Surrender</button>
           <button id="quit-button" class="btn-primary">Quit</button>
-          <button id="terminate-button" class="btn-primary">Terminate</button>
           <button id="menu-close-button" class="btn-primary">Close</button>
+        </div>
+      </div>
+      <div class="menu-panel" id="surrender-confirm" hidden>
+        <h1 class="menu-title">Surrender?</h1>
+        <p class="menu-body-text">This ends the match immediately and cannot be undone.</p>
+        <div class="menu-stack">
+          <button id="surrender-confirm-yes" class="btn-primary">Yes, Surrender</button>
+          <button id="surrender-confirm-cancel" class="btn-primary">Cancel</button>
         </div>
       </div>
     </div>
