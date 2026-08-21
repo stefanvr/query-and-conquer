@@ -28,14 +28,14 @@ async function screenPosFor(page, col, row) {
   return { x: box.x + box.width / 2 + (p.x - base.x), y: box.y + box.height / 2 + (p.y - base.y) };
 }
 
-test("selecting the dev-save tank shows its panel with AP and a Load into base button", async ({ page }) => {
+test("selecting the dev-save tank shows its panel with AP and a Load button", async ({ page }) => {
   const tank = await screenPosFor(page, 1, 2);
   await page.mouse.click(tank.x, tank.y);
 
   await expect(page.locator("#unit-panel")).toBeVisible();
   await expect(page.locator("#unit-panel-title")).toContainText("Tank");
   await expect(page.locator("#unit-panel-ap")).toContainText("AP");
-  await expect(page.locator("#unit-panel-actions button")).toContainText("Load into base");
+  await expect(page.locator("#unit-panel-actions button")).toContainText("Load");
 });
 
 test("moving the tank to an adjacent hex spends AP and leaves the base-adjacent action unavailable", async ({ page }, testInfo) => {
@@ -58,16 +58,20 @@ test("moving the tank to an adjacent hex spends AP and leaves the base-adjacent 
   await expect(page.locator("#unit-panel-actions")).toBeEmpty();
 });
 
-test("loading the tank into the base moves it into the garrison, and the destination picker unloads it again", async ({ page }) => {
+test("the Load destination picker loads the tank into the base, and the unload picker unloads it again", async ({ page }) => {
   const tank = await screenPosFor(page, 1, 2);
   await page.mouse.click(tank.x, tank.y);
   await expect(page.locator("#unit-panel-actions button")).toBeEnabled();
 
-  await page.click("#unit-panel-actions button"); // Load into base
+  await page.click("#unit-panel-actions button"); // opens the load destination picker
   await expect(page.locator("#unit-panel")).toBeHidden();
 
   const base = await screenPosFor(page, 0, 2);
-  await page.mouse.click(base.x, base.y);
+  await page.mouse.click(base.x, base.y); // confirm: load into the base
+  await expect(page.locator("#unit-panel")).toBeHidden(); // no panel auto-opens after a successful load
+  await expect(page.locator("#base-panel")).toBeHidden();
+
+  await page.mouse.click(base.x, base.y); // open its panel
   await expect(page.locator("#base-panel")).toBeVisible();
   // The dev save already garrisons one (damaged) tank for repair testing (Stage 6) -- this makes
   // a second, in the next slot.
@@ -90,13 +94,26 @@ test("loading the tank into the base moves it into the garrison, and the destina
   await expect(page.locator("#base-panel-capacity")).toContainText("1/15"); // back to just the damaged one
 });
 
+test("clicking the unit's own hex while the load destination picker is open cancels back to its panel", async ({ page }) => {
+  const tank = await screenPosFor(page, 1, 2);
+  await page.mouse.click(tank.x, tank.y);
+  await page.click("#unit-panel-actions button"); // opens the load destination picker
+  await expect(page.locator("#unit-panel")).toBeHidden();
+
+  await page.mouse.click(tank.x, tank.y); // cancel
+  await expect(page.locator("#unit-panel")).toBeVisible();
+  await expect(page.locator("#unit-panel-actions button")).toContainText("Load");
+});
+
 test("clicking the base while the unload destination picker is open cancels back to the base panel", async ({ page }) => {
   const tank = await screenPosFor(page, 1, 2);
   await page.mouse.click(tank.x, tank.y);
-  await page.click("#unit-panel-actions button"); // Load into base
+  await page.click("#unit-panel-actions button"); // opens the load destination picker
 
   const base = await screenPosFor(page, 0, 2);
-  await page.mouse.click(base.x, base.y);
+  await page.mouse.click(base.x, base.y); // confirm: load into the base
+  await page.mouse.click(base.x, base.y); // open its panel
+
   await page.locator("#base-panel-garrison button").nth(1).click(); // the newly-loaded tank's slot
   await expect(page.locator("#base-panel")).toBeHidden();
 

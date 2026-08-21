@@ -9,7 +9,12 @@ import {
   processTurnStart,
   moveUnit,
   unloadUnit,
+  unloadCargo,
   loadUnit,
+  isValidLoadTarget,
+  enterBaseWithCargo,
+  loadIntoBoat,
+  isValidLoadIntoBoatTarget,
   isValidAttackTarget,
   attackUnit,
   attackBase,
@@ -401,7 +406,7 @@ test("loadUnit moves an adjacent field unit into a friendly base's garrison", ()
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7, 0);
+  loadUnit(s, grid, 7, base.id, 0);
 
   assert.equal(s.units.length, 0);
   assert.equal(base.garrison.length, 1);
@@ -419,7 +424,7 @@ test("loadUnit is a no-op if the unit isn't owned by the active player", () => {
   const unit = { id: 7, ownerId: 1, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7, 0); // active player 0, unit owned by 1
+  loadUnit(s, grid, 7, base.id, 0); // active player 0, unit owned by 1
   assert.equal(s.units.length, 1, "tank stays in the field");
   assert.equal(base.garrison.length, 0);
 });
@@ -434,7 +439,7 @@ test("loadUnit is a no-op if the adjacent base doesn't accept the unit's categor
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7, 0);
+  loadUnit(s, grid, 7, base.id, 0);
   assert.equal(s.units.length, 1, "tank stays in the field");
   assert.equal(base.garrison.length, 0);
 });
@@ -448,7 +453,7 @@ test("loadUnit is a no-op if the base is at max capacity", () => {
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7, 0);
+  loadUnit(s, grid, 7, base.id, 0);
   assert.equal(s.units.length, 1);
   assert.equal(base.garrison.length, 15);
 });
@@ -795,4 +800,173 @@ test("processTurnStart never auto-recaptures for a player who isn't the neutral 
 
   assert.equal(base.ownerId, null, "player 1 has no claim to it");
   assert.equal(base.inProgress.remainingTurns, 1, "not this player's base to tick either");
+});
+
+// --- Boats & cargo (Stage 7) ---
+
+function transporter(overrides = {}) {
+  return {
+    id: 50,
+    ownerId: 0,
+    unitType: "transporter",
+    col: 5,
+    row: 5,
+    sp: UNIT_TYPES.transporter.strength,
+    maxSp: UNIT_TYPES.transporter.strength,
+    remainingActions: UNIT_TYPES.transporter.actionsPerTurn,
+    remainingAttacks: UNIT_TYPES.transporter.attacksPerTurn,
+    cargo: [],
+    ...overrides,
+  };
+}
+
+test("isValidLoadIntoBoatTarget accepts an adjacent friendly transporter with room, for a vehicle-category unit", () => {
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5 });
+  const unit = tank({ id: 1, col: 6, row: 5 });
+  assert.equal(isValidLoadIntoBoatTarget(grid, unit, boat), true);
+});
+
+test("isValidLoadIntoBoatTarget rejects a category mismatch, a full boat, someone else's boat, or a boat loading into itself", () => {
+  const grid = allLandGrid();
+  const unit = tank({ id: 1, col: 6, row: 5 });
+
+  const carrierBoat = { id: 51, ownerId: 0, unitType: "carrier", col: 5, row: 5, cargo: [] }; // accepts planes, not tanks
+  assert.equal(isValidLoadIntoBoatTarget(grid, unit, carrierBoat), false, "category mismatch");
+
+  const fullBoat = transporter({ col: 5, row: 5, cargo: Array.from({ length: 5 }, (_, i) => ({ id: 100 + i, unitType: "tank", sp: 10 })) });
+  assert.equal(isValidLoadIntoBoatTarget(grid, unit, fullBoat), false, "full");
+
+  const enemyBoat = transporter({ col: 5, row: 5, ownerId: 1 });
+  assert.equal(isValidLoadIntoBoatTarget(grid, unit, enemyBoat), false, "someone else's boat");
+
+  const boat = transporter({ col: 6, row: 5 });
+  assert.equal(isValidLoadIntoBoatTarget(grid, boat, boat), false, "a boat can't load into itself/another boat");
+});
+
+test("loadIntoBoat moves the unit into cargo, removing it from state.units, sp carried over", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5 });
+  const unit = tank({ id: 1, col: 6, row: 5, sp: 7 });
+  s.units.push(boat, unit);
+
+  loadIntoBoat(s, grid, unit.id, boat.id, 0);
+
+  assert.equal(s.units.length, 1);
+  assert.equal(s.units[0].id, boat.id);
+  assert.equal(boat.cargo.length, 1);
+  assert.equal(boat.cargo[0].id, 1);
+  assert.equal(boat.cargo[0].sp, 7);
+});
+
+test("loadIntoBoat is a no-op if the unit isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5 });
+  const unit = tank({ id: 1, ownerId: 1, col: 6, row: 5 });
+  s.units.push(boat, unit);
+
+  loadIntoBoat(s, grid, unit.id, boat.id, 0);
+  assert.equal(s.units.length, 2, "nothing loaded");
+  assert.equal(boat.cargo.length, 0);
+});
+
+test("unloadCargo places a cargo unit onto the given adjacent hex, sp carried over", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5, cargo: [{ id: 1, unitType: "tank", sp: 3 }] });
+  s.units.push(boat);
+  const [dest] = grid.neighborsOf(5, 5);
+
+  unloadCargo(s, grid, boat.id, 1, dest.col, dest.row, 0);
+
+  assert.equal(boat.cargo.length, 0);
+  assert.equal(s.units.length, 2);
+  const unloaded = s.units.find((u) => u.id === 1);
+  assert.equal(unloaded.unitType, "tank");
+  assert.equal(unloaded.sp, 3);
+  assert.equal(unloaded.col, dest.col);
+  assert.equal(unloaded.row, dest.row);
+});
+
+test("unloadCargo is a no-op if the boat isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5, ownerId: 1, cargo: [{ id: 1, unitType: "tank", sp: 10 }] });
+  s.units.push(boat);
+  const [dest] = grid.neighborsOf(5, 5);
+
+  unloadCargo(s, grid, boat.id, 1, dest.col, dest.row, 0);
+  assert.equal(boat.cargo.length, 1, "cargo untouched");
+});
+
+test("enterBaseWithCargo unloads the boat and every unit it's carrying into the garrison for free", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow"); // the boat's own cell -- enterCost reads from here, not the base's
+  const base = landBase({ type: "port", col: 6, row: 5, garrison: [] });
+  s.bases.push(base);
+  const boat = transporter({
+    col: 5,
+    row: 5,
+    cargo: [
+      { id: 1, unitType: "tank", sp: 10 },
+      { id: 2, unitType: "tank", sp: 4 },
+    ],
+  });
+  s.units.push(boat);
+
+  enterBaseWithCargo(s, grid, boat.id, base.id, 0);
+
+  assert.equal(s.units.length, 0);
+  assert.equal(base.garrison.length, 3);
+  assert.deepEqual(
+    base.garrison.map((g) => g.id),
+    [boat.id, 1, 2],
+  );
+});
+
+test("enterBaseWithCargo works for an empty boat too", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  const base = landBase({ type: "port", col: 6, row: 5, garrison: [] });
+  s.bases.push(base);
+  const boat = transporter({ col: 5, row: 5 });
+  s.units.push(boat);
+
+  enterBaseWithCargo(s, grid, boat.id, base.id, 0);
+
+  assert.equal(s.units.length, 0);
+  assert.equal(base.garrison.length, 1);
+  assert.equal(base.garrison[0].id, boat.id);
+});
+
+test("enterBaseWithCargo is rejected entirely (all-or-nothing) if there isn't room for the boat + all its cargo", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  // 13 already used, 2 spare -- room for the boat alone, but not the boat + its 2 cargo units.
+  const base = landBase({
+    type: "port",
+    col: 6,
+    row: 5,
+    garrison: Array.from({ length: 13 }, (_, i) => ({ id: i, unitType: "tank", sp: 10 })),
+  });
+  s.bases.push(base);
+  const boat = transporter({
+    col: 5,
+    row: 5,
+    cargo: [
+      { id: 100, unitType: "tank", sp: 10 },
+      { id: 101, unitType: "tank", sp: 10 },
+    ],
+  });
+  s.units.push(boat);
+
+  enterBaseWithCargo(s, grid, boat.id, base.id, 0);
+
+  assert.equal(s.units.length, 1, "boat stays in the field -- all-or-nothing");
+  assert.equal(base.garrison.length, 13, "untouched");
 });

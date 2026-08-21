@@ -104,9 +104,10 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   endpoints). Every actionable unit through Stage 6 had range 1, where "in range" and "adjacent"
   coincided with nothing in between to block; Fregat (range 2, needs LOS) is the first that
   doesn't, so this is where the real check starts mattering.
-- **Claim**: costs 1 action + the base's terrain move cost (same pattern as loading, §2) and
-  garrisons the claiming unit inside, transferring ownership (§4). Terrain-gated per unit type
-  same as any base entry.
+- **Claim**: costs 1 action + the claiming unit's own current terrain's move cost (same pattern
+  as loading, §2 — the base's own cell is never the cost source, since it's always land, and a
+  boat's claimable base entry can't step onto that at all) and garrisons the claiming unit
+  inside, transferring ownership (§4). Terrain-gated per unit type same as any base entry.
 - Either action refreshes the acting unit's own panel (updated AP/attacks-remaining) and redraws
   the map afterward; no dedicated animation/toast for v1 (§4).
 

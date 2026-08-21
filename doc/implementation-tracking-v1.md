@@ -162,17 +162,24 @@ recovery, on the same reference unit.*
       between attacker and target, blocked by a mountain cell, a unit, or a base anywhere along
       it (game spec §1) — deferred since Stage 6 since every actionable unit had range 1 until
       now; Fregat (range 2, needs LOS) is the first that needs it for real
-- [ ] Generalize load/unload/the destination-picker command layer to work against either a base
+- [x] Generalize load/unload/the destination-picker command layer to work against either a base
       or a boat ("container" concept) — cargo entries share the garrison entry's `{id, unitType,
       sp}` shape
-- [ ] Load destination picker (§1): unit panel's Load button becomes a single button + map-click
+- [x] Load destination picker (§1): unit panel's Load button becomes a single button + map-click
       picker (highlights every valid adjacent base/boat; click one to confirm, click the unit's
       own hex to cancel) — replaces one-button-per-target, which breaks once more than one
       target can be adjacent at once (bases are ≥5 apart, but boats aren't)
-- [ ] Cargo: transporter holds 5 tanks, carrier holds 5 planes (game spec §3); unit panel shows a
+- [x] Cargo: transporter holds 5 tanks, carrier holds 5 planes (game spec §3); unit panel shows a
       boat's cargo as a slot row (§3)
-- [ ] Boat entry with cargo unloads for free into a base with spare capacity for boat + cargo
+- [x] Boat entry with cargo unloads for free into a base with spare capacity for boat + cargo
       combined; rejected entirely (all-or-nothing) if there isn't room (§2)
+- [x] Bug found while implementing: entering/claiming a base (and boarding a boat) computed move
+      cost from the *target's* own cell — worked for a land unit entering a base (its cell is
+      always land), but a boat's target base is always land (impassable for the boat) and a land
+      unit's target boat is always water (impassable for it), making both permanently
+      unenterable. Fixed to use the entering unit's own current cell instead (`enterCost`),
+      consistent with query-and-conquer.md §3's "for a boat this can happen anywhere water is
+      adjacent to land"
 - [ ] Base claim via fregat (port bases only — fregats can't move onto land) — already generic
       via claimBase's existing capturing-type + category checks; confirm + dev-save coverage
 - [ ] Port base build restriction: carrier only buildable adjacent to deep water — already
