@@ -31,8 +31,8 @@ export const UNIT_SHAPES = {
   tank: "square",
   fighter: "triangle",
   bomber: "hexagon",
-  fregat: "bar",
-  transporter: "circle",
+  fregat: "circle",
+  transporter: "bar",
   carrier: "star",
 };
 

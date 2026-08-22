@@ -159,8 +159,8 @@ two views can never visually drift apart.
 | Tank | Square |
 | Fighter | Triangle |
 | Bomber | Hexagon |
-| Fregat | Bar (elongated rectangle) |
-| Transporter | Circle |
+| Fregat | Circle |
+| Transporter | Bar (elongated rectangle) |
 | Carrier | Star (5-point) |
 
 Rendering rules (map canvas):
