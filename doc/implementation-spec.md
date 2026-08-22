@@ -46,12 +46,15 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - Base markers: owner's accent-color stroke, or steel-gray if unowned (§2/§4). A label under
   your own base shows its SP and, if a build's in progress, `Building: [unit type]` — an
   enemy-owned base's marker has no label at all, matching its panel's own non-disclosure (§2/§4).
-- Field units: drawn per style-guide.md §9 — shape by unit type (Tank: square),
-  owner's accent-color fill, white stroke if selected else `rgba(0,0,0,0.5)`, radius `0.4 ×
-  hexSize`. Plain-text SP then AP labels near the token (style-guide.md §8), same pattern as base
-  labels — shown for every unit regardless of owner, unlike a base's own SP (§2/§4's
-  non-disclosure is base-specific; a visible enemy unit's strength has always been shown, same as
-  its panel, §3).
+- Field units: drawn per style-guide.md §9 — shape by unit type (its full table: Tank square,
+  Fighter triangle, Bomber hexagon, Fregat bar, Transporter circle, Carrier star), owner's
+  accent-color fill, white stroke if selected else `rgba(0,0,0,0.5)`, radius `0.4 × hexSize`.
+  Plain-text SP then AP labels near the token (style-guide.md §8), same pattern as base labels —
+  shown for every unit regardless of owner, unlike a base's own SP (§2/§4's non-disclosure is
+  base-specific; a visible enemy unit's strength has always been shown, same as its panel, §3).
+- The same shape table draws build buttons and garrison/queue/cargo slot icons (§2/§3) — one
+  shared per-unit-type shape mapping (map-canvas.js's `UNIT_SHAPES`), each context (canvas vs.
+  CSS) tracing that same shape natively rather than sharing literal drawing code.
   Garrisoned units are never drawn as tokens (style-guide.md §9) — only the owning base's marker
   shows.
 

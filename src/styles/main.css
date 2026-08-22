@@ -390,14 +390,45 @@ button.slot:hover {
   background: var(--olive);
 }
 
+/* Unit shapes, style-guide.md §9's per-unit-type table — same shapes the map canvas token
+   drawing uses (map-canvas.js's traceShape), just as CSS instead of a canvas path. Tank's square
+   is the unstyled default (.slot-icon alone); every other type adds one of these. Color is a
+   custom property, not a hardcoded var(--signal) on each rule, so a context with a
+   --signal-colored background of its own (build buttons, below) can override just the one
+   property instead of every shape's fill/border color individually. */
 .slot-icon {
+  --icon-color: var(--signal);
   width: 10px;
   height: 10px;
-  background: var(--signal);
+  background: var(--icon-color);
 }
 
 .slot-icon-circle {
   border-radius: 50%;
+}
+
+.slot-icon-triangle {
+  width: 0;
+  height: 0;
+  background: transparent;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid var(--icon-color);
+}
+
+.slot-icon-hexagon {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+.slot-icon-bar {
+  width: 14px;
+  height: 5px;
+}
+
+.slot-icon-star {
+  clip-path: polygon(
+    50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%
+  );
 }
 
 /* Inline Move earlier / Remove / Move later controls for a selected queue slot (Stage 5b).
@@ -452,4 +483,14 @@ button.slot:hover {
 .base-panel-build-buttons .btn-primary {
   font-size: 14px;
   padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* The button's own background is --signal (.btn-primary) -- a --signal-colored icon on it would
+   be invisible, so override just the icon color, not each shape's fill/border individually. */
+.base-panel-build-buttons .slot-icon {
+  --icon-color: var(--ink);
 }

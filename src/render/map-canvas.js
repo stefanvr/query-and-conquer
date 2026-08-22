@@ -26,12 +26,76 @@ const TERRAIN_VAR = {
   deep: "--t-deep",
 };
 
-// Unit token shape per style-guide.md §9. Only Tank is spawnable before Stages 7/8 add the rest;
-// unimplemented shapes fall back to a circle rather than crashing.
-export const UNIT_SHAPES = { tank: "square" };
+// Unit token shape per style-guide.md §9's per-unit-type table.
+export const UNIT_SHAPES = {
+  tank: "square",
+  fighter: "triangle",
+  bomber: "hexagon",
+  fregat: "bar",
+  transporter: "circle",
+  carrier: "star",
+};
 
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/** Traces `shape`'s outline into the current path, centered at (sx, sy) with the given nominal
+ * radius (style-guide.md §9) — doesn't fill/stroke; callers do that afterward so the same trace
+ * serves both a normal token and the dashed/translucent pending-unload preview. Unrecognized
+ * shapes fall back to a circle rather than drawing nothing. */
+function traceShape(ctx, shape, sx, sy, radius) {
+  ctx.beginPath();
+  switch (shape) {
+    case "square": {
+      const s = radius * Math.SQRT2; // same nominal radius as a circle token
+      ctx.rect(sx - s / 2, sy - s / 2, s, s);
+      break;
+    }
+    case "triangle":
+      for (let i = 0; i < 3; i++) {
+        const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
+        const x = sx + radius * Math.cos(angle);
+        const y = sy + radius * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      break;
+    case "hexagon":
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        const x = sx + radius * Math.cos(angle);
+        const y = sy + radius * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      break;
+    case "bar": {
+      const w = radius * 2;
+      const h = radius * 0.6;
+      ctx.rect(sx - w / 2, sy - h / 2, w, h);
+      break;
+    }
+    case "star": {
+      const inner = radius * 0.45;
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? radius : inner;
+        const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+        const x = sx + r * Math.cos(angle);
+        const y = sy + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      break;
+    }
+    case "circle":
+    default:
+      ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+      break;
+  }
 }
 
 /**
@@ -106,14 +170,7 @@ export function createMapCamera(canvas, mapData, options = {}) {
 
   function drawUnitToken(sx, sy, size, unit, isSelected) {
     const radius = size * 0.4;
-    const shape = UNIT_SHAPES[unit.unitType] ?? "circle";
-    ctx.beginPath();
-    if (shape === "square") {
-      const s = radius * Math.SQRT2; // square with the same nominal radius as a circle token
-      ctx.rect(sx - s / 2, sy - s / 2, s, s);
-    } else {
-      ctx.arc(sx, sy, radius, 0, Math.PI * 2);
-    }
+    traceShape(ctx, UNIT_SHAPES[unit.unitType], sx, sy, radius);
     ctx.fillStyle = cssVar(ownerColorVar(unit.ownerId));
     ctx.fill();
     ctx.lineWidth = Math.max(1, size * 0.08);
@@ -133,14 +190,7 @@ export function createMapCamera(canvas, mapData, options = {}) {
    * the unit isn't a field unit until the player confirms a destination. */
   function drawPendingUnitToken(sx, sy, size, ownerId, unitType) {
     const radius = size * 0.4;
-    const shape = UNIT_SHAPES[unitType] ?? "circle";
-    ctx.beginPath();
-    if (shape === "square") {
-      const s = radius * Math.SQRT2;
-      ctx.rect(sx - s / 2, sy - s / 2, s, s);
-    } else {
-      ctx.arc(sx, sy, radius, 0, Math.PI * 2);
-    }
+    traceShape(ctx, UNIT_SHAPES[unitType], sx, sy, radius);
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = cssVar(ownerColorVar(ownerId));
     ctx.fill();

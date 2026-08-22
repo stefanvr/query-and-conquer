@@ -198,6 +198,19 @@ recovery, on the same reference unit.*
 - [x] Extend dev save game with a hand-placed coastal patch + port base (the land-only dev map
       has neither, and base placement already ran before boats existed as a concept — same
       hand-splice pattern as Stage 6's neutral base) plus boats with cargo
+- [x] Ad hoc: only Tank had a real shape — everything else fell back to a circle, so boats/planes
+      were visually indistinguishable from each other everywhere (map token, garrison/queue/cargo
+      slots, build buttons). Style-guide.md §9 already specifies the full table (Fighter
+      triangle, Bomber hexagon, Fregat bar, Transporter circle, Carrier star); implemented it for
+      real — one canvas path-tracing function (map-canvas.js's `traceShape`) and matching CSS
+      classes, both keyed off the same `UNIT_SHAPES` map, in every one of those views including
+      build buttons (which didn't show a shape at all before). Found and fixed a real bug in the
+      same pass: the icon's default color matched the build button's own background exactly,
+      making it invisible there — fixed via a CSS custom property so just that one context can
+      override the icon color
+- [x] Ad hoc: extend the dev save's coastal water patch 6 more cells down and to the left (a real
+      hex-adjacency chain, not just col-1/row+1 pairs) so the transporter has an actual body of
+      water to move around in, not just its starting hex and one neighbor
 
 ## Stage 8 — Planes: Fighter, Bomber
 - [ ] Spec
@@ -262,6 +275,14 @@ recovery, on the same reference unit.*
       implementation, since it changes a stated game rule. Stage 6 front-runs this for its own
       dev-save testing by hand-placing one neutral base near the human's, rather than waiting on
       the real map-generation feature.
+- [ ] Unloading a garrisoned/cargo unit straight into an adjacent friendly boat isn't possible —
+      the unload destination picker (§1) only ever highlights empty passable terrain, since
+      isValidUnloadTarget rejects any already-occupied hex outright, boat included. Needs the
+      same kind of exit-target generalization enterBaseWithCargo (§2) already does for the
+      opposite direction (boat → base): the picker would need to also treat "a friendly boat with
+      room" as a valid destination, and unloadUnit/unloadCargo would need to route into that
+      boat's cargo instead of the field on confirm. Not a minor tweak — found while reviewing
+      Stage 7, deferred here rather than rushed in
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 

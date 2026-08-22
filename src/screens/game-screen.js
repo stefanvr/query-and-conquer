@@ -35,11 +35,14 @@ const BASE_TYPE_LABEL = { land: "Land Base", port: "Port Base", mountain: "Mount
 const MAX_BASE_CAPACITY = 15;
 const QUEUE_SLOT_COUNT = 5; // mirrors commands.js's MAX_QUEUE_LENGTH
 
-/** Small colored square/circle before a slot's label, shape by unit type (style-guide.md §9),
- * same shape table the canvas token uses. */
+/** Small shape icon before a slot's (or build button's) label — style-guide.md §9's per-unit-type
+ * shape table, the same one the canvas token uses (map-canvas.js's UNIT_SHAPES/traceShape).
+ * Tank's square is the unstyled default (.slot-icon alone); every other shape adds a modifier
+ * class. */
 function slotIcon(unitType) {
   const icon = document.createElement("span");
-  icon.className = UNIT_SHAPES[unitType] === "square" ? "slot-icon" : "slot-icon slot-icon-circle";
+  const shape = UNIT_SHAPES[unitType] ?? "circle";
+  icon.className = shape === "square" ? "slot-icon" : `slot-icon slot-icon-${shape}`;
   return icon;
 }
 
@@ -252,7 +255,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "btn-primary";
-        button.textContent = `Build ${unitType}`;
+        button.append(slotIcon(unitType), document.createTextNode(`Build ${unitType}`));
         button.disabled = base.queue.length >= 5;
         button.addEventListener("click", () => {
           queueBuild(state, base.id, unitType, activePlayer(state).id);
