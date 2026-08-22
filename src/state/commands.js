@@ -3,6 +3,7 @@
 import { UNIT_TYPES, BASE_CATEGORIES, CARGO_CATEGORY, buildTurns, buildableUnitTypes, moveCost } from "./unit-types.js";
 import { offsetDistance, hexLine } from "../map/hex-coords.js";
 import { baseAtHex, unitAtHex } from "./game-state.js";
+import { currentlyVisibleCells } from "./visibility.js";
 
 const MAX_QUEUE_LENGTH = 5; // §2
 const MAX_BASE_CAPACITY = 15; // §2: garrisoned + in-progress builds count against it
@@ -82,6 +83,24 @@ export function reorderQueuedBuild(state, baseId, queueIndex, direction, activeP
   return state;
 }
 
+/** Merges `playerId`'s currently-visible cells (their own field units' + bases' view radii, game
+ * spec §6, via visibility.js's shared computation) into their persisted `exploredCells` — the
+ * "once explored, terrain stays revealed" half of fog of war. `getVisibleState` (queries.js)
+ * computes "currently visible" fresh on every read, with no persistence needed there; only the
+ * sticky "ever explored" memory needs an actual write, and only commands.js may write canonical
+ * state (tech-stack.md's CQRS-lite rule). Called after anything that changes `playerId`'s own
+ * vision footprint (moveUnit, unloadUnit, unloadCargo, claimBase) and once every turn-start
+ * (processTurnStart) as a passive baseline resync — exploredCells only ever grows, so calling
+ * this more often than strictly necessary is always safe, never wrong. */
+export function markExplored(state, playerId) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return state;
+  const explored = new Set(player.exploredCells);
+  for (const key of currentlyVisibleCells(state, playerId)) explored.add(key);
+  player.exploredCells = [...explored];
+  return state;
+}
+
 /** One unit per cell, regardless of owner — bases block regular movement too, since entering a
  * base's own cell is the separate load/unload interaction, not a plain move (game spec §1/§3). */
 function isBlockedForMovement(state, col, row) {
@@ -123,6 +142,7 @@ export function moveUnit(state, grid, unitId, targetCol, targetRow, activePlayer
       state.units.splice(state.units.indexOf(unit), 1); // crash: fuel exhausted (game spec §3)
     }
   }
+  markExplored(state, activePlayerId); // the move may have revealed new cells (§6)
   return state;
 }
 
@@ -203,6 +223,7 @@ export function unloadUnit(state, grid, baseId, unitId, targetCol, targetRow, ac
   base.garrison.splice(index, 1);
   const remainingActions = UNIT_TYPES[garrisoned.unitType].actionsPerTurn - (1 + cost);
   state.units.push(toFieldUnit(garrisoned, base.ownerId, targetCol, targetRow, remainingActions));
+  markExplored(state, base.ownerId); // a new field unit is a new vision source (§6)
   return state;
 }
 
@@ -223,6 +244,7 @@ export function unloadCargo(state, grid, boatId, unitId, targetCol, targetRow, a
   boat.cargo.splice(index, 1);
   const remainingActions = UNIT_TYPES[cargoUnit.unitType].actionsPerTurn - (1 + cost);
   state.units.push(toFieldUnit(cargoUnit, boat.ownerId, targetCol, targetRow, remainingActions));
+  markExplored(state, boat.ownerId); // a new field unit is a new vision source (§6)
   return state;
 }
 
@@ -489,6 +511,7 @@ export function claimBase(state, grid, unitId, baseId, activePlayerId) {
     base.queue = [];
     base.inProgress = null;
   }
+  markExplored(state, unit.ownerId); // the base is a new vision source for its new owner (§6)
   return state;
 }
 
@@ -504,10 +527,13 @@ export function claimBase(state, grid, unitId, baseId, activePlayerId) {
  *    currently own, if it's neutral and they're its `lastOwnerId` — a build survives its base
  *    going neutral, so this is where it finally resolves. Ownership returns to this player and sp
  *    resets to 1 (lower than a manual claim, commands.js's claimBase) once that build completes.
- * Also resets this player's field units back to full actions/attacks per turn (game spec §3), and
- * a plane's `actionsSpentMoving` back to 0 (its mandatory-movement floor is this-turn-only, §3's
+ * Also resets this player's field units back to full actions/attacks per turn (game spec §3), a
+ * plane's `actionsSpentMoving` back to 0 (its mandatory-movement floor is this-turn-only, §3's
  * Plane rearm & fuel — `strikesUsed`/`cellsFlown` are untouched here, since those only reset on
- * an actual rearm, not every turn). */
+ * an actual rearm, not every turn), and resyncs this player's persisted fog-of-war exploration
+ * (§6's markExplored) as a passive baseline — the other call sites (moveUnit, unloadUnit,
+ * unloadCargo, claimBase) already cover anything that changes mid-turn; this catches everything
+ * else (a stationary base's own view, a turn where nothing moved). */
 export function processTurnStart(state, playerId) {
   for (const base of state.bases) {
     const ownsIt = base.ownerId === playerId;
@@ -549,5 +575,6 @@ export function processTurnStart(state, playerId) {
     unit.remainingAttacks = stats.attacksPerTurn;
     if (stats.roundTripRange) unit.actionsSpentMoving = 0; // this-turn-only (§3's Plane rearm & fuel)
   }
+  markExplored(state, playerId); // passive baseline vision resync (§6) — safe even if nothing moved
   return state;
 }

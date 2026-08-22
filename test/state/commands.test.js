@@ -9,6 +9,7 @@ import {
   processTurnStart,
   moveUnit,
   planesOwingMovement,
+  markExplored,
   unloadUnit,
   unloadCargo,
   loadUnit,
@@ -24,9 +25,22 @@ import {
 } from "../../src/state/commands.js";
 import { buildTurns, UNIT_TYPES } from "../../src/state/unit-types.js";
 import { TerrainGrid } from "../../src/map/grid.js";
+import { offsetKey } from "../../src/map/hex-coords.js";
 
 function state(turnOrder, turnIndex) {
-  return { turnOrder, turnIndex, turnNumber: 1, terminated: false, bases: [], units: [], nextUnitId: 0 };
+  return {
+    turnOrder,
+    turnIndex,
+    turnNumber: 1,
+    terminated: false,
+    bases: [],
+    units: [],
+    nextUnitId: 0,
+    // map/players are here so the many commands that now call markExplored (§6's fog of war)
+    // don't crash on a missing state.map -- large enough bounds that no test's coordinates clip.
+    map: { width: 200, height: 200 },
+    players: turnOrder.map((id) => ({ id, exploredCells: [] })),
+  };
 }
 
 function allLandGrid(size = 15) {
@@ -1202,4 +1216,60 @@ test("processTurnStart resets a plane's actionsSpentMoving each turn but leaves 
   assert.equal(unit.actionsSpentMoving, 0);
   assert.equal(unit.strikesUsed, 2);
   assert.equal(unit.cellsFlown, 30);
+});
+
+// --- Stage 9: Fog of war ---
+
+test("markExplored merges the player's currently-visible cells into their persisted exploredCells, growing not resetting it", () => {
+  const s = state([0], 0);
+  s.players[0].exploredCells = [offsetKey(0, 0)]; // pre-existing, far from anything below
+  const unit = tank({ col: 5, row: 5 });
+  s.units.push(unit);
+
+  markExplored(s, 0);
+
+  const explored = s.players[0].exploredCells;
+  assert.ok(explored.includes(offsetKey(0, 0)), "old entries survive");
+  assert.ok(explored.includes(offsetKey(5, 5)), "the tank's own cell is now explored");
+});
+
+test("markExplored is a no-op for an unknown player id", () => {
+  const s = state([0], 0);
+  markExplored(s, 99);
+  assert.deepEqual(s.players[0].exploredCells, []);
+});
+
+test("moveUnit persists the newly-visible destination cell into the mover's exploredCells", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const unit = tank({ col: 5, row: 5 });
+  s.units.push(unit);
+  const dest = grid.neighborsOf(5, 5)[0];
+
+  moveUnit(s, grid, 0, dest.col, dest.row, 0);
+
+  assert.ok(s.players[0].exploredCells.includes(offsetKey(dest.col, dest.row)));
+});
+
+test("claimBase persists the newly-claimed base's view radius into the new owner's exploredCells", () => {
+  const s = state([0], 0);
+  const unit = tank({ col: 5, row: 5 });
+  s.units.push(unit);
+  const grid = allLandGrid();
+  const base = landBase({ ownerId: null, lastOwnerId: 1, col: 6, row: 5, sp: 0 });
+  s.bases.push(base);
+
+  claimBase(s, grid, unit.id, base.id, 0);
+
+  assert.ok(s.players[0].exploredCells.includes(offsetKey(6, 5)));
+});
+
+test("processTurnStart resyncs exploredCells as a passive baseline even if nothing moved", () => {
+  const s = state([0], 0);
+  const base = landBase({ ownerId: 0, col: 8, row: 8 });
+  s.bases.push(base);
+
+  processTurnStart(s, 0);
+
+  assert.ok(s.players[0].exploredCells.includes(offsetKey(8, 8)));
 });

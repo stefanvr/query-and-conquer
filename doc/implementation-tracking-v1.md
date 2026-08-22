@@ -15,7 +15,11 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
    write/update whichever of them the stage's features need (see that doc's own Format note).
    That's the "Spec" checkbox at the top of each stage below. Present the result and wait for
    explicit sign-off before writing any implementation code; update the section again if the
-   design shifts once implementation starts.
+   design shifts once implementation starts. Skip the wait only when the user has explicitly
+   said to for that stage (e.g. "if no significant question just do the spec and start
+   implementation") — then note any real open design questions in the spec text itself and pick
+   the sensible default rather than blocking on them, proceed straight into implementation, and
+   let review happen against the finished result instead of the spec draft.
 3. **Implement with one commit per step.** Once the spec is confirmed, work through the stage's
    checklist items and commit each one separately rather than bundling the whole stage into a
    single commit.
@@ -242,11 +246,22 @@ recovery, on the same reference unit.*
       within the existing human fregat's range
 
 ## Stage 9 — Fog of war
-- [ ] Spec
-- [ ] `getVisibleState(canonicalState, viewerId)` projection (tech-stack.md state-access rule)
-- [ ] Hide cells/units outside current view range
-- [ ] Distinguish "explored, not currently visible" vs. "currently in view" (style-guide.md)
-- [ ] Fog of war on/off game option wired through
+- [x] Spec
+- [x] `getVisibleState(canonicalState, viewerId)` projection (tech-stack.md state-access rule) —
+      real filtering now (bases by ever-explored, units by currently-visible), backed by a new
+      shared currentlyVisibleCells (visibility.js) and persisted per-player exploredCells
+      (commands.js's markExplored); passthrough unchanged when options.fogOfWar is off
+- [x] Hide cells/units outside current view range — map-canvas.js's draw() now skips terrain
+      color for an unexplored cell (solid `--ink`) and never draws a unit/base the caller's own
+      getVisibleState already filtered out; the camera holds a fresh filtered bases/units/fog via
+      a new setVisibleState, refreshed on every redraw (Stage 8's shared helper, extended here)
+- [x] Distinguish "explored, not currently visible" vs. "currently in view" (style-guide.md §7) —
+      a 30% black overlay on top of the terrain fill for explored-not-visible; visually confirmed
+      via a scratch Playwright screenshot before committing (a fresh match's own base surroundings
+      revealed, the rest solid ink)
+- [x] Fog of war on/off game option wired through — already collected by options-menu.js;
+      getVisibleState's own `fogOfWar === false` passthrough confirmed end-to-end (node:test +
+      e2e), dev save's own option flipped to off for tester ergonomics (implementation-spec.md §5)
 
 ## Stage 10 — End game, outer loop
 - [ ] Spec
@@ -308,6 +323,11 @@ recovery, on the same reference unit.*
       room" as a valid destination, and unloadUnit/unloadCargo would need to route into that
       boat's cargo instead of the field on confirm. Not a minor tweak — found while reviewing
       Stage 7, deferred here rather than rushed in
+- [ ] Hex selection/targeting (game-screen.js's `selectHex`) reads canonical state directly, not
+      the fog-filtered projection (Stage 9) — a precisely-aimed click can still select/inspect a
+      unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
+      framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
+      as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 

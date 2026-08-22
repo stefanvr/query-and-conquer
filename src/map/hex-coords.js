@@ -76,6 +76,24 @@ function cubeRound(cube) {
   return { x, y, z };
 }
 
+/** Every hex within `radius` steps of `center` (inclusive, `center` itself included at radius 0)
+ * — standard cube-coordinate hex range enumeration (red-blob-games technique), used for view
+ * range (game spec §1: "Ranges (view, attack) are hex-distance radii") and fog of war (§6).
+ * @param {OffsetCoord} center @param {number} radius @returns {OffsetCoord[]} */
+export function hexesInRange(center, radius) {
+  const cube = offsetToCube(center);
+  const results = [];
+  for (let dx = -radius; dx <= radius; dx++) {
+    const dyMin = Math.max(-radius, -dx - radius);
+    const dyMax = Math.min(radius, -dx + radius);
+    for (let dy = dyMin; dy <= dyMax; dy++) {
+      const dz = -dx - dy;
+      results.push(cubeToOffset({ x: cube.x + dx, y: cube.y + dy, z: cube.z + dz }));
+    }
+  }
+  return results;
+}
+
 /** Every hex from `a` to `b` inclusive, in order — standard hex line-draw (Amit Patel's
  * red-blob-games technique): linearly interpolate in cube coordinates, one step per hex of
  * distance, rounding each step to the nearest actual hex. Used for line-of-sight (game spec §1's
