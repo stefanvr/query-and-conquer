@@ -287,6 +287,11 @@ recovery, on the same reference unit.*
         clicking a panel's own close button first rather than tapping through it. Needs an actual
         layout fix (e.g. panel width/position that never covers canvas-center, or canvas taps
         during an open panel routing to the hex regardless of panel bounds).
+  - [ ] Improve attack UX — flagged during a build-v2 review as needing a better pass than
+        today's plain click-an-enemy-hex targeting; to be described in more detail when this
+        stage is planned
+  - [ ] Improve movement UX — flagged during the same review, alongside the attack UX item above;
+        to be described in more detail when this stage is planned
 - [ ] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
       §5's placement is currently exactly N seeds for N players, so every base starts owned —
       "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra
