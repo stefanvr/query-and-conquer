@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   endTurn,
+  isEliminated,
+  checkGameEnd,
   terminate,
   queueBuild,
   cancelQueuedBuild,
@@ -39,7 +41,7 @@ function state(turnOrder, turnIndex) {
     // map/players are here so the many commands that now call markExplored (§6's fog of war)
     // don't crash on a missing state.map -- large enough bounds that no test's coordinates clip.
     map: { width: 200, height: 200 },
-    players: turnOrder.map((id) => ({ id, exploredCells: [] })),
+    players: turnOrder.map((id) => ({ id, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } })),
   };
 }
 
@@ -65,8 +67,16 @@ function landBase(overrides = {}) {
   };
 }
 
+/** Gives each of `playerIds` an owned base, so none of them looks eliminated to endTurn's own
+ * turn-skip logic (game spec §7) — plain turn-advancement tests don't care about elimination, but
+ * every player needs to look like a real, still-in-the-game player for that not to interfere. */
+function ownABase(s, playerIds) {
+  for (const id of playerIds) s.bases.push(landBase({ id: `base-${id}`, ownerId: id }));
+}
+
 test("endTurn advances to the next player in turn order", () => {
   const s = state([0, 1, 2], 0);
+  ownABase(s, [0, 1, 2]);
   endTurn(s);
   assert.equal(s.turnIndex, 1);
   assert.equal(s.turnNumber, 1);
@@ -74,6 +84,7 @@ test("endTurn advances to the next player in turn order", () => {
 
 test("endTurn wraps around and bumps turnNumber", () => {
   const s = state([0, 1, 2], 2);
+  ownABase(s, [0, 1, 2]);
   endTurn(s);
   assert.equal(s.turnIndex, 0);
   assert.equal(s.turnNumber, 2);
@@ -1272,4 +1283,177 @@ test("processTurnStart resyncs exploredCells as a passive baseline even if nothi
   processTurnStart(s, 0);
 
   assert.ok(s.players[0].exploredCells.includes(offsetKey(8, 8)));
+});
+
+// --- Stage 10: End game, outer loop ---
+
+test("isEliminated is false for a player who owns a base, even with zero units", () => {
+  const s = state([0], 0);
+  s.bases.push(landBase({ ownerId: 0 }));
+  assert.equal(isEliminated(s, 0), false);
+});
+
+test("isEliminated is false for a player who has a field unit, even with zero bases", () => {
+  const s = state([0], 0);
+  s.units.push(tank({ ownerId: 0 }));
+  assert.equal(isEliminated(s, 0), false);
+});
+
+test("isEliminated is false for a player with a pending recapture (in-progress build at a neutral base they last owned)", () => {
+  const s = state([0], 0);
+  s.bases.push(landBase({ ownerId: null, lastOwnerId: 0, inProgress: { unitType: "tank", remainingTurns: 1 } }));
+  assert.equal(isEliminated(s, 0), false);
+});
+
+test("isEliminated is true with no bases, no units, and no pending recapture", () => {
+  const s = state([0], 0);
+  assert.equal(isEliminated(s, 0), true);
+});
+
+test("isEliminated is true at a neutral base they last owned once its build is gone (no pending recapture left)", () => {
+  const s = state([0], 0);
+  s.bases.push(landBase({ ownerId: null, lastOwnerId: 0, inProgress: null }));
+  assert.equal(isEliminated(s, 0), true);
+});
+
+test("checkGameEnd fires with the sole remaining owner once the other player is actually eliminated (no base, no units, no pending recapture)", () => {
+  const s = state([0, 1], 0);
+  s.bases.push(landBase({ id: 0, ownerId: 0 }), landBase({ id: 1, ownerId: null, lastOwnerId: 1, inProgress: null }));
+  assert.deepEqual(checkGameEnd(s), { ended: true, winnerId: 0 });
+});
+
+test("checkGameEnd doesn't fire while multiple players still own bases", () => {
+  const s = state([0, 1], 0);
+  s.bases.push(landBase({ id: 0, ownerId: 0 }), landBase({ id: 1, ownerId: 1 }));
+  assert.deepEqual(checkGameEnd(s), { ended: false, winnerId: null });
+});
+
+test("checkGameEnd does NOT fire just because only one player currently owns a base, if another player still has a pending recapture (not eliminated)", () => {
+  // The scenario this test exists for: player 0 is the sole current base owner, but player 1
+  // hasn't been eliminated yet -- they still have a build in progress at a neutral base they
+  // last owned (isEliminated's own pending-recapture exception, game spec §7). The match must
+  // not end out from under that recapture attempt just because player 0 is, for the moment, the
+  // only one who currently *owns* a base.
+  const s = state([0, 1], 0);
+  s.bases.push(
+    landBase({ id: 0, ownerId: 0 }),
+    landBase({ id: 1, ownerId: null, lastOwnerId: 1, inProgress: { unitType: "tank", remainingTurns: 1 } }),
+  );
+  assert.deepEqual(checkGameEnd(s), { ended: false, winnerId: null });
+});
+
+test("checkGameEnd doesn't fire when every base is simultaneously neutral but every player still has a pending recapture", () => {
+  const s = state([0, 1], 0);
+  s.bases.push(
+    landBase({ id: 0, ownerId: null, lastOwnerId: 0, inProgress: { unitType: "tank", remainingTurns: 1 } }),
+    landBase({ id: 1, ownerId: null, lastOwnerId: 1, inProgress: { unitType: "tank", remainingTurns: 2 } }),
+  );
+  assert.deepEqual(checkGameEnd(s), { ended: false, winnerId: null });
+});
+
+test("endTurn sets gameEnded/winnerId and stops advancing turns once every other player is actually eliminated", () => {
+  const s = state([0, 1, 2], 0);
+  ownABase(s, [0]); // only player 0 owns a base; players 1 and 2 have nothing at all -- eliminated
+  endTurn(s);
+  assert.equal(s.gameEnded, true);
+  assert.equal(s.winnerId, 0);
+  assert.equal(s.turnIndex, 0, "no further turn advancement once the game has ended");
+});
+
+test("endTurn skips an eliminated player's slot, landing on the next player still in the game", () => {
+  const s = state([0, 1, 2], 0); // ending player 0's turn -- player 1 is up next, but is eliminated
+  ownABase(s, [0, 2]); // player 1 owns nothing and has no units -- eliminated
+  endTurn(s);
+  assert.equal(s.turnIndex, 2, "skipped straight past player 1's slot");
+});
+
+test("endTurn is bounded (doesn't hang) even if every remaining player looks eliminated", () => {
+  const s = state([0, 1, 2], 0); // nobody owns a base -- checkGameEnd sees 0 owners, doesn't fire
+  endTurn(s); // every isEliminated check is true; the loop must still terminate
+  assert.equal(typeof s.turnIndex, "number");
+});
+
+test("terminate sets terminated without touching gameEnded/winnerId", () => {
+  const s = state([0], 0);
+  terminate(s);
+  assert.equal(s.terminated, true);
+  assert.equal(s.gameEnded, undefined);
+  assert.equal(s.winnerId, undefined);
+});
+
+test("attackUnit bumps the defender's unitsLost once destroyed, not the attacker's", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
+  const defender = tank({ id: 1, ownerId: 1, col: 6, row: 5, sp: 1 });
+  s.units.push(attacker, defender);
+  s.players.push({ id: 1, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } });
+
+  attackUnit(s, grid, 0, 1, 0);
+
+  assert.equal(s.players.find((p) => p.id === 1).stats.unitsLost, 1);
+  assert.equal(s.players[0].stats.unitsLost, 0);
+});
+
+test("attackBase bumps the base owner's unitsLost once per garrisoned unit destroyed", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const attacker = plane({ unitType: "bomber", col: 5, row: 5 }); // groundAtk 8, attack range 1
+  const target = grid.neighborsOf(5, 5)[0];
+  const base = landBase({
+    id: 9,
+    ownerId: 1,
+    col: target.col,
+    row: target.row,
+    sp: 20,
+    garrison: [
+      { id: 100, unitType: "tank", sp: 10 },
+      { id: 101, unitType: "tank", sp: 10 },
+    ],
+  });
+  s.units.push(attacker);
+  s.bases.push(base);
+  s.players.push({ id: 1, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } });
+
+  attackBase(s, grid, attacker.id, 9, 0);
+
+  assert.equal(s.players.find((p) => p.id === 1).stats.unitsLost, 2, "both garrisoned tanks destroyed");
+});
+
+test("moveUnit's fuel crash bumps the plane's own unitsLost", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const unit = plane({ unitType: "fighter", cellsFlown: UNIT_TYPES.fighter.roundTripRange });
+  s.units.push(unit);
+  const dest = grid.neighborsOf(5, 5)[0];
+
+  moveUnit(s, grid, unit.id, dest.col, dest.row, 0);
+
+  assert.equal(s.players[0].stats.unitsLost, 1);
+});
+
+test("processTurnStart bumps unitsBuilt on a normal build completion, and on a recapture completion for the recapturing player", () => {
+  const s = state([0], 0);
+  const base = landBase({ ownerId: 0, inProgress: { unitType: "tank", remainingTurns: 1 } });
+  s.bases.push(base);
+  processTurnStart(s, 0);
+  assert.equal(s.players[0].stats.unitsBuilt, 1);
+
+  const neutralBase = landBase({ id: 5, ownerId: null, lastOwnerId: 0, inProgress: { unitType: "tank", remainingTurns: 1 } });
+  s.bases.push(neutralBase);
+  processTurnStart(s, 0);
+  assert.equal(s.players[0].stats.unitsBuilt, 2, "the recapture completion also counts as a build");
+});
+
+test("loading/unloading/claiming a unit never bumps unitsBuilt or unitsLost -- relocation isn't destruction", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const base = landBase({ ownerId: 0, col: 6, row: 5, garrison: [{ id: 1, unitType: "tank", sp: 10 }] });
+  s.bases.push(base);
+
+  unloadUnit(s, grid, base.id, 1, 5, 5, 0);
+  assert.deepEqual(s.players[0].stats, { unitsBuilt: 0, unitsLost: 0 });
+
+  loadUnit(s, grid, 1, base.id, 0);
+  assert.deepEqual(s.players[0].stats, { unitsBuilt: 0, unitsLost: 0 });
 });

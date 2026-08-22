@@ -264,13 +264,21 @@ recovery, on the same reference unit.*
       e2e), dev save's own option flipped to off for tester ergonomics (implementation-spec.md §5)
 
 ## Stage 10 — End game, outer loop
-- [ ] Spec
-- [ ] Elimination check (zero bases **and** zero units, including a unit still under
-      construction at a currently-neutral former base)
-- [ ] Win/lose detection (single remaining base owner)
-- [ ] End screen: full map reveal, read-only, all bases/units annotated
-- [ ] Stats dialog (units built/lost per player)
-- [ ] Save/load for units
+- [x] Spec
+- [x] Elimination check (zero bases **and** zero units, including a unit still under
+      construction at a currently-neutral former base) — `isEliminated` (commands.js), used by
+      `endTurn`'s own turn-skip loop
+- [x] Win/lose detection (single remaining base owner) — `checkGameEnd`, sets `gameEnded`/
+      `winnerId` from `endTurn`; `terminate` (surrender) is a separate always-a-loss path
+- [x] End screen: full map reveal, read-only, all bases/units annotated — new `end-screen.js` +
+      `#screen-end`, reusing the game screen's own `createMapCamera` with a new `revealAll` option
+      (bypasses enemy-base non-disclosure); reached from both a natural win/loss and Surrender
+      (`game-screen.js`'s `onGameOver`, replacing the old straight-to-main-menu `onTerminate`)
+- [x] Stats dialog (units built/lost per player) — overlay on the End screen, reusing the
+      mid-turn menu's own backdrop/panel-swap pattern; visually verified via a scratch Playwright
+      screenshot before committing
+- [x] Save/load for units — already generic (state.units has been part of canonical state since
+      Stage 5); confirmed with a dedicated round-trip test, no new code needed
 
 ## Stage 11 — Easy AI
 - [ ] Spec

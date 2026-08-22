@@ -166,7 +166,7 @@ test("queuing a build updates capacity, and its progress ticks down exactly once
   await expect(page.locator("#base-panel-build-slot")).toContainText(`${initialTurns - 1} left`);
 });
 
-test("Surrender shows an in-app confirmation (not a native dialog) before returning to the main menu", async ({ page }) => {
+test("Surrender shows an in-app confirmation (not a native dialog) before reaching the End screen as a defeat", async ({ page }) => {
   let nativeDialogSeen = false;
   page.on("dialog", async (dialog) => {
     nativeDialogSeen = true;
@@ -190,6 +190,10 @@ test("Surrender shows an in-app confirmation (not a native dialog) before return
 
   await page.click("#surrender-button");
   await page.click("#surrender-confirm-yes");
-  await expect(page.locator("#screen-main-menu")).toBeVisible();
+  await expect(page.locator("#screen-end")).toBeVisible();
+  await expect(page.locator("#end-result")).toHaveText("Defeat");
   expect(nativeDialogSeen).toBe(false);
+
+  await page.click("#end-main-menu-button");
+  await expect(page.locator("#screen-main-menu")).toBeVisible();
 });

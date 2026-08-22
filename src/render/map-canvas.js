@@ -103,8 +103,10 @@ function traceShape(ctx, shape, sx, sy, radius) {
  * @param {HTMLCanvasElement} canvas
  * @param {object} mapData - parsed map JSON (width, height, rows)
  * @param {{ bases?: object[], units?: object[], players?: object[], viewerId?: number|null,
- *   fog?: {exploredCells: Set<string>, visibleCells: Set<string>}|null,
+ *   fog?: {exploredCells: Set<string>, visibleCells: Set<string>}|null, revealAll?: boolean,
  *   selectedHex?: {col:number,row:number}|null, onSelectHex?: (col: number, row: number) => void }} [options]
+ *   `revealAll` (implementation-spec.md §8's End screen) shows every base's own label, bypassing
+ *   the enemy-base non-disclosure rule that `viewerId` alone enforces.
  * @returns {{ draw: () => void, zoomIn: () => void, zoomOut: () => void, centerOn: (col:number,row:number) => void,
  *   setSelectedHex: (hex: {col:number,row:number}|null) => void,
  *   setVisibleState: (visible: {bases: object[], units: object[], fog?: object|null}) => void,
@@ -113,7 +115,7 @@ function traceShape(ctx, shape, sx, sy, radius) {
  *   destroy: () => void }}
  */
 export function createMapCamera(canvas, mapData, options = {}) {
-  const { players = [], viewerId = null } = options;
+  const { players = [], viewerId = null, revealAll = false } = options;
   // Fog of war (implementation-spec.md §5): bases/units are already filtered by the caller's own
   // getVisibleState before reaching here, and reassigned wholesale on every change via
   // setVisibleState, rather than the camera re-deriving them itself — same live-reference pattern
@@ -169,8 +171,9 @@ export function createMapCamera(canvas, mapData, options = {}) {
     ctx.stroke();
 
     // An enemy-owned base's marker has no label at all — it discloses no interior state
-    // (implementation-spec.md §1/§2/§4), same as its panel.
-    if (base.ownerId !== viewerId) return;
+    // (implementation-spec.md §1/§2/§4), same as its panel. `revealAll` (the End screen's own
+    // full-map-reveal mode, §8) bypasses this — the game is over, there's nothing left to hide.
+    if (!revealAll && base.ownerId !== viewerId) return;
     ctx.font = `${Math.max(11, size * 0.55)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     let ty = sy + size + Math.max(10, size * 0.6);

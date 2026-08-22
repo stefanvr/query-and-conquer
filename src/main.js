@@ -3,6 +3,7 @@
 import { initMainMenu } from "./screens/main-menu.js";
 import { initOptionsMenu } from "./screens/options-menu.js";
 import { initGameScreen } from "./screens/game-screen.js";
+import { initEndScreen } from "./screens/end-screen.js";
 import { createGameState } from "./state/game-state.js";
 import { loadGame } from "./save/save-load.js";
 
@@ -22,9 +23,18 @@ function returnToMainMenu() {
   showScreen("screen-main-menu");
 }
 
+function enterEndScreen(state) {
+  endScreen.start(state);
+  showScreen("screen-end");
+}
+
 const gameScreen = initGameScreen({
   onQuit: returnToMainMenu,
-  onTerminate: returnToMainMenu,
+  onGameOver: enterEndScreen,
+});
+
+const endScreen = initEndScreen({
+  onMainMenu: returnToMainMenu,
 });
 
 const mainMenu = initMainMenu({

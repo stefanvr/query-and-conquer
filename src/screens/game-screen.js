@@ -1,6 +1,6 @@
 // Game screen — HUD + map canvas + base/unit panels + mid-turn menu, per implementation-spec.md
 // §1/§2/§3/§6/§7/§8.
-import { activePlayer, playerBase, baseAtHex, unitAtHex, PLAYER_COLOR_VARS } from "../state/game-state.js";
+import { activePlayer, playerBase, baseAtHex, unitAtHex, playerLabel } from "../state/game-state.js";
 import {
   endTurn,
   terminate,
@@ -67,16 +67,8 @@ function fillSlotContent(el, unitType, secondLine) {
   }
 }
 
-/** "Human"/`AI n` + accent color for a player, or "Neutral"/steel-gray for an unowned base
- * (`player` null) — shared by the HUD turn indicator and the base panel's owner line
- * (implementation-spec.md §2/§4/§6). */
-function playerLabel(player) {
-  if (!player) return { text: "Neutral", colorVar: "--steel" };
-  return { text: player.isHuman ? "Human" : `AI ${player.slot}`, colorVar: PLAYER_COLOR_VARS[player.slot] };
-}
-
-/** @param {{ onQuit: () => void, onTerminate: () => void }} handlers */
-export function initGameScreen({ onQuit, onTerminate }) {
+/** @param {{ onQuit: () => void, onGameOver: (state: object) => void }} handlers */
+export function initGameScreen({ onQuit, onGameOver }) {
   const canvas = document.querySelector("#map-canvas");
   const turnIndicator = document.querySelector("#hud-turn-indicator");
   const endTurnButton = document.querySelector("#end-turn-button");
@@ -577,6 +569,18 @@ export function initGameScreen({ onQuit, onTerminate }) {
     if (selectedUnit) renderUnitPanel(selectedUnit);
   }
 
+  /** Whether the match just ended (a natural win/loss, `endTurn`'s own `gameEnded`/`winnerId`, or
+   * a surrender's `terminated` — commands.js, game spec §7) — if so, hands off to the End screen
+   * (implementation-spec.md §8) via `onGameOver` instead of continuing to process turns. Callers
+   * check this right after every `endTurn(state)` call. */
+  function checkForGameOver() {
+    if (state.gameEnded || state.terminated) {
+      onGameOver(state);
+      return true;
+    }
+    return false;
+  }
+
   // Stage 3 has no AI logic yet (Stage 11+) — an AI turn has no decisions to make, so cascade
   // through every AI player automatically and stop back at the human. Each player's own bases
   // and field units still tick/reset on their own turn-start (game spec §7), AI included. Does
@@ -585,6 +589,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   function advanceCascadeToHuman() {
     while (!activePlayer(state).isHuman) {
       endTurn(state);
+      if (checkForGameOver()) return;
       processTurnStart(state, activePlayer(state).id);
     }
   }
@@ -595,6 +600,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
     closeUnloadPreview(); // a stale picker from this turn shouldn't survive into the next one
     closeLoadPreview();
     endTurn(state);
+    if (checkForGameOver()) return;
     processTurnStart(state, activePlayer(state).id);
     advanceCascadeToHuman();
     refreshHud();
@@ -633,7 +639,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   surrenderConfirmYesButton.addEventListener("click", () => {
     terminate(state);
     closeMenu();
-    onTerminate();
+    checkForGameOver(); // always true here (terminate just set state.terminated) -- routes to the End screen
   });
   zoomInButton.addEventListener("click", () => camera?.zoomIn());
   zoomOutButton.addEventListener("click", () => camera?.zoomOut());
