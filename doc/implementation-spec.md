@@ -74,6 +74,10 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   or no unit selected) falls back to normal selection/deselection.
 - No multi-hex pathfinding or path preview for human play in v1 — click-to-move one hex at a
   time. (Hard AI's "full pathfinding," §8/Stage 12, is a separate AI-quality concern, not this.)
+- Movement never requires line of sight for any unit type — LOS only ever gates attacks (§1's
+  Attack & claim targeting). A plane's move can still destroy it outright via a fuel crash (§3's
+  Plane rearm & fuel) — the map/unit panel simply reflect the unit's removal afterward, same as
+  any other destruction.
 
 ### Unload destination picker
 - Clicking a filled, owned garrison/cargo slot (§2/§3) closes the base/unit panel and enters
@@ -109,7 +113,8 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   units, or bases anywhere along the hex line between attacker and target — not just the
   endpoints). Every actionable unit through Stage 6 had range 1, where "in range" and "adjacent"
   coincided with nothing in between to block; Fregat (range 2, needs LOS) is the first that
-  doesn't, so this is where the real check starts mattering.
+  doesn't, so this is where the real check starts mattering. A plane (Fighter/Bomber) additionally
+  can't attack once it's used up its rearm-limited strikes (§3's Plane rearm & fuel).
 - **Claim**: costs 1 action + the claiming unit's own current terrain's move cost (same pattern
   as loading, §2 — the base's own cell is never the cost source, since it's always land, and a
   boat's claimable base entry can't step onto that at all) and garrisons the claiming unit
@@ -166,10 +171,10 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - Your own base, viewed on a turn that isn't yours, shows the same full grids read-only — no slot
   click handlers, no build buttons.
 - One build button per unit type the base's category allows (game spec §2: Land → Tank; Port →
-  Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — Fighter/Bomber buttons exist now
-  even though those unit types have no movement/combat until their own stage (planes: 8) lands;
-  they just sit garrisoned until then. Fregat/Transporter/Carrier are fully actionable as of this
-  stage (§3/§4).
+  Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — all six unit types are fully
+  actionable (§3/§4). A Mountain base needs no panel special-casing beyond this: its build
+  buttons, garrison/queue slots, and repair/capacity rules already fall out of the same generic
+  logic every other base type uses.
 - Build button disabled when the queue already holds 5 pending items — not when capacity is
   full, since queuing (unlike starting) doesn't consume a capacity slot (game spec §2).
 - Unload has no dedicated button — triggered via the garrison slot click above (§1's unload
@@ -250,9 +255,39 @@ load/unload and cargo interaction)*
 ### Unit panel (side menu, §7)
 - Opens on selecting a field unit (§1). Shows: unit type, SP (`10/10`), actions
   (`X/5 AP`, style-guide.md §8) — plus, for a boat (`holdCapacity` > 0), its cargo as a slot row
-  below (same slot styling as the base panel's garrison, style-guide.md §9).
+  below (same slot styling as the base panel's garrison, style-guide.md §9). For a plane
+  (category `plane`), also shows strikes remaining (`maxStrikes - strikesUsed`, e.g. `3/4`) and
+  fuel remaining (`roundTripRange - cellsFlown`, e.g. `62/100`) — same plain-text treatment as
+  SP/AP (style-guide.md §8).
 - Load button: single button, shown whenever at least one adjacent base or boat could accept
   this unit (§1's Load destination picker) — opens the picker rather than acting immediately.
+
+### Plane rearm & fuel (game spec §3's Generic Planes rules)
+- A plane field unit carries three extra counters beyond the fields every field unit has (§3
+  above): `strikesUsed` (attacks since its last rearm), `cellsFlown` (hexes moved since its last
+  rearm), `actionsSpentMoving` (this-turn-only, movement AP spent — see the mandatory-movement
+  bullet below).
+- **Rearm** (resets `strikesUsed` and `cellsFlown` to 0): happens on entering a base (Load
+  destination picker, §1/§2) — for either plane type. Fighter also rearms entering a carrier
+  (loadIntoBoat, §3's Cargo); Bomber does not — its counters carry through a stay in a carrier's
+  cargo hold unchanged, matching the game spec's asymmetric wording ("Fighter: base/carrier",
+  "Bomber: base"). A freshly-built plane starts at `0`/`0` (already rearmed).
+- **Strike limit**: `isValidAttackTarget`/`isValidAttackBaseTarget` also reject a plane whose
+  `strikesUsed` has reached its type's `maxStrikes` — same no-op-if-exhausted treatment as
+  `remainingAttacks`/`remainingActions` (§1). A successful attack increments `strikesUsed`.
+- **Fuel/crash**: every hex a plane moves (`moveUnit`, regardless of that hex's own AP cost)
+  increments `cellsFlown` by 1. If this pushes `cellsFlown` past the type's `roundTripRange`, the
+  move still completes but the plane is then destroyed on the spot (removed from `state.units`) —
+  a crash, not a blocked move; the game spec's "crashes if range limit is exceeded" is read
+  literally, not as a pre-emptive can't-get-home guard.
+- **Mandatory movement**: `actionsSpentMoving` accumulates the AP cost of each move this turn
+  (attacks don't count, game spec §3), and resets to 0 at the owner's own turn-start alongside
+  `remainingActions`/`remainingAttacks` (§2's turn-start processing). Ending the turn (§6) is
+  blocked while any of the player's own field planes (a garrisoned one is exempt — it isn't a
+  field unit) have `remainingActions > 0` *and* `actionsSpentMoving` under half their type's
+  `actionsPerTurn`. The `remainingActions > 0` half of that guard matters: a plane that spent its
+  whole turn attacking instead of moving has nothing left it could do about it, so it can't
+  soft-lock the End Turn button.
 
 ## 4. Combat & capture
 *(game spec §4 — attack feedback/animation, damage display, capture and neutral-base
@@ -302,6 +337,9 @@ _Not started._
 *(app-only — persistent on-screen chrome: turn/player indicator, end-turn control, AI-speed
 control, entry point to the mid-turn menu)*
 - Persistent bar: current player/turn indicator, End Turn button.
+- End Turn is disabled, with a short inline message below the button, while the human player has
+  any field plane that still owes its mandatory movement this turn (§3's Plane rearm & fuel) —
+  message names the blocking unit(s) by type, e.g. "Fighter still needs to move (2/4 AP)".
 - Entry point (button/icon) opening the mid-turn menu (§8).
 - AI-speed control deferred — no visible AI actions to pace until Stage 11.
 

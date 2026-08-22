@@ -228,6 +228,9 @@ recovery, on the same reference unit.*
 - [ ] Mandatory ≥50% action usage when not garrisoned (attacks excluded from that count)
 - [ ] Mountain base (planes only; requires all-mountain neighbors)
 - [ ] Base claim via fighter, including a mountain base unreachable by tank or boat (§4)
+- [ ] Dev-map fixtures: human + enemy mountain base, a fighter and a bomber near the enemy base
+      with partial fuel spent but enough left to reach the human mountain base, and an enemy tank
+      within the existing human fregat's range
 
 ## Stage 9 — Fog of war
 - [ ] Spec
