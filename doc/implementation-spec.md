@@ -276,7 +276,9 @@ load/unload and cargo interaction)*
   `isValidLoadIntoBoatTarget` rejects it outright, a carrier being the only boat that accepts
   planes as cargo), matching the game spec's asymmetric wording ("Fighter: base/carrier",
   "Bomber: base") read as a hard boarding restriction, not just a rearm-location nuance. A
-  freshly-built plane starts at `0`/`0` (already rearmed).
+  freshly-built plane starts at `0`/`0` (already rearmed). Rearm is instant, same turn as entry —
+  query-and-conquer.md §9 flags "resolve at the owner's next turn-start instead" as an open
+  rebalancing option, not yet decided; revisit this bullet if that changes.
 - **Strike limit**: `isValidAttackTarget`/`isValidAttackBaseTarget` also reject a plane whose
   `strikesUsed` has reached its type's `maxStrikes` — same no-op-if-exhausted treatment as
   `remainingAttacks`/`remainingActions` (§1). A successful attack increments `strikesUsed`.

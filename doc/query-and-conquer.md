@@ -301,3 +301,19 @@ aggressive AI sometimes looking more opportunistic than coordinated.
 | Pathing | Naive — moves straight toward target, may waste actions on obstacles | Full pathfinding — lowest-cost route, respects LOS |
 | Action efficiency | Often leaves actions unspent/wasted (consequence of naive play) | Uses full action budget effectively |
 | Reaction | Only responds to currently visible threats | Can react anywhere on the map immediately |
+
+---
+
+## 9. Balance considerations
+
+Open tuning questions, flagged for later rebalancing rather than settled rules — noted here so
+they aren't lost, not because either side is confirmed wrong.
+
+- **Plane rearm/refuel timing.** Currently instant: a Fighter/Bomber's strikes-used and fuel-used
+  counters reset the moment it enters a base (or, for a Fighter, a Carrier), same turn, so it can
+  in principle land and immediately fly back out fully restored if it still has actions left.
+  An alternative is to make rearm resolve at the start of the owning player's *next* turn instead
+  (mirroring how a base's own build/repair ticks resolve at turn-start, §2) — i.e. the plane sits
+  "grounded" for the remainder of the turn it lands, and turns up rearmed only when its owner's
+  next turn begins. This would meaningfully change plane tempo (a rearm trip costs a full turn
+  cycle, not just the actions to get there and back) and is worth playtesting before picking one.
