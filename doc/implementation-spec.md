@@ -376,12 +376,18 @@ cells and units)*
   on Stage 13's backlog instead of blocking this stage.
 
 ### In-game map render (extends §1's own section)
-- Three visual states per style-guide.md §7: **unexplored** — hex filled solid `--ink`, nothing
-  else drawn for it (no terrain color, no selection/target highlight, since it can't meaningfully
-  be either); **explored, not visible** — terrain color at full value, then an
-  `rgba(0, 0, 0, 0.30)` overlay on top; **visible** — terrain color only, today's unchanged
-  behavior. Applies only when `fog` is present (i.e. `fogOfWar` is on) — the fog-off/passthrough
-  case renders exactly as before.
+- Three visual states per style-guide.md §7: **unexplored** — nothing drawn at all, no terrain
+  color, no selection/target highlight (can't meaningfully be either); **explored, not visible** —
+  terrain color at full value, then an `rgba(0, 0, 0, 0.30)` overlay on top; **visible** — terrain
+  color only, today's unchanged behavior. Applies only when `fog` is present (i.e. `fogOfWar` is
+  on) — the fog-off/passthrough case renders exactly as before.
+- The whole visible viewport is pre-filled solid `--ink` before any tile is drawn, whenever fog is
+  on — not just each in-map unexplored hex. An off-map cell (outside the actual map shape, e.g. a
+  circular/hexagonal map) is never touched by the per-cell draw loop at all, so without this the
+  canvas's own background color showed through there, distinct from an in-map unexplored hex's
+  `--ink` fill — giving away the map's shape/edges, and the viewer's own position relative to
+  them, through territory that's supposed to disclose nothing. The pre-fill makes both cases
+  identical.
 - The camera holds live references to `bases`/`units` today; fog needs it to redraw from a fresh
   filtered set on every change instead, so it gains a `setVisibleState({ bases, units, fog })`
   method, called (alongside `.draw()`) from every point game-screen.js currently redraws — a

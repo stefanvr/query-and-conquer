@@ -214,6 +214,16 @@ export function createMapCamera(canvas, mapData, options = {}) {
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Fog of war: pre-fill the whole viewport --ink before drawing any tile, so an off-map cell
+    // (never reached by the per-cell loop below, since it only iterates in-map cells) reads
+    // identically to an unexplored in-map one. Without this, the canvas's own olive background
+    // showed through off-map, giving away the map's shape/edges and the viewer's own position
+    // relative to it, through completely unexplored territory (style-guide.md §7's unexplored
+    // state is supposed to disclose nothing at all).
+    if (fog) {
+      ctx.fillStyle = cssVar("--ink");
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     const size = camera.hexSize;
     const colStep = size * 1.5;
     const rowStep = size * Math.sqrt(3);
@@ -236,15 +246,12 @@ export function createMapCamera(canvas, mapData, options = {}) {
         corners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
         ctx.closePath();
 
-        // Fog of war, three states per style-guide.md §7: unexplored -- solid --ink, nothing else
-        // drawn for it (can't be selected/targeted either); explored-not-visible -- terrain color
-        // dimmed 30%; currently visible -- terrain color at full value (today's unchanged look).
+        // Fog of war, three states per style-guide.md §7: unexplored -- nothing drawn at all (the
+        // whole-viewport --ink pre-fill above already covers it, same as an off-map cell, and it
+        // can't be selected/targeted either); explored-not-visible -- terrain color dimmed 30%;
+        // currently visible -- terrain color at full value (today's unchanged look).
         const key = offsetKey(col, row);
-        if (fog && !fog.exploredCells.has(key)) {
-          ctx.fillStyle = cssVar("--ink");
-          ctx.fill();
-          continue;
-        }
+        if (fog && !fog.exploredCells.has(key)) continue;
         ctx.fillStyle = cssVar(TERRAIN_VAR[grid.get(col, row)]);
         ctx.fill();
         if (fog && !fog.visibleCells.has(key)) {
