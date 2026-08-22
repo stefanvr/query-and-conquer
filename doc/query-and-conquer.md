@@ -55,7 +55,7 @@ contribute 1 SP to the base's combined defense and are destroyed before the base
 
 | Base | Can build | Location requirement | View | Strength |
 |---|---|---|---|---|
-| Land base | Vehicles | Gras/gravel/sand; not adjacent to any water | 4 | 20 |
+| Land base | Vehicles, Planes | Gras/gravel/sand; not adjacent to any water | 4 | 20 |
 | Port base | Boats + Vehicles | Gras/gravel/sand; must be adjacent to water. Carrier only buildable if adjacent to deep water | 4 | 20 |
 | Mountain base | Planes only | Mountain, with all neighbors also mountain | 8 | 20 |
 
@@ -97,7 +97,7 @@ Garrisoned state of unit means loaded into other unit or base
 |---|---|---|---|---|---|---|---|---|---|---|
 | Tank | Vehicle | ground | 5 | 2 | 1 | Yes | 3 | 10 | 4 / 1 | — |
 | Fighter | Plane | air | 8 | 1 | 2 | No | 5 | 15 | 2 / 4 | Max 4 strikes before returning to base/carrier to rearm; 100-cell round-trip range limit |
-| Bomber | Plane | air | 6 | 1 | 1 | No | 8 | 10 | 8 / 1 | Max 2 strikes before returning to base to rearm; 200-cell round-trip range limit |
+| Bomber | Plane | air | 6 | 1 | 1 | No | 8 | 10 | 8 / 1 | Max 2 strikes before returning to base to rearm; 200-cell round-trip range limit; cannot board a Carrier at all (unlike Fighter) |
 | Fregat | Boat | ground | 5 | 1 | 2 | Yes | 6 | 15 | 6 / 4 | — |
 | Transporter | Boat | ground | 8 | 1 | 1 | Yes | 3 | 30 | 0 / 0 | Holds 5 tanks |
 | Carrier | Boat | ground | 3 | 1 | 4 | No | 5 | 25 | 8 / 4 | Holds 5 planes |

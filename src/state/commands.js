@@ -144,11 +144,10 @@ export function planesOwingMovement(state, playerId) {
 
 /** Field-unit shape a garrisoned/cargo entry becomes on exit (unload/unloadCargo) — sp carried
  * over (a damaged unit stays damaged, §3/§4), a fresh cargo hold if the exiting type has one. A
- * plane (`roundTripRange` set) also gets its rearm/fuel counters: `strikesUsed`/`cellsFlown`
- * carry over from the entry if it had them (a Bomber that didn't rearm in a carrier, §3's Plane
- * rearm & fuel), default to 0 otherwise (a base entry always rearms, so it never sets them —
- * loadUnit/enterBaseWithCargo push plain entries); `actionsSpentMoving` always starts at 0, since
- * it's this-turn-only regardless of rearm status. */
+ * plane (`roundTripRange` set) also gets its rearm/fuel counters, always starting fresh at 0 —
+ * every entry into a garrison/cargo hold is a rearm event for whichever plane type can reach it
+ * at all: a base entry always rearms (§3's Plane rearm & fuel), and the only plane that can ever
+ * board a Carrier (`boardsCarrier`, loadIntoBoat) always rearms there too, by definition. */
 function toFieldUnit(entry, ownerId, targetCol, targetRow, remainingActions) {
   const stats = UNIT_TYPES[entry.unitType];
   const unit = {
@@ -164,8 +163,8 @@ function toFieldUnit(entry, ownerId, targetCol, targetRow, remainingActions) {
   };
   if (stats.holdCapacity) unit.cargo = [];
   if (stats.roundTripRange) {
-    unit.strikesUsed = entry.strikesUsed ?? 0;
-    unit.cellsFlown = entry.cellsFlown ?? 0;
+    unit.strikesUsed = 0;
+    unit.cellsFlown = 0;
     unit.actionsSpentMoving = 0;
   }
   return unit;
@@ -301,14 +300,18 @@ export function enterBaseWithCargo(state, grid, boatId, baseId, activePlayerId) 
 /** Whether `unit` could load into `boat`'s cargo hold right now (implementation-spec.md §1's
  * Load destination picker): friendly, `boat`'s one accepted cargo category matches `unit`'s
  * (CARGO_CATEGORY), adjacent, affordable, and spare capacity. A boat can't load into another
- * boat — only a vehicle/plane-category unit can be cargo. Exported for the same reason as
- * isValidUnloadTarget. */
+ * boat — only a vehicle/plane-category unit can be cargo. A Bomber can never board a Carrier at
+ * all (`boardsCarrier` unset — game spec §3's asymmetric rearm note isn't just "doesn't rearm
+ * there," it can't be carried there in the first place; a Carrier is the only boat that accepts
+ * planes as cargo, so this is the one case that check applies to). Exported for the same reason
+ * as isValidUnloadTarget. */
 export function isValidLoadIntoBoatTarget(grid, unit, boat) {
   if (!boat || boat.id === unit.id) return false;
   if (boat.ownerId !== unit.ownerId) return false;
   const capacity = UNIT_TYPES[boat.unitType].holdCapacity;
   if (!capacity || boat.cargo.length >= capacity) return false;
   if (CARGO_CATEGORY[boat.unitType] !== UNIT_TYPES[unit.unitType].category) return false;
+  if (boat.unitType === "carrier" && !UNIT_TYPES[unit.unitType].boardsCarrier) return false;
   if (offsetDistance(unit, boat) !== 1) return false;
   const cost = enterCost(grid, unit);
   if (cost === null) return false;
@@ -318,10 +321,10 @@ export function isValidLoadIntoBoatTarget(grid, unit, boat) {
 /** Loads a field unit into an adjacent friendly boat's cargo hold (game spec §3's
  * `holdCapacity`) — same cost/ownership pattern as loadUnit, just into a boat instead of a base.
  * No-op if the target isn't valid (isValidLoadIntoBoatTarget) or `unit` isn't owned by
- * `activePlayerId`. A plane whose type doesn't rearm at a carrier (`rearmsAtCarrier` unset —
- * Bomber, §3's Plane rearm & fuel) carries its `strikesUsed`/`cellsFlown` into the cargo entry
- * unchanged, so they're still low when it exits later; a Fighter (or any non-plane) doesn't need
- * them carried — a base entry always rearms regardless (toFieldUnit's own doc comment). */
+ * `activePlayerId`. Never carries `strikesUsed`/`cellsFlown` into the cargo entry — the only
+ * plane that can ever reach a Carrier's cargo hold is one with `boardsCarrier` set (Fighter), and
+ * that always rearms on entry, so a fresh 0/0 (toFieldUnit's own default) is always correct here;
+ * a Bomber never gets this far (isValidLoadIntoBoatTarget rejects it outright). */
 export function loadIntoBoat(state, grid, unitId, boatId, activePlayerId) {
   const index = state.units.findIndex((u) => u.id === unitId);
   if (index === -1) return state;
@@ -331,13 +334,7 @@ export function loadIntoBoat(state, grid, unitId, boatId, activePlayerId) {
   if (!isValidLoadIntoBoatTarget(grid, unit, boat)) return state;
 
   state.units.splice(index, 1);
-  const stats = UNIT_TYPES[unit.unitType];
-  const cargoEntry = { id: unit.id, unitType: unit.unitType, sp: unit.sp };
-  if (stats.roundTripRange && !stats.rearmsAtCarrier) {
-    cargoEntry.strikesUsed = unit.strikesUsed;
-    cargoEntry.cellsFlown = unit.cellsFlown;
-  }
-  boat.cargo.push(cargoEntry);
+  boat.cargo.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp });
   return state;
 }
 
@@ -446,13 +443,21 @@ export function attackBase(state, grid, attackerUnitId, baseId, activePlayerId) 
 }
 
 /** Whether `unit` could claim `base` right now: `base` is neutral, `unit`'s type can capture
- * (tank/fighter/fregat) and its category is one `base` accepts, adjacent, and `unit` can afford
- * 1 action + its own current terrain's move cost (enterCost). Exported for the same reason as
+ * (tank/fighter/fregat — game spec §4: "no other unit type can capture a base"), adjacent, and
+ * `unit` can afford 1 action + its own current terrain's move cost (enterCost). Deliberately does
+ * *not* gate on `BASE_CATEGORIES` (the base-*build*-eligibility table) — the design doc's own
+ * claim rule has no base-type restriction beyond natural terrain reachability: "since fregats
+ * can't move onto land, they can only ever claim a port base; a mountain base... can only be
+ * claimed by a fighter." Both of those already fall out of `enterCost`/adjacency on their own
+ * (a fregat is always on water, and a land-only base is by definition never water-adjacent so a
+ * fregat can never be next to one; a tank's `moveCost.mountain` is 0, so it can never stand
+ * adjacent to a mountain base either, since every one of its neighbors is also mountain) — reusing
+ * `BASE_CATEGORIES` on top of that incorrectly blocked e.g. a Fighter claiming a Land or Port
+ * base, which the design doc never restricts. Exported for the same reason as
  * `isValidUnloadTarget` (§1). */
 export function isValidClaimTarget(grid, unit, base) {
   if (!base || base.ownerId !== null) return false;
   if (!CAPTURING_UNIT_TYPES.includes(unit.unitType)) return false;
-  if (!BASE_CATEGORIES[base.type].includes(UNIT_TYPES[unit.unitType].category)) return false;
   if (offsetDistance(unit, base) !== 1) return false;
   const cost = enterCost(grid, unit);
   if (cost === null) return false;

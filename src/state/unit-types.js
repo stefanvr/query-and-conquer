@@ -34,7 +34,7 @@ export const UNIT_TYPES = {
     moveCost: { gras: 1, gravel: 1, mountain: 2, sand: 1, shallow: 1, deep: 1 },
     maxStrikes: 4, // before returning to base/carrier to rearm
     roundTripRange: 100,
-    rearmsAtCarrier: true, // unlike Bomber, entering a carrier (not just a base) also rearms
+    boardsCarrier: true, // unlike Bomber, Fighter can be carried by a Carrier at all -- and rearms there too
   },
   bomber: {
     category: "plane",
@@ -98,9 +98,11 @@ export const UNIT_TYPES = {
   },
 };
 
-/** Which unit categories each base type can build (§2). */
+/** Which unit categories each base type can build (§2). Land also builds planes, not just
+ * Mountain — Mountain stays the only location that can build planes *and nothing else*, but
+ * Land isn't plane-exclusive the other way around. */
 export const BASE_CATEGORIES = {
-  land: ["vehicle"],
+  land: ["vehicle", "plane"],
   port: ["vehicle", "boat"],
   mountain: ["plane"],
 };

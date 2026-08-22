@@ -8,8 +8,8 @@ test("buildTurns applies the cost multiplier to bbt", () => {
   assert.equal(buildTurns("bomber"), 5 * BASE_BUILD_TIME);
 });
 
-test("land base can only build vehicles", () => {
-  assert.deepEqual(buildableUnitTypes("land", false), ["tank"]);
+test("land base can build vehicles and planes, but not boats", () => {
+  assert.deepEqual(buildableUnitTypes("land", false).sort(), ["bomber", "fighter", "tank"]);
 });
 
 test("mountain base can only build planes", () => {

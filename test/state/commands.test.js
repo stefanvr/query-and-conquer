@@ -82,9 +82,9 @@ test("queueBuild on an idle base starts immediately, leaving the queue empty", (
 
 test("queueBuild rejects a unit type the base can't build", () => {
   const s = state([0], 0);
-  const base = landBase(); // land base: vehicles only
+  const base = landBase(); // land base: vehicles and planes, not boats
   s.bases.push(base);
-  queueBuild(s, base.id, "fighter", 0);
+  queueBuild(s, base.id, "fregat", 0);
   assert.equal(base.inProgress, null);
   assert.deepEqual(base.queue, []);
 });
@@ -733,6 +733,25 @@ test("claimBase works for a fighter claiming a neutral mountain base (game spec 
   assert.equal(base.garrison[0].unitType, "fighter");
 });
 
+test("claimBase works for a fighter claiming a neutral Land or Port base too -- claim eligibility isn't gated by base-build category (game spec §4 has no such restriction, only natural terrain reachability)", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+
+  const landFighter = plane({ unitType: "fighter", col: 5, row: 5 });
+  s.units.push(landFighter);
+  const land = landBase({ id: 10, type: "land", ownerId: null, lastOwnerId: 1, col: 6, row: 5, sp: 0 });
+  s.bases.push(land);
+  claimBase(s, grid, landFighter.id, land.id, 0);
+  assert.equal(land.ownerId, 0);
+
+  const portFighter = plane({ id: 62, unitType: "fighter", col: 8, row: 5 });
+  s.units.push(portFighter);
+  const port = landBase({ id: 11, type: "port", ownerId: null, lastOwnerId: 1, col: 9, row: 5, sp: 0 });
+  s.bases.push(port);
+  claimBase(s, grid, portFighter.id, port.id, 0);
+  assert.equal(port.ownerId, 0);
+});
+
 test("claimBase recaptures a neutral base for its own lastOwnerId without clearing the in-progress build", () => {
   const s = state([1], 0);
   const unit = tank({ ownerId: 1, col: 5, row: 5 });
@@ -1143,7 +1162,7 @@ test("loadUnit into a base always rearms a plane -- a later unload starts fresh 
   assert.equal(reFielded.cellsFlown, 0);
 });
 
-test("loadIntoBoat carries a Bomber's strikesUsed/cellsFlown into its cargo entry (no rearm at a carrier), but rearms a Fighter", () => {
+test("a Bomber can never board a Carrier at all -- isValidLoadIntoBoatTarget rejects it, loadIntoBoat is a no-op", () => {
   const s = state([0], 0);
   const grid = allLandGrid();
   grid.set(6, 5, "shallow");
@@ -1152,15 +1171,25 @@ test("loadIntoBoat carries a Bomber's strikesUsed/cellsFlown into its cargo entr
   const bomber = plane({ unitType: "bomber", col: 5, row: 5, strikesUsed: 1, cellsFlown: 40 });
   s.units.push(bomber);
 
+  assert.equal(isValidLoadIntoBoatTarget(grid, bomber, carrier), false);
   loadIntoBoat(s, grid, bomber.id, carrier.id, 0);
-  assert.equal(carrier.cargo[0].strikesUsed, 1, "bomber doesn't rearm in a carrier");
-  assert.equal(carrier.cargo[0].cellsFlown, 40);
+  assert.equal(carrier.cargo.length, 0);
+  assert.equal(s.units.length, 2, "bomber stays in the field");
+});
 
-  const fighter = plane({ id: 61, unitType: "fighter", col: 5, row: 5, strikesUsed: 2, cellsFlown: 60 });
+test("a Fighter boards a Carrier and rearms on entry (strikesUsed/cellsFlown reset)", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(6, 5, "shallow");
+  const carrier = { ...transporter({ col: 6, row: 5 }), unitType: "carrier", sp: UNIT_TYPES.carrier.strength, maxSp: UNIT_TYPES.carrier.strength };
+  s.units.push(carrier);
+  const fighter = plane({ unitType: "fighter", col: 5, row: 5, strikesUsed: 2, cellsFlown: 60 });
   s.units.push(fighter);
+
+  assert.equal(isValidLoadIntoBoatTarget(grid, fighter, carrier), true);
   loadIntoBoat(s, grid, fighter.id, carrier.id, 0);
-  assert.equal(carrier.cargo[1].strikesUsed, undefined, "fighter rearms in a carrier");
-  assert.equal(carrier.cargo[1].cellsFlown, undefined);
+  assert.equal(carrier.cargo[0].strikesUsed, undefined);
+  assert.equal(carrier.cargo[0].cellsFlown, undefined);
 });
 
 test("processTurnStart resets a plane's actionsSpentMoving each turn but leaves strikesUsed/cellsFlown untouched", () => {

@@ -118,7 +118,10 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - **Claim**: costs 1 action + the claiming unit's own current terrain's move cost (same pattern
   as loading, §2 — the base's own cell is never the cost source, since it's always land, and a
   boat's claimable base entry can't step onto that at all) and garrisons the claiming unit
-  inside, transferring ownership (§4). Terrain-gated per unit type same as any base entry.
+  inside, transferring ownership (§4). Gated only by the claiming unit's own type
+  (tank/fighter/fregat, game spec §4) and natural terrain reachability (adjacency + move cost) —
+  *not* by the target base's own build-category table, so e.g. a Fighter can claim a Land or Port
+  base too, not just Mountain.
 - Either action refreshes the acting unit's own panel (updated AP/attacks-remaining) and redraws
   the map afterward; no dedicated animation/toast for v1 (§4).
 
@@ -170,11 +173,11 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   of anything within the panel itself.
 - Your own base, viewed on a turn that isn't yours, shows the same full grids read-only — no slot
   click handlers, no build buttons.
-- One build button per unit type the base's category allows (game spec §2: Land → Tank; Port →
-  Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — all six unit types are fully
-  actionable (§3/§4). A Mountain base needs no panel special-casing beyond this: its build
-  buttons, garrison/queue slots, and repair/capacity rules already fall out of the same generic
-  logic every other base type uses.
+- One build button per unit type the base's category allows (game spec §2: Land → Tank/Fighter/
+  Bomber; Port → Tank/Fregat/Transporter/Carrier; Mountain → Fighter/Bomber) — all six unit types
+  are fully actionable (§3/§4). A Mountain base needs no panel special-casing beyond this: its
+  build buttons, garrison/queue slots, and repair/capacity rules already fall out of the same
+  generic logic every other base type uses.
 - Build button disabled when the queue already holds 5 pending items — not when capacity is
   full, since queuing (unlike starting) doesn't consume a capacity slot (game spec §2).
 - Unload has no dedicated button — triggered via the garrison slot click above (§1's unload
@@ -269,9 +272,11 @@ load/unload and cargo interaction)*
   bullet below).
 - **Rearm** (resets `strikesUsed` and `cellsFlown` to 0): happens on entering a base (Load
   destination picker, §1/§2) — for either plane type. Fighter also rearms entering a carrier
-  (loadIntoBoat, §3's Cargo); Bomber does not — its counters carry through a stay in a carrier's
-  cargo hold unchanged, matching the game spec's asymmetric wording ("Fighter: base/carrier",
-  "Bomber: base"). A freshly-built plane starts at `0`/`0` (already rearmed).
+  (loadIntoBoat, §3's Cargo) — Bomber can't board a carrier at all (`boardsCarrier` unset;
+  `isValidLoadIntoBoatTarget` rejects it outright, a carrier being the only boat that accepts
+  planes as cargo), matching the game spec's asymmetric wording ("Fighter: base/carrier",
+  "Bomber: base") read as a hard boarding restriction, not just a rearm-location nuance. A
+  freshly-built plane starts at `0`/`0` (already rearmed).
 - **Strike limit**: `isValidAttackTarget`/`isValidAttackBaseTarget` also reject a plane whose
   `strikesUsed` has reached its type's `maxStrikes` — same no-op-if-exhausted treatment as
   `remainingAttacks`/`remainingActions` (§1). A successful attack increments `strikesUsed`.
