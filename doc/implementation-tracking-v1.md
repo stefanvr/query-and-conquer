@@ -15,7 +15,11 @@ tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](st
    write/update whichever of them the stage's features need (see that doc's own Format note).
    That's the "Spec" checkbox at the top of each stage below. Present the result and wait for
    explicit sign-off before writing any implementation code; update the section again if the
-   design shifts once implementation starts.
+   design shifts once implementation starts. Skip the wait only when the user has explicitly
+   said to for that stage (e.g. "if no significant question just do the spec and start
+   implementation") — then note any real open design questions in the spec text itself and pick
+   the sensible default rather than blocking on them, proceed straight into implementation, and
+   let review happen against the finished result instead of the spec draft.
 3. **Implement with one commit per step.** Once the spec is confirmed, work through the stage's
    checklist items and commit each one separately rather than bundling the whole stage into a
    single commit.
