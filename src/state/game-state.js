@@ -5,6 +5,7 @@ import { shuffle } from "../map/prng.js";
 import { deserializeGrid } from "../map/map-serialize.js";
 import { placeBases } from "./base-placement.js";
 import { BASE_TYPES } from "./base-types.js";
+import { assignStrategies } from "../ai/strategies.js";
 
 /** Fixed player-slot -> accent-color token, per style-guide.md §3 (independent of turn order). */
 export const PLAYER_COLOR_VARS = ["--p-human", "--p-ai-1", "--p-ai-2", "--p-ai-3", "--p-ai-4", "--p-ai-5"];
@@ -23,13 +24,17 @@ export function playerLabel(player) {
  * @param {() => number} rng
  */
 export function createGameState(options, mapData, rng) {
+  // Strategy is assigned once here and fixed for the match, alongside each AI's own difficulty —
+  // the two are independent axes (game spec §8): strategy is intent, difficulty is execution.
+  const strategies = assignStrategies(options.aiDifficulties.length, (items) => shuffle(rng, items));
   const players = [
-    { id: 0, slot: 0, isHuman: true, difficulty: null, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
+    { id: 0, slot: 0, isHuman: true, difficulty: null, strategy: null, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
     ...options.aiDifficulties.map((difficulty, i) => ({
       id: i + 1,
       slot: i + 1,
       isHuman: false,
       difficulty,
+      strategy: strategies[i], // "aggressive" | "defensive" | "balanced" (game spec §8)
       exploredCells: [], // fog of war (game spec §6) — "col,row" keys, persisted across turns
       stats: { unitsBuilt: 0, unitsLost: 0 }, // end-of-game stats dialog (implementation-spec.md §9)
     })),

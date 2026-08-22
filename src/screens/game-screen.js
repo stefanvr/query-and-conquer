@@ -27,6 +27,7 @@ import {
   claimBase,
 } from "../state/commands.js";
 import { getVisibleState } from "../state/queries.js";
+import { aiTurnActions } from "../ai/ai-turn.js";
 import { saveGame } from "../save/save-load.js";
 import { createMapCamera, UNIT_SHAPES } from "../render/map-canvas.js";
 import { buildableUnitTypes, UNIT_TYPES, moveCost } from "../state/unit-types.js";
@@ -73,6 +74,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
   const turnIndicator = document.querySelector("#hud-turn-indicator");
   const endTurnButton = document.querySelector("#end-turn-button");
   const endTurnBlockedMessage = document.querySelector("#hud-end-turn-blocked");
+  const aiSpeedSelect = document.querySelector("#hud-ai-speed");
   const menuButton = document.querySelector("#menu-button");
   const midTurnMenu = document.querySelector("#mid-turn-menu");
   const midTurnMenuMain = document.querySelector("#mid-turn-menu-main");
@@ -116,6 +118,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
   let selectedQueueIndex = null; // which base-panel queue slot has its Remove/Move controls open
   let pendingUnload = null; // { containerType, container, garrisoned } while the unload picker is active (§1)
   let pendingLoad = null; // the unit while the load destination picker is active (§1)
+  let aiTurnInProgress = false; // true while AI turns are animating (§11) — human input is locked out
 
   function refreshHud() {
     const visible = getVisibleState(state, activePlayer(state).id);
@@ -132,7 +135,10 @@ export function initGameScreen({ onQuit, onGameOver }) {
    * remainingActions. */
   function refreshEndTurnGate() {
     const owing = planesOwingMovement(state, humanId);
-    endTurnButton.disabled = owing.length > 0;
+    // Also disabled while the AI is mid-turn (§11) — but with no blocker message, since that's a
+    // transient "wait your turn", not something the human can act on the way a plane's mandatory
+    // movement is.
+    endTurnButton.disabled = aiTurnInProgress || owing.length > 0;
     endTurnBlockedMessage.hidden = owing.length === 0;
     if (owing.length === 0) return;
     endTurnBlockedMessage.textContent = owing
@@ -459,6 +465,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
   }
 
   function selectHex(col, row) {
+    if (aiTurnInProgress) return; // map clicks are ignored while the AI is playing (§11)
     if (pendingUnload) {
       const { containerType, container, garrisoned } = pendingUnload;
       if (col === container.col && row === container.row) {
@@ -581,28 +588,51 @@ export function initGameScreen({ onQuit, onGameOver }) {
     return false;
   }
 
-  // Stage 3 has no AI logic yet (Stage 11+) — an AI turn has no decisions to make, so cascade
-  // through every AI player automatically and stop back at the human. Each player's own bases
-  // and field units still tick/reset on their own turn-start (game spec §7), AI included. Does
-  // nothing if the human is already active — turn order is randomized (§7), so a match can start
-  // on an AI's turn, and this must not skip a turn that's already the human's.
-  function advanceCascadeToHuman() {
-    while (!activePlayer(state).isHuman) {
-      endTurn(state);
-      if (checkForGameOver()) return;
-      processTurnStart(state, activePlayer(state).id);
+  /** Milliseconds to pause between individual AI actions — 0 (Instant) means play the whole AI
+   * turn synchronously, with no `await` on the path at all (implementation-spec.md §11), so
+   * ending a turn still resolves inside the same click. */
+  function aiStepDelay() {
+    return Number(aiSpeedSelect.value);
+  }
+
+  /** Plays out every AI turn between now and the human's next one (game spec §8/§11). Each AI's
+   * actions come from `aiTurnActions`, one at a time, so a paced run can redraw and wait between
+   * them; Instant drains the generator without yielding to the event loop. Does nothing if the
+   * human is already active — turn order is randomized (§7), so a match can start on an AI's
+   * turn, and this must not skip a turn that's already the human's. */
+  async function runAiTurnsUntilHuman() {
+    aiTurnInProgress = true;
+    refreshEndTurnGate(); // disables End Turn for the duration
+    try {
+      while (!activePlayer(state).isHuman) {
+        const delay = aiStepDelay();
+        for (const _action of aiTurnActions(state, grid, activePlayer(state).id)) {
+          if (delay > 0) {
+            redraw(); // an AI unit stepping into view should appear as it happens (§5's fog)
+            refreshOpenPanel(); // an open panel may be showing a base/unit the AI just changed
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        }
+        endTurn(state);
+        if (checkForGameOver()) return;
+        processTurnStart(state, activePlayer(state).id);
+      }
+    } finally {
+      aiTurnInProgress = false;
     }
   }
 
-  /** The End Turn button: explicitly ends the human's own current turn, then cascades past any
-   * AI turns that follow. */
-  function advanceUntilHuman() {
+  /** The End Turn button: ends the human's own current turn, then plays out any AI turns that
+   * follow before handing control back. */
+  async function advanceUntilHuman() {
+    if (aiTurnInProgress) return; // no acting out of turn while the AI is still playing
     closeUnloadPreview(); // a stale picker from this turn shouldn't survive into the next one
     closeLoadPreview();
     endTurn(state);
     if (checkForGameOver()) return;
     processTurnStart(state, activePlayer(state).id);
-    advanceCascadeToHuman();
+    await runAiTurnsUntilHuman();
+    if (state.gameEnded || state.terminated) return; // the End screen already has the board
     refreshHud();
     refreshOpenPanel();
     redraw(); // AI turns can move enemy units into/out of the human's own fog of war (§5)
@@ -654,13 +684,11 @@ export function initGameScreen({ onQuit, onGameOver }) {
       closeAllPanels();
       camera?.destroy();
 
-      // Baseline fog-of-war exploration for every player (§5), before the cascade below — if
-      // turn order happens to start on the human already, advanceCascadeToHuman's loop never
-      // runs for anyone (its condition is already false), so processTurnStart's own markExplored
-      // call would never fire and the human's own starting base would render fully unexplored.
+      // Baseline fog-of-war exploration for every player (§5), before any turn runs — if turn
+      // order happens to start on the human already, no turn-start fires for anyone here, so
+      // processTurnStart's own markExplored call would never happen and the human's own starting
+      // base would render fully unexplored.
       for (const p of state.players) markExplored(state, p.id);
-
-      advanceCascadeToHuman(); // turn order is randomized (§7) — a match can start on an AI's turn
 
       const human = state.players.find((p) => p.isHuman);
       humanId = human.id;
@@ -677,6 +705,15 @@ export function initGameScreen({ onQuit, onGameOver }) {
         centerOnRow: myBase?.row,
       });
       refreshHud();
+
+      // Turn order is randomized (§7), so a match can open on an AI's turn — play those out the
+      // same way any other AI turn is played, rather than as a silent special case. After the
+      // camera exists, since a paced run redraws between actions.
+      runAiTurnsUntilHuman().then(() => {
+        if (state.gameEnded || state.terminated) return;
+        refreshHud();
+        redraw();
+      });
     },
   };
 }

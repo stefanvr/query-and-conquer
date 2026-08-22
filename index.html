@@ -60,6 +60,15 @@
       <!-- Shown while a plane still owes its mandatory movement this turn (implementation-spec.md
            §6/§3's Plane rearm & fuel) -- disables End Turn alongside it. -->
       <span id="hud-end-turn-blocked" class="menu-body-text" hidden></span>
+      <!-- AI speed (implementation-spec.md §6/§11) — HUD chrome, not a game option: changeable
+           mid-match, and changes nothing about the match's own rules or its save. -->
+      <label id="hud-ai-speed-label" class="hud-inline-label">AI speed
+        <select id="hud-ai-speed">
+          <option value="0" selected>Instant</option>
+          <option value="1000">Fast</option>
+          <option value="2000">Slow</option>
+        </select>
+      </label>
       <button id="end-turn-button" class="btn-primary">End Turn</button>
       <button id="menu-button" class="btn-primary">Menu</button>
     </div>

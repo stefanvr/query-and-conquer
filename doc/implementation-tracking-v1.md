@@ -282,14 +282,25 @@ recovery, on the same reference unit.*
 
 ## Stage 11 — Easy AI
 - [x] Spec
-- [ ] Strategy assignment (Aggressive/Defensive/Balanced, even spread per §8's formula)
-- [ ] Per-unit greedy loop, processed base-defenders → field units → newly completed units
-- [ ] Aggressive: priority list, build order, target priority
-- [ ] Defensive: priority list, build order, target priority
-- [ ] Balanced: priority list, build order, target priority
-- [ ] Easy difficulty traits: fog-respecting info, first-valid-target, naive pathing,
-      visible-threats-only reaction
-- [ ] AI speed setting (instant/fast/slow) with actions visibly animating one at a time
+- [x] Strategy assignment (Aggressive/Defensive/Balanced, even spread per §8's formula) —
+      `assignStrategies` (src/ai/strategies.js), applied once in `createGameState` alongside each
+      AI's own difficulty and fixed for the match
+- [x] Per-unit greedy loop, processed base-defenders → field units → newly completed units —
+      `aiTurnActions` (src/ai/ai-turn.js), a generator so the caller owns pacing. "Newly
+      completed" needed a way to be told apart from an existing defender, since both live in
+      `base.garrison`: `processTurnStart` now tags a finished build with `builtOnTurn`
+- [x] Aggressive: priority list, build order, target priority
+- [x] Defensive: priority list, build order, target priority
+- [x] Balanced: priority list, build order, target priority
+- [x] Easy difficulty traits: fog-respecting info, first-valid-target, naive pathing,
+      visible-threats-only reaction — decisions read `getVisibleState`, while commands still take
+      canonical state so a rule resolves against reality (implementation-spec.md §11)
+- [x] Ad hoc: the strategy lists only describe *field* units, so a garrisoned one would never
+      leave — added deploy-from-base as the garrisoned equivalent, else an AI builds units that
+      sit in the base forever
+- [x] AI speed setting (instant/fast/slow) with actions visibly animating one at a time — HUD
+      select; Instant stays fully synchronous (no `await` on that path) so ending a turn still
+      resolves inside the same click, and existing e2e timing is unaffected
 
 ## Stage 12 — Hard AI
 - [ ] Spec
@@ -336,6 +347,12 @@ recovery, on the same reference unit.*
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
       framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
       as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
+- [ ] Planes' mandatory ≥50% movement (query-and-conquer.md §3) is only enforced against the
+      *human*, as an End Turn gate (`planesOwingMovement`, Stage 8) — an AI's planes are never
+      held to it, since an AI turn has no End Turn button to block. It's a game rule, not a UI
+      rule, so the two sides should be symmetrical: either the AI's own turn has to satisfy it
+      before ending, or the rule needs a penalty that applies to whoever breaks it. Noticed while
+      building Stage 11; left alone rather than guessing at which of those two the design intends
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 

@@ -252,6 +252,37 @@ body {
   margin-right: auto;
 }
 
+/* Inline HUD label + control (AI speed, implementation-spec.md §6) — a row, unlike
+   .options-form's stacked label/control pairs, since the HUD bar is horizontal. */
+.hud-inline-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--steel);
+}
+
+.hud-inline-label select {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--parchment);
+  background: var(--ink);
+  border: 1px solid var(--steel);
+  border-radius: 4px;
+  padding: 6px 8px;
+  text-transform: none;
+  letter-spacing: normal;
+  min-height: 44px; /* touch target (tech-stack.md's Mobile & touch support) */
+}
+
+.hud-inline-label select:hover,
+.hud-inline-label select:focus {
+  outline: none;
+  border-color: var(--signal);
+}
+
 /* End Turn gating message (implementation-spec.md §6/§3's Plane rearm & fuel) — shares
    .menu-body-text's steel-gray text but in --rust to read as a blocker, not neutral info. */
 #hud-end-turn-blocked {
