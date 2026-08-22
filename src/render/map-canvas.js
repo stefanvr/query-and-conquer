@@ -117,7 +117,8 @@ export function createMapCamera(canvas, mapData, options = {}) {
 
     ctx.font = `${Math.max(11, size * 0.55)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
-    const ty = sy + radius + Math.max(10, size * 0.6);
+    let ty = sy + radius + Math.max(10, size * 0.6);
+    ty = drawLabelLine(sx, ty, size, `${unit.sp}/${unit.maxSp} SP`);
     const maxActions = UNIT_TYPES[unit.unitType].actionsPerTurn;
     drawLabelLine(sx, ty, size, `${unit.remainingActions}/${maxActions} AP`);
   }

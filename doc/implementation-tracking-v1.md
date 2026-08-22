@@ -153,6 +153,11 @@ recovery, on the same reference unit.*
 - [x] Ad hoc: the ownership-guard bug fix above only named `moveUnit`/`loadUnit`/`unloadUnit`/the
       new attack/claim commands — `queueBuild`/`cancelQueuedBuild`/`reorderQueuedBuild` had the
       same gap and were missed at the time. Give them the same `activePlayerId` check
+- [x] Ad hoc: no SP indication existed anywhere for a unit — neither its map token (only showed
+      AP) nor a garrison slot (only showed the unit type). Both now show current SP too, matching
+      the existing convention (label line under the token; second line in the slot)
+- [x] Ad hoc: hand-place a human-owned tank next to the AI's own base in the dev save, for
+      manually testing attack/claim against a real enemy base without walking one over first
 
 ## Stage 7 — Boats: Fregat, Transporter, Carrier
 - [ ] Spec

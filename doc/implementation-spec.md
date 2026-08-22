@@ -48,7 +48,10 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   enemy-owned base's marker has no label at all, matching its panel's own non-disclosure (§2/§4).
 - Field units: drawn per style-guide.md §9 — shape by unit type (Tank: square),
   owner's accent-color fill, white stroke if selected else `rgba(0,0,0,0.5)`, radius `0.4 ×
-  hexSize`. Plain-text AP label near the token (style-guide.md §8), same pattern as base labels.
+  hexSize`. Plain-text SP then AP labels near the token (style-guide.md §8), same pattern as base
+  labels — shown for every unit regardless of owner, unlike a base's own SP (§2/§4's
+  non-disclosure is base-specific; a visible enemy unit's strength has always been shown, same as
+  its panel, §3).
   Garrisoned units are never drawn as tokens (style-guide.md §9) — only the owning base's marker
   shows.
 
@@ -124,7 +127,8 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
     idle.
   - **Queue** — 5 slots: one per queued item, in order.
   - **Garrison** — `capacity - 1` slots (`14`), growing to fit if the garrison count ever
-    exceeds that (no build in progress); filled front-to-back in entry order.
+    exceeds that (no build in progress); filled front-to-back in entry order, each slot's second
+    line showing that unit's current SP (`X/max`, §4).
 - **An enemy-owned base** shows nothing past type + owner — no SP, capacity, or slot grids. It
   discloses no interior state (game spec §4: "a base's strength stays unknown until it's
   demolished" — build-v1's own phrasing, matching this build's intent too), unlike an enemy

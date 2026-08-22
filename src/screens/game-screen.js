@@ -222,17 +222,18 @@ export function initGameScreen({ onQuit, onTerminate }) {
         basePanelGarrison.appendChild(emptySlot());
         continue;
       }
+      const spLabel = `${garrisoned.sp}/${UNIT_TYPES[garrisoned.unitType].strength} SP`;
       if (!isOwnTurn) {
         const el = document.createElement("div");
         el.className = "slot";
-        fillSlotContent(el, garrisoned.unitType);
+        fillSlotContent(el, garrisoned.unitType, spLabel);
         basePanelGarrison.appendChild(el);
         continue;
       }
       const el = document.createElement("button");
       el.type = "button";
       el.className = "slot";
-      fillSlotContent(el, garrisoned.unitType);
+      fillSlotContent(el, garrisoned.unitType, spLabel);
       el.addEventListener("click", () => openUnloadPreview(base, garrisoned));
       basePanelGarrison.appendChild(el);
     }
