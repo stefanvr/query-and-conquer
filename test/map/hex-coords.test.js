@@ -6,6 +6,7 @@ import {
   cubeDistance,
   offsetDistance,
   offsetNeighbors,
+  hexesInRange,
   hexLine,
 } from "../../src/map/hex-coords.js";
 
@@ -90,4 +91,32 @@ test("hexLine is symmetric (reversed a/b retraces the same cells in reverse)", (
   const forward = hexLine(a, b);
   const backward = hexLine(b, a).reverse();
   assert.deepEqual(forward, backward);
+});
+
+test("hexesInRange at radius 0 is just the center cell", () => {
+  const center = { col: 5, row: 5 };
+  assert.deepEqual(hexesInRange(center, 0), [center]);
+});
+
+test("hexesInRange at radius 1 is the center plus its 6 neighbors, no duplicates", () => {
+  const center = { col: 2, row: -3 };
+  const cells = hexesInRange(center, 1);
+  assert.equal(cells.length, 7);
+  const keys = new Set(cells.map((c) => `${c.col},${c.row}`));
+  assert.equal(keys.size, 7, "no duplicate cells");
+  assert.ok(cells.some((c) => c.col === center.col && c.row === center.row));
+  for (const n of offsetNeighbors(center)) {
+    assert.ok(cells.some((c) => c.col === n.col && c.row === n.row), `missing neighbor (${n.col},${n.row})`);
+  }
+});
+
+test("hexesInRange returns exactly 3*r*(r+1)+1 cells, every one within `radius` of center", () => {
+  const center = { col: -4, row: 6 };
+  for (const radius of [2, 3, 5]) {
+    const cells = hexesInRange(center, radius);
+    assert.equal(cells.length, 3 * radius * (radius + 1) + 1);
+    for (const c of cells) {
+      assert.ok(offsetDistance(center, c) <= radius, `(${c.col},${c.row}) is beyond radius ${radius}`);
+    }
+  }
 });

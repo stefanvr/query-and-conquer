@@ -331,7 +331,63 @@ indicators)*
 ## 5. Fog of war
 *(game spec §6 — visual treatment of hidden / explored-but-not-visible / currently-visible
 cells and units)*
-_Not started._
+
+### `getVisibleState` (tech-stack.md's state-access rule)
+- `state.options.fogOfWar === false` → pure passthrough (today's behavior — every cell/unit/base
+  visible, no filtering), so fog can be fully disabled per-match via the existing game-options
+  checkbox (already wired into `options.fogOfWar`, game spec §7).
+- `true` → returns canonical state with `bases`/`units` filtered and a `fog: { exploredCells,
+  visibleCells }` field added (both `Set`s of `"col,row"` keys) for the renderer's three-state
+  treatment below. Everything else (commands, panels, HUD text) keeps reading canonical state
+  directly, exactly as before — this projection is consumed by the map render only (and, once
+  Stage 11 lands, easy AI's own decisions).
+- **View range is a pure hex-distance radius** (game spec §1: "Ranges (view, attack) are
+  hex-distance radii"), not blocked by mountains/units/bases — unlike attack LOS, view has no
+  per-unit-type `needsLOS`-style toggle in the design doc, so it's treated as unconditional.
+- **Visible now** = union of `hexesInRange` around every one of the viewer's own field units and
+  owned bases, using each one's own `view` stat (`UNIT_TYPES`/`BASE_TYPES`) — recomputed fresh on
+  every call, never cached, since it only depends on current canonical positions.
+- **Explored (ever seen)** persists per-player (`player.exploredCells`, an array of `"col,row"`
+  keys — plain data, JSON-serializable, survives save/load for free) since it accumulates history
+  a live recomputation can't reconstruct. Because only commands.js may mutate canonical state
+  (tech-stack.md), the persisted write itself happens there, in a new `markExplored(state,
+  playerId)`, not inside `getVisibleState` — called after anything that changes that player's own
+  vision footprint (moveUnit, unloadUnit, unloadCargo, claimBase) and once every turn-start
+  (processTurnStart) as a passive baseline resync. Also called once for every player right when a
+  match starts (game-screen.js), so turn order landing on the human first doesn't leave their own
+  starting base unexplored until their second turn.
+- **Modeling call:** a base, being a fixed structure, stays revealed once its cell is explored —
+  same as terrain — rather than disappearing again once out of current view like a mobile unit.
+  The design doc's §6 wording only explicitly distinguishes "cells" (permanent) from "units"
+  (hidden again out of range); a base isn't named either way, and this reads as the more natural
+  fit of the two given it can't move. `bases` are filtered by `exploredCells`; `units` are
+  filtered by `visibleCells` (current view only, matching the design doc's explicit unit rule).
+- **Not in scope for this stage:** hex selection/targeting (game-screen.js's `selectHex` and its
+  `unitAtHex`/`baseAtHex` lookups) keeps reading canonical state, so a precisely-aimed click could
+  still select/inspect something outside current fog. Tech-stack.md's "no cheating via inspecting
+  client state" framing is explicit multiplayer future-readiness, not a v1 requirement — tracked
+  on Stage 13's backlog instead of blocking this stage.
+
+### In-game map render (extends §1's own section)
+- Three visual states per style-guide.md §7: **unexplored** — hex filled solid `--ink`, nothing
+  else drawn for it (no terrain color, no selection/target highlight, since it can't meaningfully
+  be either); **explored, not visible** — terrain color at full value, then an
+  `rgba(0, 0, 0, 0.30)` overlay on top; **visible** — terrain color only, today's unchanged
+  behavior. Applies only when `fog` is present (i.e. `fogOfWar` is on) — the fog-off/passthrough
+  case renders exactly as before.
+- The camera holds live references to `bases`/`units` today; fog needs it to redraw from a fresh
+  filtered set on every change instead, so it gains a `setVisibleState({ bases, units, fog })`
+  method, called (alongside `.draw()`) from every point game-screen.js currently redraws — a
+  single shared `redraw()` helper already centralizes most of these (Stage 8), extended here to
+  recompute `getVisibleState` first.
+
+### Dev save
+- `scripts/generate-dev-save.js`'s own `options.fogOfWar` is set to `false` — a deliberate
+  dev-tool call, not a change to the real game option's own default (still on, per the options
+  menu). The dev save exists specifically to let a tester reach and inspect fixtures scattered
+  across the whole map (the AI's base, the far mountain bases, ranged units, etc.); fogging all of
+  that by default would make the save far less useful for its actual purpose without buying any
+  fog-of-war coverage that dedicated node:test/e2e coverage doesn't already provide more directly.
 
 ## 6. HUD
 *(app-only — persistent on-screen chrome: turn/player indicator, end-turn control, AI-speed

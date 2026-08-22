@@ -246,11 +246,15 @@ recovery, on the same reference unit.*
       within the existing human fregat's range
 
 ## Stage 9 — Fog of war
-- [ ] Spec
-- [ ] `getVisibleState(canonicalState, viewerId)` projection (tech-stack.md state-access rule)
-- [ ] Hide cells/units outside current view range
+- [x] Spec
+- [x] `getVisibleState(canonicalState, viewerId)` projection (tech-stack.md state-access rule) —
+      real filtering now (bases by ever-explored, units by currently-visible), backed by a new
+      shared currentlyVisibleCells (visibility.js) and persisted per-player exploredCells
+      (commands.js's markExplored); passthrough unchanged when options.fogOfWar is off
+- [ ] Hide cells/units outside current view range (render wiring — data layer above is ready)
 - [ ] Distinguish "explored, not currently visible" vs. "currently in view" (style-guide.md)
-- [ ] Fog of war on/off game option wired through
+- [ ] Fog of war on/off game option wired through (already collected by options-menu.js; needs
+      end-to-end confirmation once the render wiring above lands)
 
 ## Stage 10 — End game, outer loop
 - [ ] Spec
@@ -307,6 +311,11 @@ recovery, on the same reference unit.*
       room" as a valid destination, and unloadUnit/unloadCargo would need to route into that
       boat's cargo instead of the field on confirm. Not a minor tweak — found while reviewing
       Stage 7, deferred here rather than rushed in
+- [ ] Hex selection/targeting (game-screen.js's `selectHex`) reads canonical state directly, not
+      the fog-filtered projection (Stage 9) — a precisely-aimed click can still select/inspect a
+      unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
+      framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
+      as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 
