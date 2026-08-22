@@ -20,7 +20,9 @@
 // come from real placement either), so a small coastal patch and a port base are hand-carved in
 // after placement has already settled the rest — same reasoning as the neutral base above. A
 // transporter carrying a tank sits on the water next to it, for cargo/boat-entry testing without
-// needing to build and sail one out first.
+// needing to build and sail one out first. A second, separate water chain next to the AI's own
+// base carries a human fregat and carrier at their own max attack range, for manually testing
+// ranged attacks without having to sail one all the way out there first.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,6 +30,7 @@ import { createGameState, playerBase } from "../src/state/game-state.js";
 import { queueBuild, processTurnStart, unloadUnit } from "../src/state/commands.js";
 import { deserializeGrid, serializeGrid } from "../src/map/map-serialize.js";
 import { buildTurns, UNIT_TYPES } from "../src/state/unit-types.js";
+import { offsetDistance } from "../src/map/hex-coords.js";
 import { mulberry32 } from "../src/map/prng.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -100,22 +103,65 @@ state.units.push({
 // Coastal patch: (5,2)/(6,2) turned to deep water, a couple hexes east of the neutral base so
 // nothing collides. (4,2) stays land for the port base itself; (5,2) is its east neighbor
 // (always adjacent regardless of column parity), satisfying both "port needs adjacent water" and
-// "carrier needs adjacent deep water" (game spec §2) in one cell. Extended down and to the left
-// from there (a real hex-adjacency chain, not just col-1/row+1 pairs, which isn't always a true
+// "carrier needs adjacent deep water" (game spec §2) in one cell. Extended down and to the right
+// from there (a real hex-adjacency chain, not just col+1/row+1 pairs, which isn't always a true
 // neighbor step) so a boat has an actual body of water to move around in, not just one hex.
 grid.set(5, 2, "deep");
 grid.set(6, 2, "deep");
 for (const [col, row] of [
-  [6, 3],
-  [5, 3],
-  [4, 4],
-  [3, 4],
-  [2, 5],
-  [1, 5],
+  [7, 2],
+  [8, 3],
+  [9, 3],
+  [10, 4],
+  [11, 4],
+  [12, 5],
 ]) {
   grid.set(col, row, "deep");
 }
+
+// A second, separate water chain next to the AI's own base -- a straight 6-cell hex line (same
+// direction repeated, so hex-distance from the base equals the step count exactly), for manually
+// testing ranged attacks. A fregat sits at distance 2 (its max range) and a carrier at distance 4
+// (its own max range); the chain continues to distance 6 so the carrier also has room to move
+// out of its own range.
+let aiWaterCell = grid.neighborsOf(aiBase.col, aiBase.row)[2];
+const aiWaterChain = [aiWaterCell];
+for (let distance = 2; distance <= 6; distance++) {
+  aiWaterCell = grid.neighborsOf(aiWaterCell.col, aiWaterCell.row).find((n) => offsetDistance(aiBase, n) === distance);
+  aiWaterChain.push(aiWaterCell);
+}
+for (const { col, row } of aiWaterChain) grid.set(col, row, "deep");
+
 state.map.rows = serializeGrid(grid);
+
+// aiWaterChain is 0-indexed from distance 1, so index (distance - 1) is that distance's cell.
+const fregatCell = aiWaterChain[1]; // distance 2 -- fregat's max range
+const carrierCell = aiWaterChain[3]; // distance 4 -- carrier's max range
+state.units.push(
+  {
+    id: state.nextUnitId++,
+    ownerId: 0,
+    unitType: "fregat",
+    col: fregatCell.col,
+    row: fregatCell.row,
+    sp: UNIT_TYPES.fregat.strength,
+    maxSp: UNIT_TYPES.fregat.strength,
+    remainingActions: UNIT_TYPES.fregat.actionsPerTurn,
+    remainingAttacks: UNIT_TYPES.fregat.attacksPerTurn,
+  },
+  {
+    id: state.nextUnitId++,
+    ownerId: 0,
+    unitType: "carrier",
+    col: carrierCell.col,
+    row: carrierCell.row,
+    sp: UNIT_TYPES.carrier.strength,
+    maxSp: UNIT_TYPES.carrier.strength,
+    remainingActions: UNIT_TYPES.carrier.actionsPerTurn,
+    remainingAttacks: UNIT_TYPES.carrier.attacksPerTurn,
+    cargo: [],
+  },
+);
 
 const portBase = {
   id: state.bases.length,

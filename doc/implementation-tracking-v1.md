@@ -208,9 +208,17 @@ recovery, on the same reference unit.*
       same pass: the icon's default color matched the build button's own background exactly,
       making it invisible there — fixed via a CSS custom property so just that one context can
       override the icon color
-- [x] Ad hoc: extend the dev save's coastal water patch 6 more cells down and to the left (a real
-      hex-adjacency chain, not just col-1/row+1 pairs) so the transporter has an actual body of
-      water to move around in, not just its starting hex and one neighbor
+- [x] Ad hoc: extend the dev save's coastal water patch 6 more cells down and to the right (a
+      real hex-adjacency chain, not just col+1/row+1 pairs) so the transporter has an actual body
+      of water to move around in, not just its starting hex and one neighbor
+- [x] Ad hoc: a separate water chain next to the AI's own base, straight (same hex direction
+      repeated, so hex-distance from the base equals the step count exactly) — a human fregat
+      sits at distance 2 and a carrier at distance 4 (each unit's own max attack range), with the
+      chain continuing to distance 6 so the carrier also has room to move itself out of range.
+      Verified against the regenerated save: both can hit the base from their placed hex, and the
+      carrier can no longer hit it after moving one more step out
+- [x] Ad hoc: swapped Fregat and Transporter's shapes (Fregat: circle, Transporter: bar,
+      style-guide.md §9) and left-aligned build button icon/label content (was centered)
 
 ## Stage 8 — Planes: Fighter, Bomber
 - [ ] Spec
