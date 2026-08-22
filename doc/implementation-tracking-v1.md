@@ -281,7 +281,7 @@ recovery, on the same reference unit.*
       Stage 5); confirmed with a dedicated round-trip test, no new code needed
 
 ## Stage 11 — Easy AI
-- [ ] Spec
+- [x] Spec
 - [ ] Strategy assignment (Aggressive/Defensive/Balanced, even spread per §8's formula)
 - [ ] Per-unit greedy loop, processed base-defenders → field units → newly completed units
 - [ ] Aggressive: priority list, build order, target priority

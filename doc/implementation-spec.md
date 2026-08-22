@@ -410,7 +410,9 @@ control, entry point to the mid-turn menu)*
   any field plane that still owes its mandatory movement this turn (§3's Plane rearm & fuel) —
   message names the blocking unit(s) by type, e.g. "Fighter still needs to move (2/4 AP)".
 - Entry point (button/icon) opening the mid-turn menu (§8).
-- AI-speed control deferred — no visible AI actions to pace until Stage 11.
+- AI-speed select (Instant / Fast / Slow, game spec §7) — HUD chrome rather than a game option,
+  since it's changeable mid-match and changes nothing about the match's own rules or save. See
+  §11's Pacing & HUD control for what each setting does.
 
 ## 7. Side menu & selection panel
 *(app-only — the contextual detail/action panel shown for whatever's currently selected, base
@@ -505,4 +507,80 @@ or unit; hosts the interaction described in §2/§3 above)*
 ## 11. AI behavior UX
 *(game spec §8 — visible per-action animation during an AI turn, and how the instant/fast/slow
 speed setting affects it)*
-_Not started._
+
+### Module layout
+- `src/ai/strategies.js` — the three strategies as data (priority-rule list, build order, target
+  priority, game spec §8), no state access of its own; `src/ai/ai-turn.js` — the turn engine that
+  walks a strategy against the board. Its own directory rather than `src/state/`: hard AI (Stage
+  12) shares the same strategy data but swaps perception/pathing, so the two axes stay separate
+  files rather than one growing module.
+- Strategy is assigned once at match start (`createGameState`) and stored on the player, like
+  `difficulty`: build `["aggressive","defensive","balanced"]` repeated `ceil(numAI / 3)` times,
+  truncate to the AI count, shuffle with the match's own rng, assign in order (game spec §8).
+
+### Perception (easy difficulty)
+- Every decision reads `getVisibleState(state, aiId)` (§5) — easy AI respects fog, so it only
+  knows currently-visible enemy units and ever-explored bases. Hard AI's canonical-state exemption
+  (tech-stack.md) is Stage 12; nothing here reads canonical state to decide.
+- Commands still take canonical `state`, not the projection — a rule must resolve against reality
+  (e.g. LOS blocked by a unit the AI can't see). The projection filters *which* objects the AI
+  considers; it doesn't change how an action then resolves. Safe because `getVisibleState`
+  filters by reference, so a chosen unit/base is the same object canonical state holds.
+- With fog off, `getVisibleState` is a passthrough and the AI simply sees everything — correct,
+  not a special case.
+
+### Turn engine
+- `aiTurnActions(state, grid, playerId)` is a generator: it performs one action (via commands.js,
+  never by mutating state itself) and yields a short descriptor of what it did, then continues.
+  The caller (§6's HUD pacing) decides whether to drain it instantly or step it with a delay —
+  the engine has no timing concerns of its own, and no DOM access.
+- Per game spec §8's processing order: **base-defenders** (units already garrisoned at turn
+  start) → **field units** (`state.units`) → **newly completed units** (this turn's finished
+  builds, also garrisoned). A garrisoned unit's only move is to deploy (unload to a valid adjacent
+  hex); it becomes a field unit next turn rather than acting twice in one turn — snapshot the
+  three groups before acting so a deploy can't feed a unit back into the same pass.
+- Each unit walks its strategy's priority list top to bottom and takes the first applicable
+  action, then stops (one action per unit per turn — easy AI's "often leaves actions unspent",
+  game spec §8's Difficulty table, falls out of this rather than needing a separate rule).
+- Each base evaluates its build order once per turn, queueing the first type it's allowed to
+  build; skipped entirely if the base is at capacity or its queue is full (game spec §8).
+- Ties (equally close, equally valid) break by lowest id — determinism, so a seeded match replays
+  identically and tests are stable.
+
+### Easy-difficulty execution traits (game spec §8's Difficulty table)
+- **First valid target, no optimization**: each strategy's stated target priority (lowest
+  strength / highest attack) is deliberately *not* applied — easy takes the first valid target in
+  id order. The priority data still lives in `strategies.js` unused, so Stage 12 turns it on
+  without restructuring.
+- **Naive pathing**: `naiveStepToward` picks the single neighbor hex that most reduces hex-
+  distance to the target and moves there. If that one hex is blocked/impassable/unaffordable, the
+  unit's turn ends there — no routing around obstacles, which is exactly the "may waste actions
+  on obstacles" the design doc calls for, and leaves Stage 12's real pathfinding a genuine upgrade.
+- **Visible threats only** falls out of the perception rule above; no separate check.
+
+### Strategy rules
+- Rules are the design doc's own lists (game spec §8), with these implementation readings:
+  - "Move toward X" also *arrives*: adjacent to a claimable neutral base → claim it; adjacent to
+    the friendly base it's retreating to → load into it. Otherwise the move is a naive step.
+  - Defensive rule 1 / Balanced rule 1's "a friendly base can repair it this turn" = a friendly
+    base with spare capacity (that's what actually gates entry; the ≤5-repairs-per-turn cap only
+    changes how fast it heals once inside, §2's turn-start processing).
+  - Aggressive rule 3's "nearest unexplored area" = nearest in-map cell absent from the player's
+    own `exploredCells`, found by expanding-ring search from the unit and capped at a small radius
+    — an uncapped nearest-unexplored scan over a 12,000-cell map, per unit per turn, is the one
+    place this loop could get expensive.
+  - Balanced rule 4's "never leave a player owned base with zero units" = don't take the move if
+    this unit is the last one of its owner's within view range of, or garrisoned at, one of their
+    own bases.
+
+### Pacing & HUD control (extends §6)
+- HUD gains an AI-speed select: Instant / Fast (1s per action) / Slow (2s per action), game spec
+  §7. HUD chrome, not a game option — it's changeable mid-match and doesn't affect the match's
+  own rules or its save.
+- **Instant is the default and runs fully synchronously** — no `await` at all on that path, so an
+  AI turn resolves within the same click that ended the human's turn.
+- Fast/slow await between yielded actions, redrawing the map each step (§5's fog is recomputed
+  per redraw, so an AI unit stepping into view appears as it happens). While an AI turn is
+  animating, End Turn is disabled and map clicks are ignored — the human can't act out of turn.
+- Match start can land on an AI (turn order is randomized, §8) — that opening AI turn animates
+  the same way rather than being a special silent case.
