@@ -70,8 +70,13 @@ state.bases.push({
 });
 
 // Hand-placed human tank next to the AI's own base, for manually testing attack/claim against a
-// real enemy base (see this file's own header comment).
+// real enemy base (see this file's own header comment). Its sp is set so exactly 2 tank attacks
+// (attacksPerTurn, game spec §3) zero it out in one turn, and it has an in-progress build that
+// completes on the AI's very next turn-start -- so ending the human's turn right after
+// neutralizing it demonstrates the auto-recapture rule (game spec §4) without a multi-turn wait.
 const aiBase = playerBase(state, 1);
+aiBase.sp = UNIT_TYPES.tank.groundAtk * UNIT_TYPES.tank.attacksPerTurn;
+aiBase.inProgress = { unitType: "tank", remainingTurns: 1 };
 const [aiBaseNeighbor] = grid.neighborsOf(aiBase.col, aiBase.row);
 state.units.push({
   id: state.nextUnitId++,

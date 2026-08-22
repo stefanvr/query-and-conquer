@@ -158,6 +158,10 @@ recovery, on the same reference unit.*
       the existing convention (label line under the token; second line in the slot)
 - [x] Ad hoc: hand-place a human-owned tank next to the AI's own base in the dev save, for
       manually testing attack/claim against a real enemy base without walking one over first
+- [x] Ad hoc: tune that tank/base pair so the full neutral → auto-recapture cycle is manually
+      testable in a couple of clicks — the AI base's sp is set to exactly 2 tank hits
+      (groundAtk × attacksPerTurn) and it has an in-progress build completing in 1 turn, so
+      attacking twice neutralizes it and the very next End Turn auto-recaptures it (game spec §4)
 
 ## Stage 7 — Boats: Fregat, Transporter, Carrier
 - [ ] Spec
