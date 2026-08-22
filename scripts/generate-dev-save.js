@@ -23,6 +23,17 @@
 // needing to build and sail one out first. A second, separate water chain next to the AI's own
 // base carries a human fregat and carrier at their own max attack range, for manually testing
 // ranged attacks without having to sail one all the way out there first.
+//
+// Stage 8 additions: an enemy tank 2 cells straight up from the human fregat above, so the fregat
+// can also test attacking a ground unit at its own max range, not just the AI base. Two mountain
+// bases (planes only, all-mountain neighborhood, game spec §2) — found on the map's own real
+// generation rather than hand-carved (terrain-texture.js already grows mountain clusters
+// specifically so this is possible), one given to the human as a home base, one to the AI as a
+// target for manually testing base-claim-via-fighter (a mountain base is unreachable by tank or
+// boat). A human fighter and bomber sit within their own max attack range of the AI's main base,
+// each with part of their round-trip fuel already spent but a safety margin left over the actual
+// distance back to the human's mountain base, for manually testing the fuel/rearm mechanic
+// without an immediate crash.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -162,6 +173,101 @@ state.units.push(
     cargo: [],
   },
 );
+
+// Enemy tank 2 cells straight up (screen direction -- hex-coords.js's fixed neighbor index 2 is
+// always the same cube direction, which hexToPixel always renders as dx=0, dy<0) from the human
+// fregat above, so the fregat can also test attacking a ground unit at its own max range.
+let enemyTankCell = fregatCell;
+for (let step = 0; step < 2; step++) enemyTankCell = grid.neighborsOf(enemyTankCell.col, enemyTankCell.row)[2];
+state.units.push({
+  id: state.nextUnitId++,
+  ownerId: 1,
+  unitType: "tank",
+  col: enemyTankCell.col,
+  row: enemyTankCell.row,
+  sp: UNIT_TYPES.tank.strength,
+  maxSp: UNIT_TYPES.tank.strength,
+  remainingActions: UNIT_TYPES.tank.actionsPerTurn,
+  remainingAttacks: UNIT_TYPES.tank.attacksPerTurn,
+});
+
+// Mountain bases (planes only, all-mountain neighborhood, game spec §2) — found on the map's own
+// real generation (terrain-texture.js grows mountain clusters specifically so this is possible),
+// not hand-carved like the coastal patch above. The one nearest the human's own base becomes
+// their home; the next-nearest to the AI's own base becomes the AI's, for testing base-claim-via-
+// fighter (a mountain base is unreachable by tank or boat).
+function eligibleMountainCells(grid) {
+  const cells = [];
+  for (const { col, row } of grid.cells()) {
+    if (grid.get(col, row) !== "mountain") continue;
+    const neighbors = grid.neighborsOf(col, row);
+    if (neighbors.length === 6 && neighbors.every((n) => grid.get(n.col, n.row) === "mountain")) cells.push({ col, row });
+  }
+  return cells;
+}
+const mountainCells = eligibleMountainCells(grid);
+mountainCells.sort((a, b) => offsetDistance(a, humanBase) - offsetDistance(b, humanBase));
+const humanMountainCell = mountainCells[0];
+const enemyMountainCell = mountainCells.slice(1).sort((a, b) => offsetDistance(a, aiBase) - offsetDistance(b, aiBase))[0] ?? mountainCells[0];
+
+function mountainBase(id, ownerId, cell) {
+  return {
+    id,
+    ownerId,
+    lastOwnerId: null,
+    type: "mountain",
+    col: cell.col,
+    row: cell.row,
+    adjacentToDeepWater: false,
+    sp: 20,
+    maxSp: 20,
+    garrison: [],
+    queue: [],
+    inProgress: null,
+  };
+}
+const humanMountainBase = mountainBase(state.bases.length, 0, humanMountainCell);
+state.bases.push(humanMountainBase);
+state.bases.push(mountainBase(state.bases.length, 1, enemyMountainCell));
+
+// A fighter and a bomber at their own max attack range of the AI's main base (fighter: 2 cells
+// via neighbor direction 1, avoiding both the recapture-demo tank at direction 0 and the water
+// chain at direction 2; bomber: 1 cell along that same direction 1), each with part of their
+// round-trip fuel already spent -- roundTripRange minus the actual distance back to the human's
+// new mountain base, minus a safety margin, so it's comfortably not a straight-line crash risk
+// but still meaningfully "part spent" for manually testing the fuel/rearm display.
+const FUEL_SAFETY_MARGIN = 20;
+const bomberCell = grid.neighborsOf(aiBase.col, aiBase.row)[1];
+const fighterCell = grid.neighborsOf(bomberCell.col, bomberCell.row)[1];
+
+state.units.push({
+  id: state.nextUnitId++,
+  ownerId: 0,
+  unitType: "fighter",
+  col: fighterCell.col,
+  row: fighterCell.row,
+  sp: UNIT_TYPES.fighter.strength,
+  maxSp: UNIT_TYPES.fighter.strength,
+  remainingActions: UNIT_TYPES.fighter.actionsPerTurn,
+  remainingAttacks: UNIT_TYPES.fighter.attacksPerTurn,
+  strikesUsed: 0,
+  cellsFlown: UNIT_TYPES.fighter.roundTripRange - offsetDistance(fighterCell, humanMountainCell) - FUEL_SAFETY_MARGIN,
+  actionsSpentMoving: 0,
+});
+state.units.push({
+  id: state.nextUnitId++,
+  ownerId: 0,
+  unitType: "bomber",
+  col: bomberCell.col,
+  row: bomberCell.row,
+  sp: UNIT_TYPES.bomber.strength,
+  maxSp: UNIT_TYPES.bomber.strength,
+  remainingActions: UNIT_TYPES.bomber.actionsPerTurn,
+  remainingAttacks: UNIT_TYPES.bomber.attacksPerTurn,
+  strikesUsed: 0,
+  cellsFlown: UNIT_TYPES.bomber.roundTripRange - offsetDistance(bomberCell, humanMountainCell) - FUEL_SAFETY_MARGIN,
+  actionsSpentMoving: 0,
+});
 
 const portBase = {
   id: state.bases.length,

@@ -237,7 +237,7 @@ recovery, on the same reference unit.*
 - [x] Base claim via fighter, including a mountain base unreachable by tank or boat (§4) — already
       generic via claimBase's existing capturing-type + category checks; confirmed via a dedicated
       node:test (fighter claiming a neutral mountain base)
-- [ ] Dev-map fixtures: human + enemy mountain base, a fighter and a bomber near the enemy base
+- [x] Dev-map fixtures: human + enemy mountain base, a fighter and a bomber near the enemy base
       with partial fuel spent but enough left to reach the human mountain base, and an enemy tank
       within the existing human fregat's range
 
