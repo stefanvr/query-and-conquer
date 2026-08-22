@@ -9,6 +9,14 @@ import { BASE_TYPES } from "./base-types.js";
 /** Fixed player-slot -> accent-color token, per style-guide.md §3 (independent of turn order). */
 export const PLAYER_COLOR_VARS = ["--p-human", "--p-ai-1", "--p-ai-2", "--p-ai-3", "--p-ai-4", "--p-ai-5"];
 
+/** "Human"/`AI n` + accent color for a player, or "Neutral"/steel-gray for an unowned base
+ * (`player` null) — shared by the HUD turn indicator, the base panel's owner line, and the End
+ * screen's stats dialog (implementation-spec.md §2/§4/§6/§9). */
+export function playerLabel(player) {
+  if (!player) return { text: "Neutral", colorVar: "--steel" };
+  return { text: player.isHuman ? "Human" : `AI ${player.slot}`, colorVar: PLAYER_COLOR_VARS[player.slot] };
+}
+
 /**
  * @param {{ aiDifficulties: string[], mapSize: string, mapType: string, fogOfWar: boolean }} options
  * @param {object} mapData - parsed map JSON (size, type, shape, width, height, rows, seed)

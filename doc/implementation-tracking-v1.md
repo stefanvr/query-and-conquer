@@ -270,9 +270,13 @@ recovery, on the same reference unit.*
       `endTurn`'s own turn-skip loop
 - [x] Win/lose detection (single remaining base owner) — `checkGameEnd`, sets `gameEnded`/
       `winnerId` from `endTurn`; `terminate` (surrender) is a separate always-a-loss path
-- [ ] End screen: full map reveal, read-only, all bases/units annotated
-- [ ] Stats dialog (units built/lost per player) — counters (`player.stats`) and every
-      build/destroy touch point are wired and tested; the dialog UI itself is next
+- [x] End screen: full map reveal, read-only, all bases/units annotated — new `end-screen.js` +
+      `#screen-end`, reusing the game screen's own `createMapCamera` with a new `revealAll` option
+      (bypasses enemy-base non-disclosure); reached from both a natural win/loss and Surrender
+      (`game-screen.js`'s `onGameOver`, replacing the old straight-to-main-menu `onTerminate`)
+- [x] Stats dialog (units built/lost per player) — overlay on the End screen, reusing the
+      mid-turn menu's own backdrop/panel-swap pattern; visually verified via a scratch Playwright
+      screenshot before committing
 - [x] Save/load for units — already generic (state.units has been part of canonical state since
       Stage 5); confirmed with a dedicated round-trip test, no new code needed
 

@@ -192,8 +192,11 @@ body {
   justify-content: space-between;
 }
 
-/* --- Game screen: full-bleed HUD + canvas, overrides .screen-view's centered layout. --- */
-#screen-game {
+/* --- Game screen: full-bleed HUD + canvas, overrides .screen-view's centered layout. Shared
+   with the End screen (#screen-end/#end-hud, implementation-spec.md §8) -- same full-bleed
+   canvas-+ top-bar layout, read-only there instead of interactive. --- */
+#screen-game,
+#screen-end {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -205,11 +208,13 @@ body {
 
 /* #screen-game's own display:flex above (ID, 1-0-0) would otherwise beat
    .screen-view[hidden]'s display:none (0-2-0) — this rule (1-1-0) makes hidden win. */
-#screen-game[hidden] {
+#screen-game[hidden],
+#screen-end[hidden] {
   display: none;
 }
 
-#hud {
+#hud,
+#end-hud {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -225,7 +230,8 @@ body {
   margin-right: auto;
 }
 
-#hud .btn-primary {
+#hud .btn-primary,
+#end-hud .btn-primary {
   font-size: 14px;
   padding: 8px 20px;
   min-height: 44px;
@@ -234,6 +240,16 @@ body {
 #hud .btn-primary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* End screen's result banner (implementation-spec.md §8) — accent color set inline per-match
+   (--signal for a win, --rust for a loss), same treatment the HUD turn indicator uses for player
+   color. */
+#end-result {
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+  font-size: 20px;
+  margin-right: auto;
 }
 
 /* End Turn gating message (implementation-spec.md §6/§3's Plane rearm & fuel) — shares
@@ -249,7 +265,8 @@ body {
   overflow: hidden;
 }
 
-#map-canvas {
+#map-canvas,
+#end-map-canvas {
   /* position: absolute + inset: 0 alone doesn't size a *replaced* element like <canvas> — it
      falls back to its intrinsic 300x150 default unless width/height are also given explicitly.
      Percentage width/height do resolve correctly here specifically because the containing
@@ -288,7 +305,8 @@ body {
   border-color: var(--signal);
 }
 
-#mid-turn-menu {
+#mid-turn-menu,
+#end-stats-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
@@ -298,7 +316,8 @@ body {
   z-index: 10;
 }
 
-#mid-turn-menu[hidden] {
+#mid-turn-menu[hidden],
+#end-stats-overlay[hidden] {
   display: none;
 }
 

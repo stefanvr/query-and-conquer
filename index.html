@@ -124,6 +124,32 @@
     </div>
   </div>
 
+  <!-- Reached on a natural win/loss or a surrender (implementation-spec.md §8's End screen) --
+       full map reveal, read-only: no HUD interaction beyond pan/zoom, Stats, and Main Menu. -->
+  <div id="screen-end" class="screen-view" hidden>
+    <div id="end-hud">
+      <span id="end-result"></span>
+      <button id="end-stats-button" class="btn-primary">Stats</button>
+      <button id="end-main-menu-button" class="btn-primary">Main Menu</button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="end-map-canvas"></canvas>
+      <div class="zoom-controls">
+        <button id="end-zoom-in-button" type="button">+</button>
+        <button id="end-zoom-out-button" type="button">&minus;</button>
+      </div>
+    </div>
+    <div id="end-stats-overlay" hidden>
+      <div class="menu-panel">
+        <h1 class="menu-title">Stats</h1>
+        <div id="end-stats-rows" class="menu-stack"></div>
+        <div class="menu-stack">
+          <button id="end-stats-close-button" class="btn-primary">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="src/main.js"></script>
 </body>
 </html>
