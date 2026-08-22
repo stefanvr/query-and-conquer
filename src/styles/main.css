@@ -231,6 +231,18 @@ body {
   min-height: 44px;
 }
 
+#hud .btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* End Turn gating message (implementation-spec.md §6/§3's Plane rearm & fuel) — shares
+   .menu-body-text's steel-gray text but in --rust to read as a blocker, not neutral info. */
+#hud-end-turn-blocked {
+  color: var(--rust);
+  margin: 0;
+}
+
 .canvas-wrap {
   position: relative;
   flex: 1;

@@ -227,7 +227,9 @@ recovery, on the same reference unit.*
 - [x] Rearm limits (fighter 4 strikes, bomber 2) — must return to base/carrier to rearm
 - [x] Round-trip range limit (fighter 100 cells, bomber 200) + crash on exceeding it
 - [x] Mandatory ≥50% action usage when not garrisoned (attacks excluded from that count) —
-      `planesOwingMovement` computed, End Turn gating still pending (UI step below)
+      `planesOwingMovement` gates/labels End Turn (§6), unit panel shows strikes/fuel remaining
+      for a plane (§3), and moveUnit's own fuel-crash is handled in the UI too (selection/panel
+      close on a crashed plane, not a stale render)
 - [ ] Mountain base (planes only; requires all-mountain neighbors)
 - [ ] Base claim via fighter, including a mountain base unreachable by tank or boat (§4)
 - [ ] Dev-map fixtures: human + enemy mountain base, a fighter and a bomber near the enemy base

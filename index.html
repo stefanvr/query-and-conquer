@@ -57,6 +57,9 @@
   <div id="screen-game" class="screen-view" hidden>
     <div id="hud">
       <span id="hud-turn-indicator"></span>
+      <!-- Shown while a plane still owes its mandatory movement this turn (implementation-spec.md
+           §6/§3's Plane rearm & fuel) -- disables End Turn alongside it. -->
+      <span id="hud-end-turn-blocked" class="menu-body-text" hidden></span>
       <button id="end-turn-button" class="btn-primary">End Turn</button>
       <button id="menu-button" class="btn-primary">Menu</button>
     </div>
@@ -89,6 +92,9 @@
         <h2 id="unit-panel-title" class="side-panel-title"></h2>
         <p id="unit-panel-sp" class="menu-body-text"></p>
         <p id="unit-panel-ap" class="menu-body-text"></p>
+        <!-- Only for a plane (roundTripRange set, implementation-spec.md §3's Plane rearm & fuel) -->
+        <p id="unit-panel-strikes" class="menu-body-text" hidden></p>
+        <p id="unit-panel-fuel" class="menu-body-text" hidden></p>
         <!-- Only for a boat (holdCapacity > 0, implementation-spec.md §3) -->
         <div id="unit-panel-cargo-section" hidden>
           <p class="base-panel-section-label">Cargo</p>

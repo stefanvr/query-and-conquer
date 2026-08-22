@@ -9,6 +9,7 @@ import {
   reorderQueuedBuild,
   processTurnStart,
   moveUnit,
+  planesOwingMovement,
   unloadUnit,
   unloadCargo,
   isValidUnloadTarget,
@@ -78,6 +79,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
   const canvas = document.querySelector("#map-canvas");
   const turnIndicator = document.querySelector("#hud-turn-indicator");
   const endTurnButton = document.querySelector("#end-turn-button");
+  const endTurnBlockedMessage = document.querySelector("#hud-end-turn-blocked");
   const menuButton = document.querySelector("#menu-button");
   const midTurnMenu = document.querySelector("#mid-turn-menu");
   const midTurnMenuMain = document.querySelector("#mid-turn-menu-main");
@@ -106,6 +108,8 @@ export function initGameScreen({ onQuit, onTerminate }) {
   const unitPanelTitle = document.querySelector("#unit-panel-title");
   const unitPanelSp = document.querySelector("#unit-panel-sp");
   const unitPanelAp = document.querySelector("#unit-panel-ap");
+  const unitPanelStrikes = document.querySelector("#unit-panel-strikes");
+  const unitPanelFuel = document.querySelector("#unit-panel-fuel");
   const unitPanelCargoSection = document.querySelector("#unit-panel-cargo-section");
   const unitPanelCargo = document.querySelector("#unit-panel-cargo");
   const unitPanelActions = document.querySelector("#unit-panel-actions");
@@ -126,6 +130,25 @@ export function initGameScreen({ onQuit, onTerminate }) {
     const { text, colorVar } = playerLabel(player);
     turnIndicator.textContent = `Turn ${visible.turnNumber} — ${text}`;
     turnIndicator.style.color = `var(${colorVar})`;
+    refreshEndTurnGate();
+  }
+
+  /** Disables End Turn (+ a short inline message naming the blocker) while the human still has a
+   * field plane owing its mandatory movement this turn (implementation-spec.md §6/§3's Plane
+   * rearm & fuel). Call after anything that could change a plane's actionsSpentMoving or
+   * remainingActions. */
+  function refreshEndTurnGate() {
+    const owing = planesOwingMovement(state, humanId);
+    endTurnButton.disabled = owing.length > 0;
+    endTurnBlockedMessage.hidden = owing.length === 0;
+    if (owing.length === 0) return;
+    endTurnBlockedMessage.textContent = owing
+      .map((u) => {
+        const stats = UNIT_TYPES[u.unitType];
+        const name = u.unitType[0].toUpperCase() + u.unitType.slice(1);
+        return `${name} still needs to move (${u.actionsSpentMoving}/${stats.actionsPerTurn / 2} AP)`;
+      })
+      .join("; ");
   }
 
   function renderBasePanel(base) {
@@ -285,9 +308,18 @@ export function initGameScreen({ onQuit, onTerminate }) {
   }
 
   function renderUnitPanel(unit) {
+    const stats = UNIT_TYPES[unit.unitType];
     unitPanelTitle.textContent = unit.unitType[0].toUpperCase() + unit.unitType.slice(1);
     unitPanelSp.textContent = `${unit.sp}/${unit.maxSp} SP`;
-    unitPanelAp.textContent = `${unit.remainingActions}/${UNIT_TYPES[unit.unitType].actionsPerTurn} AP`;
+    unitPanelAp.textContent = `${unit.remainingActions}/${stats.actionsPerTurn} AP`;
+
+    // --- Strikes/fuel remaining: only for a plane (roundTripRange set, §3's Plane rearm & fuel). ---
+    unitPanelStrikes.hidden = !stats.roundTripRange;
+    unitPanelFuel.hidden = !stats.roundTripRange;
+    if (stats.roundTripRange) {
+      unitPanelStrikes.textContent = `${stats.maxStrikes - unit.strikesUsed}/${stats.maxStrikes} strikes`;
+      unitPanelFuel.textContent = `${stats.roundTripRange - unit.cellsFlown}/${stats.roundTripRange} fuel`;
+    }
 
     // --- Cargo slot row: only for a boat (holdCapacity > 0, game spec §3). ---
     unitPanelCargoSection.hidden = !unit.cargo;
@@ -422,6 +454,15 @@ export function initGameScreen({ onQuit, onTerminate }) {
     return cost !== null && cost <= unit.remainingActions;
   }
 
+  /** Redraws the map and re-checks the End Turn gate (§6) — every mutating branch in selectHex
+   * uses this instead of calling camera.draw() directly, since any of them could change a plane's
+   * actionsSpentMoving/remainingActions (moving, attacking, or removing/adding a field plane via
+   * load/unload all qualify). */
+  function redraw() {
+    camera.draw();
+    refreshEndTurnGate();
+  }
+
   function selectHex(col, row) {
     if (pendingUnload) {
       const { containerType, container, garrisoned } = pendingUnload;
@@ -440,7 +481,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
         closeUnloadPreview();
         const placedUnit = state.units.find((u) => u.id === garrisoned.id);
         if (placedUnit) openUnitPanel(placedUnit);
-        camera.draw();
+        redraw();
         return;
       }
       return; // anything else: no-op, stays in the picker
@@ -469,7 +510,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
         closeLoadPreview();
         if (state.units.includes(unit)) openUnitPanel(unit);
         // else: unit is now garrisoned/cargo -- nothing left to select, map/HUD alone reflects it.
-        camera.draw();
+        redraw();
         return;
       }
       return; // anything else: no-op, stays in the picker
@@ -483,29 +524,35 @@ export function initGameScreen({ onQuit, onTerminate }) {
       if (targetUnit && isValidAttackTarget(state, grid, selectedUnit, targetUnit)) {
         attackUnit(state, grid, selectedUnit.id, targetUnit.id, activePlayer(state).id);
         renderUnitPanel(selectedUnit);
-        camera.draw();
+        redraw();
         return;
       }
       const targetBase = baseAtHex(state, col, row);
       if (targetBase && isValidAttackBaseTarget(state, grid, selectedUnit, targetBase)) {
         attackBase(state, grid, selectedUnit.id, targetBase.id, activePlayer(state).id);
         renderUnitPanel(selectedUnit);
-        camera.draw();
+        redraw();
         return;
       }
       if (targetBase && isValidClaimTarget(grid, selectedUnit, targetBase)) {
         claimBase(state, grid, selectedUnit.id, targetBase.id, activePlayer(state).id);
         closeAllPanels(); // the claiming unit is gone -- garrisoned into the base it just took
-        camera.draw();
+        redraw();
         return;
       }
     }
 
     if (selectedUnit && isValidMoveTarget(selectedUnit, col, row)) {
-      moveUnit(state, grid, selectedUnit.id, col, row, activePlayer(state).id);
-      camera.setSelectedHex({ col: selectedUnit.col, row: selectedUnit.row });
-      renderUnitPanel(selectedUnit);
-      camera.draw();
+      const unitId = selectedUnit.id;
+      moveUnit(state, grid, unitId, col, row, activePlayer(state).id);
+      const stillAlive = state.units.find((u) => u.id === unitId);
+      if (stillAlive) {
+        camera.setSelectedHex({ col: stillAlive.col, row: stillAlive.row });
+        renderUnitPanel(stillAlive);
+      } else {
+        closeAllPanels(); // a plane can crash (destroyed) from this very move, §3's fuel rule
+      }
+      redraw();
       return;
     }
 
