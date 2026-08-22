@@ -100,9 +100,21 @@ state.units.push({
 // Coastal patch: (5,2)/(6,2) turned to deep water, a couple hexes east of the neutral base so
 // nothing collides. (4,2) stays land for the port base itself; (5,2) is its east neighbor
 // (always adjacent regardless of column parity), satisfying both "port needs adjacent water" and
-// "carrier needs adjacent deep water" (game spec §2) in one cell.
+// "carrier needs adjacent deep water" (game spec §2) in one cell. Extended down and to the left
+// from there (a real hex-adjacency chain, not just col-1/row+1 pairs, which isn't always a true
+// neighbor step) so a boat has an actual body of water to move around in, not just one hex.
 grid.set(5, 2, "deep");
 grid.set(6, 2, "deep");
+for (const [col, row] of [
+  [6, 3],
+  [5, 3],
+  [4, 4],
+  [3, 4],
+  [2, 5],
+  [1, 5],
+]) {
+  grid.set(col, row, "deep");
+}
 state.map.rows = serializeGrid(grid);
 
 const portBase = {
