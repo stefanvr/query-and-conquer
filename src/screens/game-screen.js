@@ -10,8 +10,13 @@ import {
   processTurnStart,
   moveUnit,
   unloadUnit,
+  unloadCargo,
   isValidUnloadTarget,
   loadUnit,
+  isValidLoadTarget,
+  enterBaseWithCargo,
+  loadIntoBoat,
+  isValidLoadIntoBoatTarget,
   isValidAttackTarget,
   attackUnit,
   isValidAttackBaseTarget,
@@ -22,7 +27,7 @@ import {
 import { getVisibleState } from "../state/queries.js";
 import { saveGame } from "../save/save-load.js";
 import { createMapCamera, UNIT_SHAPES } from "../render/map-canvas.js";
-import { buildableUnitTypes, UNIT_TYPES, BASE_CATEGORIES, moveCost } from "../state/unit-types.js";
+import { buildableUnitTypes, UNIT_TYPES, moveCost } from "../state/unit-types.js";
 import { deserializeGrid } from "../map/map-serialize.js";
 import { offsetDistance } from "../map/hex-coords.js";
 
@@ -98,6 +103,8 @@ export function initGameScreen({ onQuit, onTerminate }) {
   const unitPanelTitle = document.querySelector("#unit-panel-title");
   const unitPanelSp = document.querySelector("#unit-panel-sp");
   const unitPanelAp = document.querySelector("#unit-panel-ap");
+  const unitPanelCargoSection = document.querySelector("#unit-panel-cargo-section");
+  const unitPanelCargo = document.querySelector("#unit-panel-cargo");
   const unitPanelActions = document.querySelector("#unit-panel-actions");
 
   let state = null;
@@ -107,7 +114,8 @@ export function initGameScreen({ onQuit, onTerminate }) {
   let selectedBase = null;
   let selectedUnit = null;
   let selectedQueueIndex = null; // which base-panel queue slot has its Remove/Move controls open
-  let pendingUnload = null; // { base, garrisoned } while the unload destination picker is active (§1)
+  let pendingUnload = null; // { containerType, container, garrisoned } while the unload picker is active (§1)
+  let pendingLoad = null; // the unit while the load destination picker is active (§1)
 
   function refreshHud() {
     const visible = getVisibleState(state, activePlayer(state).id);
@@ -234,7 +242,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
       el.type = "button";
       el.className = "slot";
       fillSlotContent(el, garrisoned.unitType, spLabel);
-      el.addEventListener("click", () => openUnloadPreview(base, garrisoned));
+      el.addEventListener("click", () => openUnloadPreview("base", base, garrisoned));
       basePanelGarrison.appendChild(el);
     }
 
@@ -256,12 +264,21 @@ export function initGameScreen({ onQuit, onTerminate }) {
     }
   }
 
-  function findAdjacentFriendlyBase(unit) {
-    const category = UNIT_TYPES[unit.unitType].category;
-    return grid
-      .neighborsOf(unit.col, unit.row)
-      .map((n) => baseAtHex(state, n.col, n.row))
-      .find((b) => b && b.ownerId === unit.ownerId && BASE_CATEGORIES[b.type].includes(category));
+  /** Every adjacent base/boat `unit` could load into right now (implementation-spec.md §1's Load
+   * destination picker) — mirrors isValidLoadTarget/isValidLoadIntoBoatTarget's own validation
+   * so the UI can compute candidates without duplicating the commands' rules. */
+  function computeLoadTargets(unit) {
+    const targets = [];
+    for (const n of grid.neighborsOf(unit.col, unit.row)) {
+      const base = baseAtHex(state, n.col, n.row);
+      if (base && isValidLoadTarget(grid, unit, base)) {
+        targets.push({ col: n.col, row: n.row });
+        continue;
+      }
+      const boat = unitAtHex(state, n.col, n.row);
+      if (boat && isValidLoadIntoBoatTarget(grid, unit, boat)) targets.push({ col: n.col, row: n.row });
+    }
+    return targets;
   }
 
   function renderUnitPanel(unit) {
@@ -269,27 +286,43 @@ export function initGameScreen({ onQuit, onTerminate }) {
     unitPanelSp.textContent = `${unit.sp}/${unit.maxSp} SP`;
     unitPanelAp.textContent = `${unit.remainingActions}/${UNIT_TYPES[unit.unitType].actionsPerTurn} AP`;
 
+    // --- Cargo slot row: only for a boat (holdCapacity > 0, game spec §3). ---
+    unitPanelCargoSection.hidden = !unit.cargo;
+    if (unit.cargo) {
+      unitPanelCargo.innerHTML = "";
+      const isOwnTurn = unit.ownerId === activePlayer(state).id;
+      const capacity = UNIT_TYPES[unit.unitType].holdCapacity;
+      for (let i = 0; i < capacity; i++) {
+        const cargoUnit = unit.cargo[i];
+        if (!cargoUnit) {
+          unitPanelCargo.appendChild(emptySlot());
+          continue;
+        }
+        const cargoSpLabel = `${cargoUnit.sp}/${UNIT_TYPES[cargoUnit.unitType].strength} SP`;
+        if (!isOwnTurn) {
+          const el = document.createElement("div");
+          el.className = "slot";
+          fillSlotContent(el, cargoUnit.unitType, cargoSpLabel);
+          unitPanelCargo.appendChild(el);
+          continue;
+        }
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = "slot";
+        fillSlotContent(el, cargoUnit.unitType, cargoSpLabel);
+        el.addEventListener("click", () => openUnloadPreview("boat", unit, cargoUnit));
+        unitPanelCargo.appendChild(el);
+      }
+    }
+
     unitPanelActions.innerHTML = "";
-    const targetBase = unit.ownerId === activePlayer(state).id ? findAdjacentFriendlyBase(unit) : null;
-    if (targetBase) {
-      const cost = moveCost(unit.unitType, grid.get(targetBase.col, targetBase.row));
-      const totalCost = cost === null ? Infinity : 1 + cost;
+    const canAct = unit.ownerId === activePlayer(state).id;
+    if (canAct && computeLoadTargets(unit).length > 0) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "btn-primary";
-      button.textContent = "Load into base";
-      button.disabled = totalCost > unit.remainingActions;
-      button.addEventListener("click", () => {
-        loadUnit(state, grid, unit.id, activePlayer(state).id);
-        if (state.units.includes(unit)) {
-          // Still in the field — loadUnit was a no-op (shouldn't happen with the button
-          // disabled above, but don't silently pretend success if it does).
-          renderUnitPanel(unit);
-        } else {
-          closeAllPanels();
-        }
-        camera?.draw();
-      });
+      button.textContent = "Load";
+      button.addEventListener("click", () => openLoadPreview(unit));
       unitPanelActions.appendChild(button);
     }
   }
@@ -302,6 +335,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
     unitPanel.hidden = true;
     camera?.setSelectedHex(null);
     closeUnloadPreview();
+    closeLoadPreview();
   }
 
   function openBasePanel(base) {
@@ -314,28 +348,29 @@ export function initGameScreen({ onQuit, onTerminate }) {
     renderBasePanel(base);
   }
 
-  /** Every hex `garrisoned` could unload onto from `base` — mirrors unloadUnit's own validation
-   * (implementation-spec.md §1) so the UI can highlight destinations without duplicating the
-   * command's rules, only which hexes to check. */
-  function computeUnloadTargets(base, garrisoned) {
-    return grid.neighborsOf(base.col, base.row).filter((n) => isValidUnloadTarget(state, grid, base, garrisoned, n.col, n.row));
+  /** Every hex `garrisoned` could unload onto from `container` (a base or a boat) — mirrors
+   * unloadUnit/unloadCargo's own validation (implementation-spec.md §1) so the UI can highlight
+   * destinations without duplicating the commands' rules, only which hexes to check. */
+  function computeUnloadTargets(container, garrisoned) {
+    return grid.neighborsOf(container.col, container.row).filter((n) => isValidUnloadTarget(state, grid, container, garrisoned, n.col, n.row));
   }
 
-  /** Enters the unload destination picker (§1): closes the base panel and shows the garrisoned
-   * unit's token on top of the base, with valid destinations highlighted. */
-  function openUnloadPreview(base, garrisoned) {
-    pendingUnload = { base, garrisoned };
+  /** Enters the unload destination picker (§1): closes the base/unit panel and shows the
+   * garrisoned/cargo unit's token on top of the container, with valid destinations highlighted.
+   * `containerType` is "base" or "boat" — which command/panel a confirm or cancel routes to. */
+  function openUnloadPreview(containerType, container, garrisoned) {
+    pendingUnload = { containerType, container, garrisoned };
     selectedBase = null;
     selectedUnit = null;
     selectedQueueIndex = null;
     basePanel.hidden = true;
     unitPanel.hidden = true;
     camera.setPendingUnload({
-      col: base.col,
-      row: base.row,
-      ownerId: base.ownerId,
+      col: container.col,
+      row: container.row,
+      ownerId: container.ownerId,
       unitType: garrisoned.unitType,
-      targets: computeUnloadTargets(base, garrisoned),
+      targets: computeUnloadTargets(container, garrisoned),
     });
   }
 
@@ -343,6 +378,24 @@ export function initGameScreen({ onQuit, onTerminate }) {
     if (!pendingUnload) return;
     pendingUnload = null;
     camera?.setPendingUnload(null);
+  }
+
+  /** Every adjacent base/boat `unit` could load into right now — implementation-spec.md §1's
+   * Load destination picker highlight set. */
+  function openLoadPreview(unit) {
+    pendingLoad = unit;
+    selectedBase = null;
+    selectedUnit = null;
+    selectedQueueIndex = null;
+    basePanel.hidden = true;
+    unitPanel.hidden = true;
+    camera.setPendingLoadTargets(computeLoadTargets(unit));
+  }
+
+  function closeLoadPreview() {
+    if (!pendingLoad) return;
+    pendingLoad = null;
+    camera?.setPendingLoadTargets(null);
   }
 
   function openUnitPanel(unit) {
@@ -368,20 +421,51 @@ export function initGameScreen({ onQuit, onTerminate }) {
 
   function selectHex(col, row) {
     if (pendingUnload) {
-      const { base, garrisoned } = pendingUnload;
-      if (col === base.col && row === base.row) {
-        // Clicking the base (== the previewed unit's own hex, since its token draws on top of
-        // the base) cancels back to the base panel (implementation-spec.md §1).
+      const { containerType, container, garrisoned } = pendingUnload;
+      if (col === container.col && row === container.row) {
+        // Clicking the container (== the previewed unit's own hex, since its token draws on top
+        // of it) cancels back to its panel (implementation-spec.md §1).
         closeUnloadPreview();
-        openBasePanel(base);
+        if (containerType === "base") openBasePanel(container);
+        else openUnitPanel(container); // a boat is a field unit -- reselect it
         return;
       }
-      const targets = computeUnloadTargets(base, garrisoned);
+      const targets = computeUnloadTargets(container, garrisoned);
       if (targets.some((t) => t.col === col && t.row === row)) {
-        unloadUnit(state, grid, base.id, garrisoned.id, col, row, activePlayer(state).id);
+        if (containerType === "base") unloadUnit(state, grid, container.id, garrisoned.id, col, row, activePlayer(state).id);
+        else unloadCargo(state, grid, container.id, garrisoned.id, col, row, activePlayer(state).id);
         closeUnloadPreview();
         const placedUnit = state.units.find((u) => u.id === garrisoned.id);
         if (placedUnit) openUnitPanel(placedUnit);
+        camera.draw();
+        return;
+      }
+      return; // anything else: no-op, stays in the picker
+    }
+
+    if (pendingLoad) {
+      const unit = pendingLoad;
+      if (col === unit.col && row === unit.row) {
+        // Clicking the unit's own hex cancels back to its panel (implementation-spec.md §1).
+        closeLoadPreview();
+        openUnitPanel(unit);
+        return;
+      }
+      const targets = computeLoadTargets(unit);
+      if (targets.some((t) => t.col === col && t.row === row)) {
+        const targetBase = baseAtHex(state, col, row);
+        if (targetBase) {
+          // A boat entering a base always uses the (possibly empty) free-bulk-cargo path (§2);
+          // anything else uses the ordinary single-unit load.
+          if (unit.cargo) enterBaseWithCargo(state, grid, unit.id, targetBase.id, activePlayer(state).id);
+          else loadUnit(state, grid, unit.id, targetBase.id, activePlayer(state).id);
+        } else {
+          const targetBoat = unitAtHex(state, col, row);
+          loadIntoBoat(state, grid, unit.id, targetBoat.id, activePlayer(state).id);
+        }
+        closeLoadPreview();
+        if (state.units.includes(unit)) openUnitPanel(unit);
+        // else: unit is now garrisoned/cargo -- nothing left to select, map/HUD alone reflects it.
         camera.draw();
         return;
       }
@@ -393,15 +477,15 @@ export function initGameScreen({ onQuit, onTerminate }) {
     // overlap to resolve, only a fallback when the attack/claim itself isn't currently valid.
     if (selectedUnit && selectedUnit.ownerId === activePlayer(state).id) {
       const targetUnit = unitAtHex(state, col, row);
-      if (targetUnit && isValidAttackTarget(selectedUnit, targetUnit)) {
-        attackUnit(state, selectedUnit.id, targetUnit.id, activePlayer(state).id);
+      if (targetUnit && isValidAttackTarget(state, grid, selectedUnit, targetUnit)) {
+        attackUnit(state, grid, selectedUnit.id, targetUnit.id, activePlayer(state).id);
         renderUnitPanel(selectedUnit);
         camera.draw();
         return;
       }
       const targetBase = baseAtHex(state, col, row);
-      if (targetBase && isValidAttackBaseTarget(selectedUnit, targetBase)) {
-        attackBase(state, selectedUnit.id, targetBase.id, activePlayer(state).id);
+      if (targetBase && isValidAttackBaseTarget(state, grid, selectedUnit, targetBase)) {
+        attackBase(state, grid, selectedUnit.id, targetBase.id, activePlayer(state).id);
         renderUnitPanel(selectedUnit);
         camera.draw();
         return;
@@ -456,6 +540,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
    * AI turns that follow. */
   function advanceUntilHuman() {
     closeUnloadPreview(); // a stale picker from this turn shouldn't survive into the next one
+    closeLoadPreview();
     endTurn(state);
     processTurnStart(state, activePlayer(state).id);
     advanceCascadeToHuman();

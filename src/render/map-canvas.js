@@ -42,6 +42,7 @@ function cssVar(name) {
  * @returns {{ draw: () => void, zoomIn: () => void, zoomOut: () => void, centerOn: (col:number,row:number) => void,
  *   setSelectedHex: (hex: {col:number,row:number}|null) => void,
  *   setPendingUnload: (preview: {col:number,row:number,ownerId:number,unitType:string,targets:{col:number,row:number}[]}|null) => void,
+ *   setPendingLoadTargets: (targets: {col:number,row:number}[]|null) => void,
  *   destroy: () => void }}
  */
 export function createMapCamera(canvas, mapData, options = {}) {
@@ -53,10 +54,14 @@ export function createMapCamera(canvas, mapData, options = {}) {
   const ctx = canvas.getContext("2d");
   const camera = { x: 0, y: 0, hexSize: DEFAULT_HEX_SIZE };
   // Unload destination picker (implementation-spec.md §1): while set, draws `unitType`/`ownerId`
-  // as a preview token on top of (col, row) — the base being unloaded from — and highlights every
-  // hex in `targets` as a selectable destination. Rendering-only; game-screen.js owns the actual
-  // click-to-cancel/click-to-confirm interaction.
+  // as a preview token on top of (col, row) — the base/boat being unloaded from — and highlights
+  // every hex in `targets` as a selectable destination. Rendering-only; game-screen.js owns the
+  // actual click-to-cancel/click-to-confirm interaction.
   let pendingUnload = null;
+  // Load destination picker (implementation-spec.md §1): the loading unit is already drawn
+  // normally (it hasn't moved), so this only needs the same target-hex highlight, no preview
+  // token of its own.
+  let pendingLoadTargets = null;
 
   function baseAt(col, row) {
     return bases.find((b) => b.col === col && b.row === row);
@@ -179,7 +184,10 @@ export function createMapCamera(canvas, mapData, options = {}) {
           ctx.stroke();
         }
 
-        if (pendingUnload?.targets.some((t) => t.col === col && t.row === row)) {
+        const isTarget =
+          pendingUnload?.targets.some((t) => t.col === col && t.row === row) ||
+          pendingLoadTargets?.some((t) => t.col === col && t.row === row);
+        if (isTarget) {
           ctx.fillStyle = cssVar("--signal");
           ctx.globalAlpha = 0.35;
           ctx.fill();
@@ -342,6 +350,10 @@ export function createMapCamera(canvas, mapData, options = {}) {
     },
     setPendingUnload(preview) {
       pendingUnload = preview;
+      draw();
+    },
+    setPendingLoadTargets(targets) {
+      pendingLoadTargets = targets;
       draw();
     },
     destroy() {

@@ -89,6 +89,11 @@
         <h2 id="unit-panel-title" class="side-panel-title"></h2>
         <p id="unit-panel-sp" class="menu-body-text"></p>
         <p id="unit-panel-ap" class="menu-body-text"></p>
+        <!-- Only for a boat (holdCapacity > 0, implementation-spec.md §3) -->
+        <div id="unit-panel-cargo-section" hidden>
+          <p class="base-panel-section-label">Cargo</p>
+          <div id="unit-panel-cargo" class="slot-grid"></div>
+        </div>
         <div id="unit-panel-actions" class="base-panel-build-buttons"></div>
       </div>
     </div>

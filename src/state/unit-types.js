@@ -104,6 +104,13 @@ export const BASE_CATEGORIES = {
   mountain: ["plane"],
 };
 
+/** The one unit category each cargo-holding unit type accepts (§3's `holdCapacity`) — a
+ * transporter carries tanks, a carrier carries planes. */
+export const CARGO_CATEGORY = {
+  transporter: "vehicle",
+  carrier: "plane",
+};
+
 /** Build time in turns for a unit type: buildCostMultiplier x bbt (§2). */
 export function buildTurns(unitType) {
   return UNIT_TYPES[unitType].buildCostMultiplier * BASE_BUILD_TIME;

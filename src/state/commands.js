@@ -1,7 +1,7 @@
 // Command handlers — the only code allowed to mutate canonical state (tech-stack.md's CQRS-lite
 // rule: "separate the code that mutates state from the code that reads/renders it").
-import { UNIT_TYPES, BASE_CATEGORIES, buildTurns, buildableUnitTypes, moveCost } from "./unit-types.js";
-import { offsetDistance } from "../map/hex-coords.js";
+import { UNIT_TYPES, BASE_CATEGORIES, CARGO_CATEGORY, buildTurns, buildableUnitTypes, moveCost } from "./unit-types.js";
+import { offsetDistance, hexLine } from "../map/hex-coords.js";
 import { baseAtHex, unitAtHex } from "./game-state.js";
 
 const MAX_QUEUE_LENGTH = 5; // §2
@@ -109,12 +109,32 @@ export function moveUnit(state, grid, unitId, targetCol, targetRow, activePlayer
   return state;
 }
 
-/** Whether `targetCol`/`targetRow` is a valid unload destination for `garrisoned` out of `base`
- * (implementation-spec.md §1's unload destination picker) — adjacent to the base, passable for
- * the unit's type, unoccupied, and affordable within the unit's full action budget. Exported so
- * the UI can compute which adjacent hexes to highlight without duplicating this logic. */
-export function isValidUnloadTarget(state, grid, base, garrisoned, targetCol, targetRow) {
-  if (offsetDistance({ col: base.col, row: base.row }, { col: targetCol, row: targetRow }) !== 1) return false;
+/** Field-unit shape a garrisoned/cargo entry becomes on exit (unload/unloadCargo) — sp carried
+ * over (a damaged unit stays damaged, §3/§4), a fresh cargo hold if the exiting type has one. */
+function toFieldUnit(entry, ownerId, targetCol, targetRow, remainingActions) {
+  const stats = UNIT_TYPES[entry.unitType];
+  const unit = {
+    id: entry.id,
+    ownerId,
+    unitType: entry.unitType,
+    col: targetCol,
+    row: targetRow,
+    sp: entry.sp,
+    maxSp: stats.strength,
+    remainingActions,
+    remainingAttacks: stats.attacksPerTurn,
+  };
+  if (stats.holdCapacity) unit.cargo = [];
+  return unit;
+}
+
+/** Whether `targetCol`/`targetRow` is a valid unload destination for `garrisoned` out of
+ * `container` (a base or a boat — implementation-spec.md §1's unload destination picker) —
+ * adjacent to the container, passable for the unit's type, unoccupied, and affordable within the
+ * unit's full action budget. Exported so the UI can compute which adjacent hexes to highlight
+ * without duplicating this logic. */
+export function isValidUnloadTarget(state, grid, container, garrisoned, targetCol, targetRow) {
+  if (offsetDistance({ col: container.col, row: container.row }, { col: targetCol, row: targetRow }) !== 1) return false;
   if (!grid.isInMap(targetCol, targetRow)) return false;
   if (isBlockedForMovement(state, targetCol, targetRow)) return false;
   const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
@@ -137,63 +157,167 @@ export function unloadUnit(state, grid, baseId, unitId, targetCol, targetRow, ac
   const garrisoned = base.garrison[index];
   if (!isValidUnloadTarget(state, grid, base, garrisoned, targetCol, targetRow)) return state;
 
-  const stats = UNIT_TYPES[garrisoned.unitType];
   const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
   base.garrison.splice(index, 1);
-  state.units.push({
-    id: garrisoned.id,
-    ownerId: base.ownerId,
-    unitType: garrisoned.unitType,
-    col: targetCol,
-    row: targetRow,
-    sp: garrisoned.sp, // carried over — a damaged unit stays damaged when it exits (§3/§4)
-    maxSp: stats.strength,
-    remainingActions: stats.actionsPerTurn - (1 + cost),
-    remainingAttacks: stats.attacksPerTurn,
-  });
+  const remainingActions = UNIT_TYPES[garrisoned.unitType].actionsPerTurn - (1 + cost);
+  state.units.push(toFieldUnit(garrisoned, base.ownerId, targetCol, targetRow, remainingActions));
   return state;
 }
 
+/** Unloads a cargo unit from `boat` onto the given adjacent hex — the same destination picker
+ * and cost pattern as unloadUnit, just from a boat's cargo hold instead of a base's garrison
+ * (§1/§3). No-op if the destination isn't valid, or `boat` isn't owned by `activePlayerId`. */
+export function unloadCargo(state, grid, boatId, unitId, targetCol, targetRow, activePlayerId) {
+  const boat = state.units.find((u) => u.id === boatId);
+  if (!boat) return state;
+  if (boat.ownerId !== activePlayerId) return state;
+  const index = boat.cargo.findIndex((u) => u.id === unitId);
+  if (index === -1) return state;
+
+  const cargoUnit = boat.cargo[index];
+  if (!isValidUnloadTarget(state, grid, boat, cargoUnit, targetCol, targetRow)) return state;
+
+  const cost = moveCost(cargoUnit.unitType, grid.get(targetCol, targetRow));
+  boat.cargo.splice(index, 1);
+  const remainingActions = UNIT_TYPES[cargoUnit.unitType].actionsPerTurn - (1 + cost);
+  state.units.push(toFieldUnit(cargoUnit, boat.ownerId, targetCol, targetRow, remainingActions));
+  return state;
+}
+
+/** The move-cost component of "1 action + move cost" for `unit` entering any container — a base
+ * or a boat (game spec §3's Actions) — based on the terrain `unit` is already standing on, not
+ * the container's own cell. Neither side of most entries can actually stand on the other's
+ * terrain: a base's own cell is land, impassable for any boat entering it (game spec §3: "for a
+ * boat this can happen anywhere water is adjacent to land"), and a boat's own cell is water,
+ * impassable for e.g. a tank boarding it — so the container's own cell is never a meaningful
+ * move-cost source; the entering unit's own current cell always is. */
+function enterCost(grid, unit) {
+  return moveCost(unit.unitType, grid.get(unit.col, unit.row));
+}
+
+/** `unit`'s adjacency/ownership/category/cost checks for entering `base` — everything
+ * isValidLoadTarget checks except capacity, since enterBaseWithCargo (§2) needs a different
+ * (combined boat + cargo) capacity rule than a lone unit's. */
+function canEnterBase(grid, unit, base) {
+  if (!base) return false;
+  if (base.ownerId !== unit.ownerId) return false;
+  if (!BASE_CATEGORIES[base.type].includes(UNIT_TYPES[unit.unitType].category)) return false;
+  if (offsetDistance(unit, base) !== 1) return false;
+  const cost = enterCost(grid, unit);
+  if (cost === null) return false;
+  return 1 + cost <= unit.remainingActions;
+}
+
+/** Whether `unit` could load into `base` right now (implementation-spec.md §1's Load destination
+ * picker): friendly, category-accepted, adjacent, affordable, and spare capacity for the one
+ * unit. Exported for the same reason as isValidUnloadTarget. */
+export function isValidLoadTarget(grid, unit, base) {
+  return canEnterBase(grid, unit, base) && capacityUsed(base) < MAX_BASE_CAPACITY;
+}
+
 /** Loads a field unit into an adjacent friendly base of a type that accepts its category, if the
- * base has spare capacity and the unit can afford 1 action + the base's own terrain's move cost
- * (game spec §2/§3). No-op otherwise, or if `unit` isn't owned by `activePlayerId` (§3). */
-export function loadUnit(state, grid, unitId, activePlayerId) {
+ * base has spare capacity and the unit can afford 1 action + its own current terrain's move cost
+ * (game spec §2/§3, enterCost). No-op otherwise, or if `unit` isn't owned by `activePlayerId`
+ * (§3). A boat (transporter/carrier) uses enterBaseWithCargo instead, even when empty — see its
+ * own doc comment. */
+export function loadUnit(state, grid, unitId, baseId, activePlayerId) {
   const index = state.units.findIndex((u) => u.id === unitId);
   if (index === -1) return state;
   const unit = state.units[index];
   if (unit.ownerId !== activePlayerId) return state;
-  const category = UNIT_TYPES[unit.unitType].category;
-
-  const target = grid
-    .neighborsOf(unit.col, unit.row)
-    .map((n) => baseAtHex(state, n.col, n.row))
-    .find((b) => b && b.ownerId === unit.ownerId && BASE_CATEGORIES[b.type].includes(category));
-  if (!target) return state;
-  if (capacityUsed(target) >= MAX_BASE_CAPACITY) return state;
-
-  const cost = moveCost(unit.unitType, grid.get(target.col, target.row));
-  if (cost === null) return state;
-  const totalCost = 1 + cost;
-  if (totalCost > unit.remainingActions) return state;
+  const base = state.bases.find((b) => b.id === baseId);
+  if (!isValidLoadTarget(grid, unit, base)) return state;
 
   state.units.splice(index, 1);
-  target.garrison.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp }); // sp carried over (§3/§4)
+  base.garrison.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp }); // sp carried over (§3/§4)
+  return state;
+}
+
+/** A transporter/carrier entering a friendly base (Load destination picker, §1) unloads for
+ * free — itself and every unit it's carrying join the garrison directly, at no extra action cost
+ * beyond the boat's own entry (game spec §2). Only if the base has enough spare capacity for the
+ * boat *and* everything it's carrying; otherwise the whole entry is rejected (all-or-nothing).
+ * Costs 1 action + the boat's own current terrain's move cost (enterCost), same as loadUnit, but
+ * only spent on success. No-op if `boatId` isn't owned by `activePlayerId`. */
+export function enterBaseWithCargo(state, grid, boatId, baseId, activePlayerId) {
+  const index = state.units.findIndex((u) => u.id === boatId);
+  if (index === -1) return state;
+  const boat = state.units[index];
+  if (boat.ownerId !== activePlayerId) return state;
+  const base = state.bases.find((b) => b.id === baseId);
+  if (!canEnterBase(grid, boat, base)) return state;
+  const cargo = boat.cargo ?? [];
+  if (capacityUsed(base) + 1 + cargo.length > MAX_BASE_CAPACITY) return state;
+
+  state.units.splice(index, 1);
+  base.garrison.push({ id: boat.id, unitType: boat.unitType, sp: boat.sp });
+  for (const cargoUnit of cargo) base.garrison.push({ id: cargoUnit.id, unitType: cargoUnit.unitType, sp: cargoUnit.sp });
+  return state;
+}
+
+/** Whether `unit` could load into `boat`'s cargo hold right now (implementation-spec.md §1's
+ * Load destination picker): friendly, `boat`'s one accepted cargo category matches `unit`'s
+ * (CARGO_CATEGORY), adjacent, affordable, and spare capacity. A boat can't load into another
+ * boat — only a vehicle/plane-category unit can be cargo. Exported for the same reason as
+ * isValidUnloadTarget. */
+export function isValidLoadIntoBoatTarget(grid, unit, boat) {
+  if (!boat || boat.id === unit.id) return false;
+  if (boat.ownerId !== unit.ownerId) return false;
+  const capacity = UNIT_TYPES[boat.unitType].holdCapacity;
+  if (!capacity || boat.cargo.length >= capacity) return false;
+  if (CARGO_CATEGORY[boat.unitType] !== UNIT_TYPES[unit.unitType].category) return false;
+  if (offsetDistance(unit, boat) !== 1) return false;
+  const cost = enterCost(grid, unit);
+  if (cost === null) return false;
+  return 1 + cost <= unit.remainingActions;
+}
+
+/** Loads a field unit into an adjacent friendly boat's cargo hold (game spec §3's
+ * `holdCapacity`) — same cost/ownership pattern as loadUnit, just into a boat instead of a base.
+ * No-op if the target isn't valid (isValidLoadIntoBoatTarget) or `unit` isn't owned by
+ * `activePlayerId`. */
+export function loadIntoBoat(state, grid, unitId, boatId, activePlayerId) {
+  const index = state.units.findIndex((u) => u.id === unitId);
+  if (index === -1) return state;
+  const unit = state.units[index];
+  if (unit.ownerId !== activePlayerId) return state;
+  const boat = state.units.find((u) => u.id === boatId);
+  if (!isValidLoadIntoBoatTarget(grid, unit, boat)) return state;
+
+  state.units.splice(index, 1);
+  boat.cargo.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp });
   return state;
 }
 
 // --- Combat (game spec §3's Actions, §4's base capture) ---
 
+/** Whether line of sight from `from` to `to` is clear: no mountain cell, unit, or base anywhere
+ * strictly between the two endpoints (game spec §1). Traces the actual hex line (hexLine) rather
+ * than assuming a straight run of same-row/col cells, since ranges are hex-distance radii, not
+ * lines — an off-axis target at distance 2+ still has real cells in between to check. */
+function hasLineOfSight(state, grid, from, to) {
+  const line = hexLine(from, to);
+  for (let i = 1; i < line.length - 1; i++) {
+    // excludes both endpoints — line[0] is `from` itself, line[last] is `to` itself
+    const { col, row } = line[i];
+    if (grid.get(col, row) === "mountain") return false;
+    if (unitAtHex(state, col, row) || baseAtHex(state, col, row)) return false;
+  }
+  return true;
+}
+
 /** Whether `attacker` could attack `defender` right now: different owner, within attack range
- * (game spec §3's per-unit table), and `attacker` still has both an attack and an action left
- * this turn. Exported so the UI can route a click to attack without duplicating this logic
- * (implementation-spec.md §1). No LOS-blocking check yet — every actionable unit's range is 1
- * (Tank) until boats/planes land, so "in range" and "adjacent" already coincide with nothing in
- * between to block. */
-export function isValidAttackTarget(attacker, defender) {
+ * (game spec §3's per-unit table), line of sight clear if `attacker`'s type needs it (game spec
+ * §1 — moot for a range-1 attacker, since there's no cell in between to block), and `attacker`
+ * still has both an attack and an action left this turn. Exported so the UI can route a click to
+ * attack without duplicating this logic (implementation-spec.md §1). */
+export function isValidAttackTarget(state, grid, attacker, defender) {
   if (!attacker || !defender) return false;
   if (attacker.ownerId === defender.ownerId) return false;
   if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return false;
-  return offsetDistance(attacker, defender) <= UNIT_TYPES[attacker.unitType].attackRange;
+  const stats = UNIT_TYPES[attacker.unitType];
+  if (offsetDistance(attacker, defender) > stats.attackRange) return false;
+  return !stats.needsLOS || hasLineOfSight(state, grid, attacker, defender);
 }
 
 /** Open-field unit-vs-unit combat (game spec §3): `attacker`'s atk value against `defender`'s
@@ -201,13 +325,13 @@ export function isValidAttackTarget(attacker, defender) {
  * `state.units`) at 0. Costs 1 action + 1 of the attacker's attacks this turn. No-op if either
  * unit is missing, `attackerUnitId` isn't owned by `activePlayerId`, or the target isn't valid
  * (`isValidAttackTarget`). */
-export function attackUnit(state, attackerUnitId, defenderUnitId, activePlayerId) {
+export function attackUnit(state, grid, attackerUnitId, defenderUnitId, activePlayerId) {
   const attacker = state.units.find((u) => u.id === attackerUnitId);
   if (!attacker || attacker.ownerId !== activePlayerId) return state;
   const defenderIndex = state.units.findIndex((u) => u.id === defenderUnitId);
   if (defenderIndex === -1) return state;
   const defender = state.units[defenderIndex];
-  if (!isValidAttackTarget(attacker, defender)) return state;
+  if (!isValidAttackTarget(state, grid, attacker, defender)) return state;
 
   const atkStats = UNIT_TYPES[attacker.unitType];
   const targetType = UNIT_TYPES[defender.unitType].targetType;
@@ -221,12 +345,15 @@ export function attackUnit(state, attackerUnitId, defenderUnitId, activePlayerId
 }
 
 /** Whether `attacker` could attack `base` right now: it's enemy-owned (not neutral, not the
- * attacker's own), and `attacker` is in range with an attack and an action left. Exported for the
- * same reason as `isValidAttackTarget` (§1). */
-export function isValidAttackBaseTarget(attacker, base) {
+ * attacker's own), in range with line of sight clear if needed (see `isValidAttackTarget`), and
+ * `attacker` has an attack and an action left. Exported for the same reason as
+ * `isValidAttackTarget` (§1). */
+export function isValidAttackBaseTarget(state, grid, attacker, base) {
   if (!base || base.ownerId === null || base.ownerId === attacker.ownerId) return false;
   if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return false;
-  return offsetDistance(attacker, base) <= UNIT_TYPES[attacker.unitType].attackRange;
+  const stats = UNIT_TYPES[attacker.unitType];
+  if (offsetDistance(attacker, base) > stats.attackRange) return false;
+  return !stats.needsLOS || hasLineOfSight(state, grid, attacker, base);
 }
 
 /** Attacking a claimed (enemy-owned) base (game spec §4): damage first destroys garrisoned
@@ -237,11 +364,11 @@ export function isValidAttackBaseTarget(attacker, base) {
  * Costs 1 action + 1 of the attacker's attacks this turn. No-op if either side is missing,
  * `attackerUnitId` isn't owned by `activePlayerId`, or the target isn't valid
  * (`isValidAttackBaseTarget`). */
-export function attackBase(state, attackerUnitId, baseId, activePlayerId) {
+export function attackBase(state, grid, attackerUnitId, baseId, activePlayerId) {
   const attacker = state.units.find((u) => u.id === attackerUnitId);
   if (!attacker || attacker.ownerId !== activePlayerId) return state;
   const base = state.bases.find((b) => b.id === baseId);
-  if (!isValidAttackBaseTarget(attacker, base)) return state;
+  if (!isValidAttackBaseTarget(state, grid, attacker, base)) return state;
 
   attacker.remainingActions -= 1;
   attacker.remainingAttacks -= 1;
@@ -264,14 +391,14 @@ export function attackBase(state, attackerUnitId, baseId, activePlayerId) {
 
 /** Whether `unit` could claim `base` right now: `base` is neutral, `unit`'s type can capture
  * (tank/fighter/fregat) and its category is one `base` accepts, adjacent, and `unit` can afford
- * 1 action + the base's terrain move cost. Exported for the same reason as `isValidUnloadTarget`
- * (§1). */
+ * 1 action + its own current terrain's move cost (enterCost). Exported for the same reason as
+ * `isValidUnloadTarget` (§1). */
 export function isValidClaimTarget(grid, unit, base) {
   if (!base || base.ownerId !== null) return false;
   if (!CAPTURING_UNIT_TYPES.includes(unit.unitType)) return false;
   if (!BASE_CATEGORIES[base.type].includes(UNIT_TYPES[unit.unitType].category)) return false;
   if (offsetDistance(unit, base) !== 1) return false;
-  const cost = moveCost(unit.unitType, grid.get(base.col, base.row));
+  const cost = enterCost(grid, unit);
   if (cost === null) return false;
   return 1 + cost <= unit.remainingActions;
 }
@@ -281,8 +408,8 @@ export function isValidClaimTarget(grid, unit, base) {
  * (tank/fighter/fregat, game spec §4), terrain-gated the same as any base entry. Ownership
  * transfers to the claiming unit's owner, the unit garrisons inside, and sp resets to 4. Only a
  * claim by an owner different from the base's `lastOwnerId` (an actual capture, as opposed to a
- * recapture) clears the queue and in-progress build. Costs 1 action + the base's terrain move
- * cost, same as loading (§2). No-op if `unitId` isn't owned by `activePlayerId` or the target
+ * recapture) clears the queue and in-progress build. Costs 1 action + its own current terrain's
+ * move cost, same as loading (§2). No-op if `unitId` isn't owned by `activePlayerId` or the target
  * isn't valid (`isValidClaimTarget`). */
 export function claimBase(state, grid, unitId, baseId, activePlayerId) {
   const index = state.units.findIndex((u) => u.id === unitId);

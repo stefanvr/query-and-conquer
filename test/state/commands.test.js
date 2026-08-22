@@ -9,7 +9,12 @@ import {
   processTurnStart,
   moveUnit,
   unloadUnit,
+  unloadCargo,
   loadUnit,
+  isValidLoadTarget,
+  enterBaseWithCargo,
+  loadIntoBoat,
+  isValidLoadIntoBoatTarget,
   isValidAttackTarget,
   attackUnit,
   attackBase,
@@ -401,7 +406,7 @@ test("loadUnit moves an adjacent field unit into a friendly base's garrison", ()
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7, 0);
+  loadUnit(s, grid, 7, base.id, 0);
 
   assert.equal(s.units.length, 0);
   assert.equal(base.garrison.length, 1);
@@ -419,7 +424,7 @@ test("loadUnit is a no-op if the unit isn't owned by the active player", () => {
   const unit = { id: 7, ownerId: 1, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7, 0); // active player 0, unit owned by 1
+  loadUnit(s, grid, 7, base.id, 0); // active player 0, unit owned by 1
   assert.equal(s.units.length, 1, "tank stays in the field");
   assert.equal(base.garrison.length, 0);
 });
@@ -434,7 +439,7 @@ test("loadUnit is a no-op if the adjacent base doesn't accept the unit's categor
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7, 0);
+  loadUnit(s, grid, 7, base.id, 0);
   assert.equal(s.units.length, 1, "tank stays in the field");
   assert.equal(base.garrison.length, 0);
 });
@@ -448,7 +453,7 @@ test("loadUnit is a no-op if the base is at max capacity", () => {
   const unit = { id: 7, ownerId: 0, unitType: "tank", col: adjacent.col, row: adjacent.row, sp: 10, maxSp: 10, remainingActions: 5 };
   s.units.push(unit);
 
-  loadUnit(s, grid, 7, 0);
+  loadUnit(s, grid, 7, base.id, 0);
   assert.equal(s.units.length, 1);
   assert.equal(base.garrison.length, 15);
 });
@@ -489,28 +494,74 @@ function tank(overrides = {}) {
 }
 
 test("isValidAttackTarget accepts an adjacent enemy in range with attacks/actions left", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5 });
   const defender = tank({ id: 1, ownerId: 1, col: 6, row: 5 });
-  assert.equal(isValidAttackTarget(attacker, defender), true);
+  assert.equal(isValidAttackTarget(s, grid, attacker, defender), true);
 });
 
 test("isValidAttackTarget rejects same owner, out of range, or no attacks/actions left", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5 });
   const friendly = tank({ id: 1, ownerId: 0, col: 6, row: 5 });
   const farEnemy = tank({ id: 2, ownerId: 1, col: 8, row: 5 });
-  assert.equal(isValidAttackTarget(attacker, friendly), false, "same owner");
-  assert.equal(isValidAttackTarget(attacker, farEnemy), false, "out of range");
-  assert.equal(isValidAttackTarget(tank({ col: 5, row: 5, remainingAttacks: 0 }), farEnemy), false, "no attacks left");
-  assert.equal(isValidAttackTarget(tank({ col: 5, row: 5, remainingActions: 0 }), farEnemy), false, "no actions left");
+  assert.equal(isValidAttackTarget(s, grid, attacker, friendly), false, "same owner");
+  assert.equal(isValidAttackTarget(s, grid, attacker, farEnemy), false, "out of range");
+  assert.equal(isValidAttackTarget(s, grid, tank({ col: 5, row: 5, remainingAttacks: 0 }), farEnemy), false, "no attacks left");
+  assert.equal(isValidAttackTarget(s, grid, tank({ col: 5, row: 5, remainingActions: 0 }), farEnemy), false, "no actions left");
+});
+
+test("isValidAttackTarget rejects a target beyond a range-2 attacker's line of sight, blocked by a mountain cell", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  // Fregat has attack range 2 and needsLOS. grid.neighborsOf returns neighbors in a fixed
+  // direction order (hex-coords.js) -- taking the same direction index twice continues in a
+  // straight line, so `mid` is guaranteed to be the actual cell between attacker and target.
+  const mid = grid.neighborsOf(5, 5)[0];
+  const target = grid.neighborsOf(mid.col, mid.row)[0];
+  grid.set(mid.col, mid.row, "mountain");
+
+  const attacker = { id: 0, ownerId: 0, unitType: "fregat", col: 5, row: 5, remainingActions: 5, remainingAttacks: 1 };
+  const defender = { id: 1, ownerId: 1, unitType: "fregat", col: target.col, row: target.row };
+
+  assert.equal(isValidAttackTarget(s, grid, attacker, defender), false, "blocked by the mountain cell in between");
+});
+
+test("isValidAttackTarget allows a range-2 attack once the blocking mountain cell is gone", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const mid = grid.neighborsOf(5, 5)[0];
+  const target = grid.neighborsOf(mid.col, mid.row)[0];
+
+  const attacker = { id: 0, ownerId: 0, unitType: "fregat", col: 5, row: 5, remainingActions: 5, remainingAttacks: 1 };
+  const defender = { id: 1, ownerId: 1, unitType: "fregat", col: target.col, row: target.row };
+
+  assert.equal(isValidAttackTarget(s, grid, attacker, defender), true, "mid cell is plain gras -- nothing blocking");
+});
+
+test("isValidAttackTarget doesn't need line of sight for a unit whose type has needsLOS: false", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const mid = grid.neighborsOf(5, 5)[0];
+  const target = grid.neighborsOf(mid.col, mid.row)[0];
+  grid.set(mid.col, mid.row, "mountain");
+
+  const attacker = { id: 0, ownerId: 0, unitType: "carrier", col: 5, row: 5, remainingActions: 5, remainingAttacks: 1 }; // range 4, needsLOS: false
+  const defender = { id: 1, ownerId: 1, unitType: "fregat", col: target.col, row: target.row };
+
+  assert.equal(isValidAttackTarget(s, grid, attacker, defender), true, "carrier doesn't need LOS");
 });
 
 test("attackUnit applies the attacker's ground atk against a ground defender's sp, spending 1 action + 1 attack", () => {
   const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5 });
   const defender = tank({ id: 1, ownerId: 1, col: 6, row: 5 });
   s.units.push(attacker, defender);
 
-  attackUnit(s, 0, 1, 0);
+  attackUnit(s, grid, 0, 1, 0);
 
   assert.equal(defender.sp, UNIT_TYPES.tank.strength - UNIT_TYPES.tank.groundAtk);
   assert.equal(attacker.remainingActions, UNIT_TYPES.tank.actionsPerTurn - 1);
@@ -519,22 +570,24 @@ test("attackUnit applies the attacker's ground atk against a ground defender's s
 
 test("attackUnit uses the attacker's air atk against an air-target-type defender", () => {
   const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5 });
   const defender = { id: 1, ownerId: 1, unitType: "fighter", col: 6, row: 5, sp: UNIT_TYPES.fighter.strength, maxSp: UNIT_TYPES.fighter.strength, remainingActions: 5, remainingAttacks: 1 };
   s.units.push(attacker, defender);
 
-  attackUnit(s, 0, 1, 0);
+  attackUnit(s, grid, 0, 1, 0);
 
   assert.equal(defender.sp, UNIT_TYPES.fighter.strength - UNIT_TYPES.tank.airAtk);
 });
 
 test("attackUnit destroys the defender (removed from state.units) once sp reaches 0", () => {
   const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
   const defender = tank({ id: 1, ownerId: 1, col: 6, row: 5, sp: 1 });
   s.units.push(attacker, defender);
 
-  attackUnit(s, 0, 1, 0);
+  attackUnit(s, grid, 0, 1, 0);
 
   assert.equal(s.units.length, 1);
   assert.equal(s.units[0].id, 0);
@@ -542,16 +595,18 @@ test("attackUnit destroys the defender (removed from state.units) once sp reache
 
 test("attackUnit is a no-op if the attacker isn't owned by the active player", () => {
   const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5, ownerId: 1 });
   const defender = tank({ id: 1, ownerId: 0, col: 6, row: 5 });
   s.units.push(attacker, defender);
 
-  attackUnit(s, 0, 1, 0); // active player 0, attacker owned by 1
+  attackUnit(s, grid, 0, 1, 0); // active player 0, attacker owned by 1
   assert.equal(defender.sp, UNIT_TYPES.tank.strength, "no damage dealt");
 });
 
 test("attackBase destroys garrisoned units oldest-first before any damage spills onto base sp", () => {
   const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
   s.units.push(attacker);
   const base = landBase({
@@ -566,7 +621,7 @@ test("attackBase destroys garrisoned units oldest-first before any damage spills
   });
   s.bases.push(base);
 
-  attackBase(s, 0, base.id, 0); // groundAtk 4 -> kills both garrisoned units (1 SP each), 2 damage carries onto base
+  attackBase(s, grid, 0, base.id, 0); // groundAtk 4 -> kills both garrisoned units (1 SP each), 2 damage carries onto base
 
   assert.equal(base.garrison.length, 0);
   assert.equal(base.sp, 18);
@@ -575,12 +630,13 @@ test("attackBase destroys garrisoned units oldest-first before any damage spills
 
 test("attackBase drops the base to neutral once sp hits 0, remembering lastOwnerId", () => {
   const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
   s.units.push(attacker);
   const base = landBase({ ownerId: 1, col: 6, row: 5, sp: 3, garrison: [] });
   s.bases.push(base);
 
-  attackBase(s, 0, base.id, 0);
+  attackBase(s, grid, 0, base.id, 0);
 
   assert.equal(base.sp, 0);
   assert.equal(base.ownerId, null);
@@ -589,12 +645,13 @@ test("attackBase drops the base to neutral once sp hits 0, remembering lastOwner
 
 test("attackBase never destroys a unit still under construction", () => {
   const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
   s.units.push(attacker);
   const base = landBase({ ownerId: 1, col: 6, row: 5, sp: 3, garrison: [], inProgress: { unitType: "tank", remainingTurns: 2 } });
   s.bases.push(base);
 
-  attackBase(s, 0, base.id, 0);
+  attackBase(s, grid, 0, base.id, 0);
 
   assert.equal(base.ownerId, null);
   assert.deepEqual(base.inProgress, { unitType: "tank", remainingTurns: 2 });
@@ -602,14 +659,15 @@ test("attackBase never destroys a unit still under construction", () => {
 
 test("attackBase is a no-op against a neutral or friendly base", () => {
   const s = state([0], 0);
+  const grid = allLandGrid();
   const attacker = tank({ col: 5, row: 5, remainingAttacks: 5 });
   s.units.push(attacker);
   const neutral = landBase({ id: 1, ownerId: null, col: 6, row: 5, sp: 0 });
   const friendly = landBase({ id: 2, ownerId: 0, col: 5, row: 6, sp: 20 });
   s.bases.push(neutral, friendly);
 
-  attackBase(s, 0, neutral.id, 0);
-  attackBase(s, 0, friendly.id, 0);
+  attackBase(s, grid, 0, neutral.id, 0);
+  attackBase(s, grid, 0, friendly.id, 0);
 
   assert.equal(neutral.sp, 0);
   assert.equal(friendly.sp, 20);
@@ -640,6 +698,22 @@ test("claimBase captures a neutral base, transferring ownership and clearing its
   assert.equal(base.garrison[0].id, unit.id);
   assert.deepEqual(base.queue, []);
   assert.equal(base.inProgress, null);
+});
+
+test("claimBase works for a fregat claiming a neutral port base (game spec §4: fregats can only ever claim a port)", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow"); // the fregat's own cell -- enterCost reads from here
+  const fregat = { id: 0, ownerId: 0, unitType: "fregat", col: 5, row: 5, remainingActions: UNIT_TYPES.fregat.actionsPerTurn };
+  s.units.push(fregat);
+  const base = landBase({ type: "port", ownerId: null, lastOwnerId: 1, col: 6, row: 5, sp: 0 });
+  s.bases.push(base);
+
+  claimBase(s, grid, fregat.id, base.id, 0);
+
+  assert.equal(s.units.length, 0);
+  assert.equal(base.ownerId, 0);
+  assert.equal(base.garrison[0].unitType, "fregat");
 });
 
 test("claimBase recaptures a neutral base for its own lastOwnerId without clearing the in-progress build", () => {
@@ -742,4 +816,173 @@ test("processTurnStart never auto-recaptures for a player who isn't the neutral 
 
   assert.equal(base.ownerId, null, "player 1 has no claim to it");
   assert.equal(base.inProgress.remainingTurns, 1, "not this player's base to tick either");
+});
+
+// --- Boats & cargo (Stage 7) ---
+
+function transporter(overrides = {}) {
+  return {
+    id: 50,
+    ownerId: 0,
+    unitType: "transporter",
+    col: 5,
+    row: 5,
+    sp: UNIT_TYPES.transporter.strength,
+    maxSp: UNIT_TYPES.transporter.strength,
+    remainingActions: UNIT_TYPES.transporter.actionsPerTurn,
+    remainingAttacks: UNIT_TYPES.transporter.attacksPerTurn,
+    cargo: [],
+    ...overrides,
+  };
+}
+
+test("isValidLoadIntoBoatTarget accepts an adjacent friendly transporter with room, for a vehicle-category unit", () => {
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5 });
+  const unit = tank({ id: 1, col: 6, row: 5 });
+  assert.equal(isValidLoadIntoBoatTarget(grid, unit, boat), true);
+});
+
+test("isValidLoadIntoBoatTarget rejects a category mismatch, a full boat, someone else's boat, or a boat loading into itself", () => {
+  const grid = allLandGrid();
+  const unit = tank({ id: 1, col: 6, row: 5 });
+
+  const carrierBoat = { id: 51, ownerId: 0, unitType: "carrier", col: 5, row: 5, cargo: [] }; // accepts planes, not tanks
+  assert.equal(isValidLoadIntoBoatTarget(grid, unit, carrierBoat), false, "category mismatch");
+
+  const fullBoat = transporter({ col: 5, row: 5, cargo: Array.from({ length: 5 }, (_, i) => ({ id: 100 + i, unitType: "tank", sp: 10 })) });
+  assert.equal(isValidLoadIntoBoatTarget(grid, unit, fullBoat), false, "full");
+
+  const enemyBoat = transporter({ col: 5, row: 5, ownerId: 1 });
+  assert.equal(isValidLoadIntoBoatTarget(grid, unit, enemyBoat), false, "someone else's boat");
+
+  const boat = transporter({ col: 6, row: 5 });
+  assert.equal(isValidLoadIntoBoatTarget(grid, boat, boat), false, "a boat can't load into itself/another boat");
+});
+
+test("loadIntoBoat moves the unit into cargo, removing it from state.units, sp carried over", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5 });
+  const unit = tank({ id: 1, col: 6, row: 5, sp: 7 });
+  s.units.push(boat, unit);
+
+  loadIntoBoat(s, grid, unit.id, boat.id, 0);
+
+  assert.equal(s.units.length, 1);
+  assert.equal(s.units[0].id, boat.id);
+  assert.equal(boat.cargo.length, 1);
+  assert.equal(boat.cargo[0].id, 1);
+  assert.equal(boat.cargo[0].sp, 7);
+});
+
+test("loadIntoBoat is a no-op if the unit isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5 });
+  const unit = tank({ id: 1, ownerId: 1, col: 6, row: 5 });
+  s.units.push(boat, unit);
+
+  loadIntoBoat(s, grid, unit.id, boat.id, 0);
+  assert.equal(s.units.length, 2, "nothing loaded");
+  assert.equal(boat.cargo.length, 0);
+});
+
+test("unloadCargo places a cargo unit onto the given adjacent hex, sp carried over", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5, cargo: [{ id: 1, unitType: "tank", sp: 3 }] });
+  s.units.push(boat);
+  const [dest] = grid.neighborsOf(5, 5);
+
+  unloadCargo(s, grid, boat.id, 1, dest.col, dest.row, 0);
+
+  assert.equal(boat.cargo.length, 0);
+  assert.equal(s.units.length, 2);
+  const unloaded = s.units.find((u) => u.id === 1);
+  assert.equal(unloaded.unitType, "tank");
+  assert.equal(unloaded.sp, 3);
+  assert.equal(unloaded.col, dest.col);
+  assert.equal(unloaded.row, dest.row);
+});
+
+test("unloadCargo is a no-op if the boat isn't owned by the active player", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const boat = transporter({ col: 5, row: 5, ownerId: 1, cargo: [{ id: 1, unitType: "tank", sp: 10 }] });
+  s.units.push(boat);
+  const [dest] = grid.neighborsOf(5, 5);
+
+  unloadCargo(s, grid, boat.id, 1, dest.col, dest.row, 0);
+  assert.equal(boat.cargo.length, 1, "cargo untouched");
+});
+
+test("enterBaseWithCargo unloads the boat and every unit it's carrying into the garrison for free", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow"); // the boat's own cell -- enterCost reads from here, not the base's
+  const base = landBase({ type: "port", col: 6, row: 5, garrison: [] });
+  s.bases.push(base);
+  const boat = transporter({
+    col: 5,
+    row: 5,
+    cargo: [
+      { id: 1, unitType: "tank", sp: 10 },
+      { id: 2, unitType: "tank", sp: 4 },
+    ],
+  });
+  s.units.push(boat);
+
+  enterBaseWithCargo(s, grid, boat.id, base.id, 0);
+
+  assert.equal(s.units.length, 0);
+  assert.equal(base.garrison.length, 3);
+  assert.deepEqual(
+    base.garrison.map((g) => g.id),
+    [boat.id, 1, 2],
+  );
+});
+
+test("enterBaseWithCargo works for an empty boat too", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  const base = landBase({ type: "port", col: 6, row: 5, garrison: [] });
+  s.bases.push(base);
+  const boat = transporter({ col: 5, row: 5 });
+  s.units.push(boat);
+
+  enterBaseWithCargo(s, grid, boat.id, base.id, 0);
+
+  assert.equal(s.units.length, 0);
+  assert.equal(base.garrison.length, 1);
+  assert.equal(base.garrison[0].id, boat.id);
+});
+
+test("enterBaseWithCargo is rejected entirely (all-or-nothing) if there isn't room for the boat + all its cargo", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  // 13 already used, 2 spare -- room for the boat alone, but not the boat + its 2 cargo units.
+  const base = landBase({
+    type: "port",
+    col: 6,
+    row: 5,
+    garrison: Array.from({ length: 13 }, (_, i) => ({ id: i, unitType: "tank", sp: 10 })),
+  });
+  s.bases.push(base);
+  const boat = transporter({
+    col: 5,
+    row: 5,
+    cargo: [
+      { id: 100, unitType: "tank", sp: 10 },
+      { id: 101, unitType: "tank", sp: 10 },
+    ],
+  });
+  s.units.push(boat);
+
+  enterBaseWithCargo(s, grid, boat.id, base.id, 0);
+
+  assert.equal(s.units.length, 1, "boat stays in the field -- all-or-nothing");
+  assert.equal(base.garrison.length, 13, "untouched");
 });
