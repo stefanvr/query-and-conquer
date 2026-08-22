@@ -442,10 +442,40 @@ or unit; hosts the interaction described in §2/§3 above)*
   to main menu; save slot untouched).
 - The confirmation panel reuses the mid-turn menu's own overlay backdrop, swapping which inner
   panel is shown, rather than stacking a second overlay on top.
+- Confirming Surrender now routes to the End screen below (`state.terminated`) instead of
+  straight back to the main menu — surrender "ends the match immediately" (game spec §7) the same
+  way a natural win/loss does, just always as a loss for the human, regardless of `winnerId`.
+
+### End screen (game spec §7's "Elimination & end of game")
+- Reached whenever `state.gameEnded` (a natural win/loss — see commands.js's `endTurn`/
+  `checkGameEnd`) or `state.terminated` (surrender, above) becomes true — checked right after
+  every `endTurn()` call, both in the End Turn button's own handler and while cascading through
+  AI turns, so the game can end mid-cascade without waiting for the human's turn to come back
+  around.
+- Reuses the game screen's own map camera (`createMapCamera`) in a read-only mode: no HUD, no
+  side panels, no click-to-act — pan/zoom only. A new `revealAll` camera option bypasses the
+  enemy-base label-suppression rule (§2/§4's non-disclosure) so every base's own SP/building
+  status shows too, not just type + owner — "full map reveal" (game spec §7). Fog is not applied
+  regardless of the match's own `fogOfWar` option, for the same reason.
+- Result banner: "Victory" (`--signal`) if `state.winnerId === humanId`, otherwise "Defeat"
+  (`--rust`) — covers both a natural elimination loss and `state.terminated` (always a defeat,
+  since `winnerId` is never set on that path).
+- A "Stats" button opens the stats dialog (§9) as an overlay on top, reusing the mid-turn menu's
+  own overlay-backdrop/panel-swap pattern rather than a second stacked overlay.
+- A "Main Menu" button returns to the main menu — no autosave, matching Quit's own rule (§10);
+  there's nothing meaningful left to save once the match has ended anyway.
 
 ## 9. Stats display
 *(app-only — running in-HUD stats if any, and the end-of-game stats dialog per game spec §7)*
-_Not started._
+- End-of-game only for v1 — no running in-HUD stats during play.
+- One row per player (Human/`AI n` label + accent color, matching the HUD turn indicator's own
+  treatment, §6) showing units built and units lost — `state.players[i].stats`, two counters
+  incremented by commands.js at every build-completion (`processTurnStart`) and every point a unit
+  is actually destroyed (`attackUnit`, `attackBase`'s garrisoned-unit damage, a plane's fuel
+  crash) — not at a mere relocation (load/unload/claim never destroy a unit, just move it between
+  field and garrison/cargo).
+- Opened from the End screen's Stats button (§8); closes back to the End screen underneath, same
+  overlay-swap pattern as the mid-turn menu's own Surrender confirmation.
 
 ## 10. Save/Load
 *(app-only — save/load UI flow, dev save game and dev-only load-test-game option)*
@@ -455,6 +485,9 @@ _Not started._
   hand-authored — see `scripts/generate-dev-save.js`), separate from the player's slot, reached
   via the main menu's `?dev`-gated "Load test game" entry (§8). Regenerated whenever the state
   shape changes.
+- Field units already round-trip for free — save/load serializes canonical state wholesale
+  (`JSON.stringify`/`parse`, no field-by-field logic), and `state.units` has been part of that
+  object since Stage 5. No unit-specific save/load code exists or is needed.
 
 ## 11. AI behavior UX
 *(game spec §8 — visible per-action animation during an AI turn, and how the instant/fast/slow

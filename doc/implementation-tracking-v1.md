@@ -264,7 +264,7 @@ recovery, on the same reference unit.*
       e2e), dev save's own option flipped to off for tester ergonomics (implementation-spec.md §5)
 
 ## Stage 10 — End game, outer loop
-- [ ] Spec
+- [x] Spec
 - [ ] Elimination check (zero bases **and** zero units, including a unit still under
       construction at a currently-neutral former base)
 - [ ] Win/lose detection (single remaining base owner)
