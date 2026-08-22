@@ -265,12 +265,16 @@ recovery, on the same reference unit.*
 
 ## Stage 10 — End game, outer loop
 - [x] Spec
-- [ ] Elimination check (zero bases **and** zero units, including a unit still under
-      construction at a currently-neutral former base)
-- [ ] Win/lose detection (single remaining base owner)
+- [x] Elimination check (zero bases **and** zero units, including a unit still under
+      construction at a currently-neutral former base) — `isEliminated` (commands.js), used by
+      `endTurn`'s own turn-skip loop
+- [x] Win/lose detection (single remaining base owner) — `checkGameEnd`, sets `gameEnded`/
+      `winnerId` from `endTurn`; `terminate` (surrender) is a separate always-a-loss path
 - [ ] End screen: full map reveal, read-only, all bases/units annotated
-- [ ] Stats dialog (units built/lost per player)
-- [ ] Save/load for units
+- [ ] Stats dialog (units built/lost per player) — counters (`player.stats`) and every
+      build/destroy touch point are wired and tested; the dialog UI itself is next
+- [x] Save/load for units — already generic (state.units has been part of canonical state since
+      Stage 5); confirmed with a dedicated round-trip test, no new code needed
 
 ## Stage 11 — Easy AI
 - [ ] Spec

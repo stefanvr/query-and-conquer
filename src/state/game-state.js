@@ -16,13 +16,14 @@ export const PLAYER_COLOR_VARS = ["--p-human", "--p-ai-1", "--p-ai-2", "--p-ai-3
  */
 export function createGameState(options, mapData, rng) {
   const players = [
-    { id: 0, slot: 0, isHuman: true, difficulty: null, exploredCells: [] },
+    { id: 0, slot: 0, isHuman: true, difficulty: null, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
     ...options.aiDifficulties.map((difficulty, i) => ({
       id: i + 1,
       slot: i + 1,
       isHuman: false,
       difficulty,
       exploredCells: [], // fog of war (game spec §6) — "col,row" keys, persisted across turns
+      stats: { unitsBuilt: 0, unitsLost: 0 }, // end-of-game stats dialog (implementation-spec.md §9)
     })),
   ];
 

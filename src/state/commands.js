@@ -9,22 +9,76 @@ const MAX_QUEUE_LENGTH = 5; // §2
 const MAX_BASE_CAPACITY = 15; // §2: garrisoned + in-progress builds count against it
 const CAPTURING_UNIT_TYPES = ["tank", "fighter", "fregat"]; // §4: no other unit type can capture a base
 
+/** Whether `playerId` is eliminated (game spec §7): zero bases owned *and* zero units anywhere —
+ * both conditions together, not either alone. Owning any base keeps a player in regardless of
+ * units (they can always just queue a build); having any unit keeps them in regardless of bases.
+ * "Any unit" only needs to check `state.units` (field units, including a boat and everything
+ * inside its cargo hold — the boat itself is already a field unit, so its cargo doesn't need a
+ * separate check) plus one more case the design doc calls out explicitly: a unit still under
+ * construction at a base that's currently neutral (`ownerId` null) but was last owned by
+ * `playerId` (`lastOwnerId`) — a build survives its base going neutral (§4), which is what lets
+ * that base's auto-recapture actually get a chance to happen before elimination is evaluated. A
+ * garrisoned/queued unit at a base `playerId` still owns doesn't need its own check: owning that
+ * base already keeps them in via the first condition. */
+export function isEliminated(state, playerId) {
+  if (state.bases.some((b) => b.ownerId === playerId)) return false;
+  if (state.units.some((u) => u.ownerId === playerId)) return false;
+  const hasPendingRecapture = state.bases.some((b) => b.ownerId === null && b.lastOwnerId === playerId && b.inProgress);
+  return !hasPendingRecapture;
+}
+
+/** Whether the match has ended (game spec §7): "the game ends when only one player still owns
+ * any base" — a pure count of *distinct current base owners*, deliberately not the same question
+ * as `isEliminated` (a player who owns zero bases but still has a pending recapture in flight
+ * isn't eliminated, yet doesn't stop this from ending the match the moment only one owner
+ * remains — the design doc's own wording is literally owner-count-based, not elimination-based).
+ * A count of 0 (every base simultaneously neutral, however unlikely) is *not* an end condition —
+ * "the game continues until eliminations or recaptures resolve it to one owner" — so this only
+ * fires at exactly 1. @returns {{ended: boolean, winnerId: number|null}} */
+export function checkGameEnd(state) {
+  const owners = new Set(state.bases.filter((b) => b.ownerId !== null).map((b) => b.ownerId));
+  if (owners.size === 1) return { ended: true, winnerId: [...owners][0] };
+  return { ended: false, winnerId: null };
+}
+
 /** Advances to the next player in turn order, wrapping around; bumps turnNumber on wraparound.
- * Stage 3 has no AI logic yet (Stage 11+), so an AI turn has nothing to do — callers should keep
- * calling this until the active player is human again (see screens/game-screen.js). */
+ * First checks for game end (game spec §7's per-turn sequence, step 6: "check elimination... then
+ * end turn") against the state as the just-finished player leaves it — if the match has ended,
+ * sets `gameEnded`/`winnerId` and stops advancing turns entirely (there's nothing left to play).
+ * Otherwise skips forward past any eliminated player's slot (remaining players keep their
+ * existing turn order otherwise, §7) — bounded to one full lap so a (should-be-impossible) state
+ * where every remaining player is simultaneously eliminated can't infinite-loop. */
 export function endTurn(state) {
-  state.turnIndex = (state.turnIndex + 1) % state.turnOrder.length;
-  if (state.turnIndex === 0) state.turnNumber += 1;
+  const { ended, winnerId } = checkGameEnd(state);
+  if (ended) {
+    state.gameEnded = true;
+    state.winnerId = winnerId;
+    return state;
+  }
+  for (let i = 0; i < state.turnOrder.length; i++) {
+    state.turnIndex = (state.turnIndex + 1) % state.turnOrder.length;
+    if (state.turnIndex === 0) state.turnNumber += 1;
+    if (!isEliminated(state, state.turnOrder[state.turnIndex])) break;
+  }
   return state;
 }
 
-/** Instant elimination for the human player (§7) — ends the match immediately. Stage 3 has no
- * elimination/end-screen logic yet (Stage 10), so the caller just navigates back to the game
- * room; this flag is here so Stage 10 has something to hook into without restructuring call
- * sites. */
+/** Instant elimination for the human player (§7) — ends the match immediately, always as a loss
+ * for the human regardless of `checkGameEnd`'s own owner-count rule (`winnerId` is never set on
+ * this path; the End screen, implementation-spec.md §8, treats `terminated` as an unconditional
+ * defeat). Distinct from `gameEnded` (a natural win/loss) so the two paths stay easy to tell
+ * apart, though the UI treats either as "go to the End screen." */
 export function terminate(state) {
   state.terminated = true;
   return state;
+}
+
+/** Bumps `key` ("unitsBuilt" or "unitsLost") on `playerId`'s stats (implementation-spec.md §9) —
+ * shared by every build-completion and unit-destruction call site so they don't each hand-roll
+ * the same player lookup. No-op for an unknown player id. */
+function bumpStat(state, playerId, key) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (player) player.stats[key] += 1;
 }
 
 function capacityUsed(base) {
@@ -140,6 +194,7 @@ export function moveUnit(state, grid, unitId, targetCol, targetRow, activePlayer
     unit.cellsFlown += 1;
     if (unit.cellsFlown > stats.roundTripRange) {
       state.units.splice(state.units.indexOf(unit), 1); // crash: fuel exhausted (game spec §3)
+      bumpStat(state, unit.ownerId, "unitsLost"); // §9
     }
   }
   markExplored(state, activePlayerId); // the move may have revealed new cells (§6)
@@ -416,7 +471,10 @@ export function attackUnit(state, grid, attackerUnitId, defenderUnitId, activePl
   attacker.remainingAttacks -= 1;
   if (atkStats.maxStrikes) attacker.strikesUsed += 1;
   defender.sp -= damage;
-  if (defender.sp <= 0) state.units.splice(defenderIndex, 1);
+  if (defender.sp <= 0) {
+    state.units.splice(defenderIndex, 1);
+    bumpStat(state, defender.ownerId, "unitsLost"); // §9
+  }
   return state;
 }
 
@@ -455,6 +513,7 @@ export function attackBase(state, grid, attackerUnitId, baseId, activePlayerId) 
   let damage = atkStats.groundAtk; // bases are always "ground" targets (§3)
   while (damage > 0 && base.garrison.length > 0) {
     base.garrison.shift(); // oldest-entered first, 1 SP each regardless of their own strength
+    bumpStat(state, base.ownerId, "unitsLost"); // §9 — still base's current owner, checked before any neutral flip below
     damage -= 1;
   }
   if (damage > 0) {
@@ -554,6 +613,7 @@ export function processTurnStart(state, playerId) {
         const unitType = base.inProgress.unitType;
         base.garrison.push({ id: state.nextUnitId++, unitType, sp: UNIT_TYPES[unitType].strength });
         base.inProgress = null;
+        bumpStat(state, playerId, "unitsBuilt"); // §9 — playerId, not base.ownerId: still null here on a recapture completion (set just below)
         if (awaitingRecapture) {
           base.ownerId = playerId;
           base.sp = 1;
