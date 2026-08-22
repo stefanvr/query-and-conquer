@@ -1287,9 +1287,9 @@ test("isEliminated is true at a neutral base they last owned once its build is g
   assert.equal(isEliminated(s, 0), true);
 });
 
-test("checkGameEnd fires with the sole remaining owner once exactly one player owns any base", () => {
+test("checkGameEnd fires with the sole remaining owner once the other player is actually eliminated (no base, no units, no pending recapture)", () => {
   const s = state([0, 1], 0);
-  s.bases.push(landBase({ id: 0, ownerId: 0 }), landBase({ id: 1, ownerId: null, lastOwnerId: 1 }));
+  s.bases.push(landBase({ id: 0, ownerId: 0 }), landBase({ id: 1, ownerId: null, lastOwnerId: 1, inProgress: null }));
   assert.deepEqual(checkGameEnd(s), { ended: true, winnerId: 0 });
 });
 
@@ -1299,15 +1299,32 @@ test("checkGameEnd doesn't fire while multiple players still own bases", () => {
   assert.deepEqual(checkGameEnd(s), { ended: false, winnerId: null });
 });
 
-test("checkGameEnd doesn't fire when every base is simultaneously neutral (owner count 0)", () => {
+test("checkGameEnd does NOT fire just because only one player currently owns a base, if another player still has a pending recapture (not eliminated)", () => {
+  // The scenario this test exists for: player 0 is the sole current base owner, but player 1
+  // hasn't been eliminated yet -- they still have a build in progress at a neutral base they
+  // last owned (isEliminated's own pending-recapture exception, game spec §7). The match must
+  // not end out from under that recapture attempt just because player 0 is, for the moment, the
+  // only one who currently *owns* a base.
   const s = state([0, 1], 0);
-  s.bases.push(landBase({ id: 0, ownerId: null, lastOwnerId: 0 }), landBase({ id: 1, ownerId: null, lastOwnerId: 1 }));
+  s.bases.push(
+    landBase({ id: 0, ownerId: 0 }),
+    landBase({ id: 1, ownerId: null, lastOwnerId: 1, inProgress: { unitType: "tank", remainingTurns: 1 } }),
+  );
   assert.deepEqual(checkGameEnd(s), { ended: false, winnerId: null });
 });
 
-test("endTurn sets gameEnded/winnerId and stops advancing turns once only one player owns any base", () => {
+test("checkGameEnd doesn't fire when every base is simultaneously neutral but every player still has a pending recapture", () => {
+  const s = state([0, 1], 0);
+  s.bases.push(
+    landBase({ id: 0, ownerId: null, lastOwnerId: 0, inProgress: { unitType: "tank", remainingTurns: 1 } }),
+    landBase({ id: 1, ownerId: null, lastOwnerId: 1, inProgress: { unitType: "tank", remainingTurns: 2 } }),
+  );
+  assert.deepEqual(checkGameEnd(s), { ended: false, winnerId: null });
+});
+
+test("endTurn sets gameEnded/winnerId and stops advancing turns once every other player is actually eliminated", () => {
   const s = state([0, 1, 2], 0);
-  ownABase(s, [0]); // only player 0 owns a base
+  ownABase(s, [0]); // only player 0 owns a base; players 1 and 2 have nothing at all -- eliminated
   endTurn(s);
   assert.equal(s.gameEnded, true);
   assert.equal(s.winnerId, 0);

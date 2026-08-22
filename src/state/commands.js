@@ -27,17 +27,17 @@ export function isEliminated(state, playerId) {
   return !hasPendingRecapture;
 }
 
-/** Whether the match has ended (game spec §7): "the game ends when only one player still owns
- * any base" — a pure count of *distinct current base owners*, deliberately not the same question
- * as `isEliminated` (a player who owns zero bases but still has a pending recapture in flight
- * isn't eliminated, yet doesn't stop this from ending the match the moment only one owner
- * remains — the design doc's own wording is literally owner-count-based, not elimination-based).
- * A count of 0 (every base simultaneously neutral, however unlikely) is *not* an end condition —
- * "the game continues until eliminations or recaptures resolve it to one owner" — so this only
- * fires at exactly 1. @returns {{ended: boolean, winnerId: number|null}} */
+/** Whether the match has ended (game spec §7): "the game ends when only one player has not been
+ * eliminated" — keyed off `isEliminated` itself, not a simpler "only one base owner" count. Those
+ * two aren't always the same question: a player who's lost every base but still has a build in
+ * progress at a neutral base they last owned (`isEliminated`'s own pending-recapture exception)
+ * isn't eliminated yet, and the game must not end out from under that recapture attempt just
+ * because they're not the sole *base owner* at this exact moment. A simultaneous all-neutral
+ * state (every remaining player mid-recapture, nobody currently owning a base) naturally isn't an
+ * end condition either, for the same reason. @returns {{ended: boolean, winnerId: number|null}} */
 export function checkGameEnd(state) {
-  const owners = new Set(state.bases.filter((b) => b.ownerId !== null).map((b) => b.ownerId));
-  if (owners.size === 1) return { ended: true, winnerId: [...owners][0] };
+  const remaining = state.players.filter((p) => !isEliminated(state, p.id));
+  if (remaining.length === 1) return { ended: true, winnerId: remaining[0].id };
   return { ended: false, winnerId: null };
 }
 

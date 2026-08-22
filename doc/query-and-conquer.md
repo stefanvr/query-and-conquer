@@ -221,9 +221,11 @@ anything else.
     before elimination is evaluated.
 - Remaining players keep their existing turn order (the eliminated player's slot is simply
   skipped).
-- The game ends when only one player still owns any base (a simultaneous all-neutral state with
-  no player owning a base, however unlikely, is not itself an end condition — the game continues
-  until eliminations or recaptures resolve it to one owner).
+- The game ends when only one player has not been eliminated — not simply "owns the most bases,"
+  since a player who's lost every base can still be fighting to get one back via a build already
+  in progress (the elimination rule's own recapture exception above). A simultaneous all-neutral
+  state where no player currently owns a base is not itself an end condition — the game continues
+  until eliminations or recaptures resolve it to one remaining player.
 - End screen: victory/loss result, full map reveal (fog removed, but read-only — no further
   actions), all bases/units annotated with details, and a stats dialog (units built/lost per
   player).
