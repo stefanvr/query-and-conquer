@@ -230,8 +230,13 @@ recovery, on the same reference unit.*
       `planesOwingMovement` gates/labels End Turn (§6), unit panel shows strikes/fuel remaining
       for a plane (§3), and moveUnit's own fuel-crash is handled in the UI too (selection/panel
       close on a crashed plane, not a stale render)
-- [ ] Mountain base (planes only; requires all-mountain neighbors)
-- [ ] Base claim via fighter, including a mountain base unreachable by tank or boat (§4)
+- [x] Mountain base (planes only; requires all-mountain neighbors) — already generic (base
+      placement's `eligibleBaseType`, `BASE_CATEGORIES.mountain`, base panel's `buildableUnitTypes`
+      all predate this stage); already covered by base-placement/terrain-texture tests, confirmed,
+      no new code needed
+- [x] Base claim via fighter, including a mountain base unreachable by tank or boat (§4) — already
+      generic via claimBase's existing capturing-type + category checks; confirmed via a dedicated
+      node:test (fighter claiming a neutral mountain base)
 - [ ] Dev-map fixtures: human + enemy mountain base, a fighter and a bomber near the enemy base
       with partial fuel spent but enough left to reach the human mountain base, and an enemy tank
       within the existing human fregat's range

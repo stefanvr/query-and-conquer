@@ -718,6 +718,21 @@ test("claimBase works for a fregat claiming a neutral port base (game spec §4: 
   assert.equal(base.garrison[0].unitType, "fregat");
 });
 
+test("claimBase works for a fighter claiming a neutral mountain base (game spec §4: a mountain base unreachable by tank or boat can only be claimed by a fighter)", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const fighter = plane({ unitType: "fighter", col: 5, row: 5 });
+  s.units.push(fighter);
+  const base = landBase({ type: "mountain", ownerId: null, lastOwnerId: 1, col: 6, row: 5, sp: 0 });
+  s.bases.push(base);
+
+  claimBase(s, grid, fighter.id, base.id, 0);
+
+  assert.equal(s.units.length, 0);
+  assert.equal(base.ownerId, 0);
+  assert.equal(base.garrison[0].unitType, "fighter");
+});
+
 test("claimBase recaptures a neutral base for its own lastOwnerId without clearing the in-progress build", () => {
   const s = state([1], 0);
   const unit = tank({ ownerId: 1, col: 5, row: 5 });
