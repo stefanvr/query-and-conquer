@@ -91,7 +91,15 @@ function isBlockedForMovement(state, col, row) {
 /** Moves a field unit one hex, if the target is adjacent, passable, unoccupied, and affordable
  * from the unit's remaining actions (game spec §3). No-op otherwise; also a no-op if `unit` isn't
  * owned by `activePlayerId` — previously enforced only by the UI wiring up controls for the
- * player's own units, which stopped being safe to rely on once attack/claim exist (§3). */
+ * player's own units, which stopped being safe to rely on once attack/claim exist (§3).
+ *
+ * For a plane (`roundTripRange` set, game spec §3's Generic Planes rules), this also tracks its
+ * fuel/mandatory-movement counters: `actionsSpentMoving` +cost (the mandatory-≥50%-movement
+ * floor, §3's Plane rearm & fuel — never touched by attackUnit/attackBase, so attacks don't
+ * count), and `cellsFlown` +1 per hex regardless of that hex's own cost (the round-trip fuel
+ * budget). The move still completes even if this pushes `cellsFlown` past `roundTripRange`, but
+ * the plane then crashes — destroyed on the spot, read literally from "crashes if range limit is
+ * exceeded" rather than as a pre-emptive can't-get-home guard. */
 export function moveUnit(state, grid, unitId, targetCol, targetRow, activePlayerId) {
   const unit = state.units.find((u) => u.id === unitId);
   if (!unit) return state;
@@ -106,11 +114,41 @@ export function moveUnit(state, grid, unitId, targetCol, targetRow, activePlayer
   unit.remainingActions -= cost;
   unit.col = targetCol;
   unit.row = targetRow;
+
+  const stats = UNIT_TYPES[unit.unitType];
+  if (stats.roundTripRange) {
+    unit.actionsSpentMoving += cost;
+    unit.cellsFlown += 1;
+    if (unit.cellsFlown > stats.roundTripRange) {
+      state.units.splice(state.units.indexOf(unit), 1); // crash: fuel exhausted (game spec §3)
+    }
+  }
   return state;
 }
 
+/** This player's own field planes that still owe their mandatory movement this turn (game spec
+ * §3's Generic Planes rules: "must mandatory at least move 50%... when not Garrisoned") — able to
+ * move further (`remainingActions > 0`) but under half their type's `actionsPerTurn` spent on
+ * movement (`actionsSpentMoving`, attacks excluded — see moveUnit). The `remainingActions > 0`
+ * half matters: a plane that spent its whole turn attacking instead has nothing left it could do
+ * about it, so it must not block ending the turn. A garrisoned plane never appears in
+ * `state.units` at all, so it's naturally exempt too. Exported so the HUD can gate/label End Turn
+ * without duplicating this logic (implementation-spec.md §6). */
+export function planesOwingMovement(state, playerId) {
+  return state.units.filter((u) => {
+    if (u.ownerId !== playerId || u.remainingActions <= 0) return false;
+    const stats = UNIT_TYPES[u.unitType];
+    return Boolean(stats.roundTripRange) && u.actionsSpentMoving < stats.actionsPerTurn / 2;
+  });
+}
+
 /** Field-unit shape a garrisoned/cargo entry becomes on exit (unload/unloadCargo) — sp carried
- * over (a damaged unit stays damaged, §3/§4), a fresh cargo hold if the exiting type has one. */
+ * over (a damaged unit stays damaged, §3/§4), a fresh cargo hold if the exiting type has one. A
+ * plane (`roundTripRange` set) also gets its rearm/fuel counters: `strikesUsed`/`cellsFlown`
+ * carry over from the entry if it had them (a Bomber that didn't rearm in a carrier, §3's Plane
+ * rearm & fuel), default to 0 otherwise (a base entry always rearms, so it never sets them —
+ * loadUnit/enterBaseWithCargo push plain entries); `actionsSpentMoving` always starts at 0, since
+ * it's this-turn-only regardless of rearm status. */
 function toFieldUnit(entry, ownerId, targetCol, targetRow, remainingActions) {
   const stats = UNIT_TYPES[entry.unitType];
   const unit = {
@@ -125,6 +163,11 @@ function toFieldUnit(entry, ownerId, targetCol, targetRow, remainingActions) {
     remainingAttacks: stats.attacksPerTurn,
   };
   if (stats.holdCapacity) unit.cargo = [];
+  if (stats.roundTripRange) {
+    unit.strikesUsed = entry.strikesUsed ?? 0;
+    unit.cellsFlown = entry.cellsFlown ?? 0;
+    unit.actionsSpentMoving = 0;
+  }
   return unit;
 }
 
@@ -275,7 +318,10 @@ export function isValidLoadIntoBoatTarget(grid, unit, boat) {
 /** Loads a field unit into an adjacent friendly boat's cargo hold (game spec §3's
  * `holdCapacity`) — same cost/ownership pattern as loadUnit, just into a boat instead of a base.
  * No-op if the target isn't valid (isValidLoadIntoBoatTarget) or `unit` isn't owned by
- * `activePlayerId`. */
+ * `activePlayerId`. A plane whose type doesn't rearm at a carrier (`rearmsAtCarrier` unset —
+ * Bomber, §3's Plane rearm & fuel) carries its `strikesUsed`/`cellsFlown` into the cargo entry
+ * unchanged, so they're still low when it exits later; a Fighter (or any non-plane) doesn't need
+ * them carried — a base entry always rearms regardless (toFieldUnit's own doc comment). */
 export function loadIntoBoat(state, grid, unitId, boatId, activePlayerId) {
   const index = state.units.findIndex((u) => u.id === unitId);
   if (index === -1) return state;
@@ -285,7 +331,13 @@ export function loadIntoBoat(state, grid, unitId, boatId, activePlayerId) {
   if (!isValidLoadIntoBoatTarget(grid, unit, boat)) return state;
 
   state.units.splice(index, 1);
-  boat.cargo.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp });
+  const stats = UNIT_TYPES[unit.unitType];
+  const cargoEntry = { id: unit.id, unitType: unit.unitType, sp: unit.sp };
+  if (stats.roundTripRange && !stats.rearmsAtCarrier) {
+    cargoEntry.strikesUsed = unit.strikesUsed;
+    cargoEntry.cellsFlown = unit.cellsFlown;
+  }
+  boat.cargo.push(cargoEntry);
   return state;
 }
 
@@ -316,6 +368,7 @@ export function isValidAttackTarget(state, grid, attacker, defender) {
   if (attacker.ownerId === defender.ownerId) return false;
   if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return false;
   const stats = UNIT_TYPES[attacker.unitType];
+  if (stats.maxStrikes && attacker.strikesUsed >= stats.maxStrikes) return false;
   if (offsetDistance(attacker, defender) > stats.attackRange) return false;
   return !stats.needsLOS || hasLineOfSight(state, grid, attacker, defender);
 }
@@ -339,6 +392,7 @@ export function attackUnit(state, grid, attackerUnitId, defenderUnitId, activePl
 
   attacker.remainingActions -= 1;
   attacker.remainingAttacks -= 1;
+  if (atkStats.maxStrikes) attacker.strikesUsed += 1;
   defender.sp -= damage;
   if (defender.sp <= 0) state.units.splice(defenderIndex, 1);
   return state;
@@ -352,6 +406,7 @@ export function isValidAttackBaseTarget(state, grid, attacker, base) {
   if (!base || base.ownerId === null || base.ownerId === attacker.ownerId) return false;
   if (attacker.remainingAttacks <= 0 || attacker.remainingActions < 1) return false;
   const stats = UNIT_TYPES[attacker.unitType];
+  if (stats.maxStrikes && attacker.strikesUsed >= stats.maxStrikes) return false;
   if (offsetDistance(attacker, base) > stats.attackRange) return false;
   return !stats.needsLOS || hasLineOfSight(state, grid, attacker, base);
 }
@@ -374,6 +429,7 @@ export function attackBase(state, grid, attackerUnitId, baseId, activePlayerId) 
   attacker.remainingAttacks -= 1;
 
   const atkStats = UNIT_TYPES[attacker.unitType];
+  if (atkStats.maxStrikes) attacker.strikesUsed += 1;
   let damage = atkStats.groundAtk; // bases are always "ground" targets (§3)
   while (damage > 0 && base.garrison.length > 0) {
     base.garrison.shift(); // oldest-entered first, 1 SP each regardless of their own strength
@@ -443,7 +499,10 @@ export function claimBase(state, grid, unitId, baseId, activePlayerId) {
  *    currently own, if it's neutral and they're its `lastOwnerId` — a build survives its base
  *    going neutral, so this is where it finally resolves. Ownership returns to this player and sp
  *    resets to 1 (lower than a manual claim, commands.js's claimBase) once that build completes.
- * Also resets this player's field units back to full actions/attacks per turn (game spec §3). */
+ * Also resets this player's field units back to full actions/attacks per turn (game spec §3), and
+ * a plane's `actionsSpentMoving` back to 0 (its mandatory-movement floor is this-turn-only, §3's
+ * Plane rearm & fuel — `strikesUsed`/`cellsFlown` are untouched here, since those only reset on
+ * an actual rearm, not every turn). */
 export function processTurnStart(state, playerId) {
   for (const base of state.bases) {
     const ownsIt = base.ownerId === playerId;
@@ -480,8 +539,10 @@ export function processTurnStart(state, playerId) {
 
   for (const unit of state.units) {
     if (unit.ownerId !== playerId) continue;
-    unit.remainingActions = UNIT_TYPES[unit.unitType].actionsPerTurn;
-    unit.remainingAttacks = UNIT_TYPES[unit.unitType].attacksPerTurn;
+    const stats = UNIT_TYPES[unit.unitType];
+    unit.remainingActions = stats.actionsPerTurn;
+    unit.remainingAttacks = stats.attacksPerTurn;
+    if (stats.roundTripRange) unit.actionsSpentMoving = 0; // this-turn-only (§3's Plane rearm & fuel)
   }
   return state;
 }

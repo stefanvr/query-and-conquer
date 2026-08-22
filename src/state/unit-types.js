@@ -34,6 +34,7 @@ export const UNIT_TYPES = {
     moveCost: { gras: 1, gravel: 1, mountain: 2, sand: 1, shallow: 1, deep: 1 },
     maxStrikes: 4, // before returning to base/carrier to rearm
     roundTripRange: 100,
+    rearmsAtCarrier: true, // unlike Bomber, entering a carrier (not just a base) also rearms
   },
   bomber: {
     category: "plane",

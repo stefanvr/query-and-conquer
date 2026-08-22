@@ -8,6 +8,7 @@ import {
   reorderQueuedBuild,
   processTurnStart,
   moveUnit,
+  planesOwingMovement,
   unloadUnit,
   unloadCargo,
   loadUnit,
@@ -17,6 +18,7 @@ import {
   isValidLoadIntoBoatTarget,
   isValidAttackTarget,
   attackUnit,
+  isValidAttackBaseTarget,
   attackBase,
   claimBase,
 } from "../../src/state/commands.js";
@@ -836,6 +838,27 @@ function transporter(overrides = {}) {
   };
 }
 
+/** A field-unit plane (Fighter or Bomber, `unitType` overridable) at full rearm/fuel — Stage 8's
+ * Plane rearm & fuel counters (`strikesUsed`/`cellsFlown`/`actionsSpentMoving`). */
+function plane(overrides = {}) {
+  const unitType = overrides.unitType ?? "fighter";
+  return {
+    id: 60,
+    ownerId: 0,
+    unitType,
+    col: 5,
+    row: 5,
+    sp: UNIT_TYPES[unitType].strength,
+    maxSp: UNIT_TYPES[unitType].strength,
+    remainingActions: UNIT_TYPES[unitType].actionsPerTurn,
+    remainingAttacks: UNIT_TYPES[unitType].attacksPerTurn,
+    strikesUsed: 0,
+    cellsFlown: 0,
+    actionsSpentMoving: 0,
+    ...overrides,
+  };
+}
+
 test("isValidLoadIntoBoatTarget accepts an adjacent friendly transporter with room, for a vehicle-category unit", () => {
   const grid = allLandGrid();
   const boat = transporter({ col: 5, row: 5 });
@@ -985,4 +1008,154 @@ test("enterBaseWithCargo is rejected entirely (all-or-nothing) if there isn't ro
 
   assert.equal(s.units.length, 1, "boat stays in the field -- all-or-nothing");
   assert.equal(base.garrison.length, 13, "untouched");
+});
+
+// --- Stage 8: Plane rearm & fuel ---
+
+test("moveUnit tracks a plane's cellsFlown (+1/hex) and actionsSpentMoving (+move cost)", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const dest = grid.neighborsOf(5, 5)[0];
+  grid.set(dest.col, dest.row, "mountain"); // fighter: mountain costs 2
+  const unit = plane({ unitType: "fighter" });
+  s.units.push(unit);
+
+  moveUnit(s, grid, unit.id, dest.col, dest.row, 0);
+
+  assert.equal(unit.cellsFlown, 1);
+  assert.equal(unit.actionsSpentMoving, 2, "mountain costs 2 for a fighter");
+});
+
+test("moveUnit doesn't touch cellsFlown/actionsSpentMoving for a non-plane unit", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const unit = tank({ col: 5, row: 5 });
+  s.units.push(unit);
+  const dest = grid.neighborsOf(5, 5)[0];
+
+  moveUnit(s, grid, 0, dest.col, dest.row, 0);
+  assert.equal(unit.cellsFlown, undefined);
+  assert.equal(unit.actionsSpentMoving, undefined);
+});
+
+test("moveUnit crashes a plane (destroyed) the moment cellsFlown exceeds its roundTripRange", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const unit = plane({ unitType: "fighter", cellsFlown: UNIT_TYPES.fighter.roundTripRange }); // already at budget
+  s.units.push(unit);
+  const dest = grid.neighborsOf(5, 5)[0];
+
+  moveUnit(s, grid, unit.id, dest.col, dest.row, 0);
+
+  assert.equal(s.units.length, 0, "one hex past the round-trip budget -- crashed");
+});
+
+test("moveUnit doesn't crash a plane still within its round-trip budget", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const unit = plane({ unitType: "fighter", cellsFlown: UNIT_TYPES.fighter.roundTripRange - 1 });
+  s.units.push(unit);
+  const dest = grid.neighborsOf(5, 5)[0];
+
+  moveUnit(s, grid, unit.id, dest.col, dest.row, 0);
+
+  assert.equal(s.units.length, 1);
+  assert.equal(unit.cellsFlown, UNIT_TYPES.fighter.roundTripRange);
+});
+
+test("planesOwingMovement lists a player's own under-moved planes, excluding one that's met the floor, one with no actions left, and other players' units", () => {
+  const s = state([0], 0);
+  const underMoved = plane({ id: 1, unitType: "fighter", actionsSpentMoving: 1 }); // < 8/2 = 4
+  const metFloor = plane({ id: 2, unitType: "fighter", actionsSpentMoving: 4 });
+  const outOfActions = plane({ id: 3, unitType: "fighter", actionsSpentMoving: 0, remainingActions: 0 });
+  const enemyPlane = plane({ id: 4, unitType: "fighter", ownerId: 1, actionsSpentMoving: 0 });
+  const groundUnit = tank({ id: 5, col: 5, row: 5, remainingActions: 5 });
+  s.units.push(underMoved, metFloor, outOfActions, enemyPlane, groundUnit);
+
+  const owing = planesOwingMovement(s, 0);
+  assert.deepEqual(owing.map((u) => u.id), [1]);
+});
+
+test("isValidAttackTarget rejects a plane that's used up its rearm-limited strikes", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const attacker = plane({ unitType: "fighter", strikesUsed: UNIT_TYPES.fighter.maxStrikes });
+  const defender = tank({ id: 1, ownerId: 1, col: 6, row: 5 });
+  assert.equal(isValidAttackTarget(s, grid, attacker, defender), false);
+});
+
+test("attackUnit increments a plane's strikesUsed on a successful attack", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const attacker = plane({ unitType: "bomber" });
+  const target = grid.neighborsOf(5, 5)[0]; // bomber's attack range is 1
+  const defender = tank({ id: 1, ownerId: 1, col: target.col, row: target.row });
+  s.units.push(attacker, defender);
+
+  attackUnit(s, grid, attacker.id, 1, 0);
+
+  assert.equal(attacker.strikesUsed, 1);
+});
+
+test("attackBase rejects and never damages once a plane's strikes are exhausted", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const attacker = plane({ unitType: "bomber", strikesUsed: UNIT_TYPES.bomber.maxStrikes, col: 5, row: 5 });
+  const target = grid.neighborsOf(5, 5)[0];
+  const base = landBase({ id: 9, ownerId: 1, col: target.col, row: target.row });
+  s.units.push(attacker);
+  s.bases.push(base);
+
+  assert.equal(isValidAttackBaseTarget(s, grid, attacker, base), false);
+  attackBase(s, grid, attacker.id, 9, 0);
+  assert.equal(base.sp, base.maxSp, "no-op -- strikes exhausted");
+});
+
+test("loadUnit into a base always rearms a plane -- a later unload starts fresh at 0/0", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const base = landBase({ type: "mountain", col: 6, row: 5, garrison: [] });
+  s.bases.push(base);
+  const unit = plane({ unitType: "fighter", col: 5, row: 5, strikesUsed: 3, cellsFlown: 80 });
+  s.units.push(unit);
+
+  loadUnit(s, grid, unit.id, base.id, 0);
+  assert.equal(base.garrison[0].strikesUsed, undefined, "base entry carries no rearm state -- always rearms");
+
+  unloadUnit(s, grid, base.id, unit.id, 5, 5, 0); // back onto its own now-vacant original hex
+  const reFielded = s.units.find((u) => u.id === unit.id);
+  assert.equal(reFielded.strikesUsed, 0);
+  assert.equal(reFielded.cellsFlown, 0);
+});
+
+test("loadIntoBoat carries a Bomber's strikesUsed/cellsFlown into its cargo entry (no rearm at a carrier), but rearms a Fighter", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(6, 5, "shallow");
+  const carrier = { ...transporter({ col: 6, row: 5 }), unitType: "carrier", sp: UNIT_TYPES.carrier.strength, maxSp: UNIT_TYPES.carrier.strength };
+  s.units.push(carrier);
+  const bomber = plane({ unitType: "bomber", col: 5, row: 5, strikesUsed: 1, cellsFlown: 40 });
+  s.units.push(bomber);
+
+  loadIntoBoat(s, grid, bomber.id, carrier.id, 0);
+  assert.equal(carrier.cargo[0].strikesUsed, 1, "bomber doesn't rearm in a carrier");
+  assert.equal(carrier.cargo[0].cellsFlown, 40);
+
+  const fighter = plane({ id: 61, unitType: "fighter", col: 5, row: 5, strikesUsed: 2, cellsFlown: 60 });
+  s.units.push(fighter);
+  loadIntoBoat(s, grid, fighter.id, carrier.id, 0);
+  assert.equal(carrier.cargo[1].strikesUsed, undefined, "fighter rearms in a carrier");
+  assert.equal(carrier.cargo[1].cellsFlown, undefined);
+});
+
+test("processTurnStart resets a plane's actionsSpentMoving each turn but leaves strikesUsed/cellsFlown untouched", () => {
+  const s = state([0], 0);
+  const unit = plane({ unitType: "fighter", strikesUsed: 2, cellsFlown: 30, actionsSpentMoving: 5 });
+  s.units.push(unit);
+
+  processTurnStart(s, 0);
+
+  assert.equal(unit.actionsSpentMoving, 0);
+  assert.equal(unit.strikesUsed, 2);
+  assert.equal(unit.cellsFlown, 30);
 });

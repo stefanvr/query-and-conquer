@@ -221,11 +221,13 @@ recovery, on the same reference unit.*
       style-guide.md §9) and left-aligned build button icon/label content (was centered)
 
 ## Stage 8 — Planes: Fighter, Bomber
-- [ ] Spec
-- [ ] Air movement, no LOS requirement
-- [ ] Rearm limits (fighter 4 strikes, bomber 2) — must return to base/carrier to rearm
-- [ ] Round-trip range limit (fighter 100 cells, bomber 200) + crash on exceeding it
-- [ ] Mandatory ≥50% action usage when not garrisoned (attacks excluded from that count)
+- [x] Spec
+- [x] Air movement, no LOS requirement — already generic (moveCost/isBlockedForMovement aren't
+      unit-type-specific, LOS only ever gated attacks); confirmed, no new movement code needed
+- [x] Rearm limits (fighter 4 strikes, bomber 2) — must return to base/carrier to rearm
+- [x] Round-trip range limit (fighter 100 cells, bomber 200) + crash on exceeding it
+- [x] Mandatory ≥50% action usage when not garrisoned (attacks excluded from that count) —
+      `planesOwingMovement` computed, End Turn gating still pending (UI step below)
 - [ ] Mountain base (planes only; requires all-mountain neighbors)
 - [ ] Base claim via fighter, including a mountain base unreachable by tank or boat (§4)
 - [ ] Dev-map fixtures: human + enemy mountain base, a fighter and a bomber near the enemy base
