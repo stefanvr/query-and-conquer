@@ -11,14 +11,16 @@
 // repair without playing a battle first. A neutral base is hand-placed near the human's own
 // (map generation only ever places bases already owned, one per player, §5 — a real
 // pre-neutral/contestable base is Stage 13 backlog, not built yet) so the Claim command has
-// something to test the same way.
+// something to test the same way. A human-owned tank is also hand-placed next to the AI's own
+// base, for manually testing attack/claim against an actual enemy base without having to walk
+// one over first.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGameState, playerBase } from "../src/state/game-state.js";
 import { queueBuild, processTurnStart, unloadUnit } from "../src/state/commands.js";
 import { deserializeGrid } from "../src/map/map-serialize.js";
-import { buildTurns } from "../src/state/unit-types.js";
+import { buildTurns, UNIT_TYPES } from "../src/state/unit-types.js";
 import { mulberry32 } from "../src/map/prng.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -65,6 +67,22 @@ state.bases.push({
   garrison: [],
   queue: [],
   inProgress: null,
+});
+
+// Hand-placed human tank next to the AI's own base, for manually testing attack/claim against a
+// real enemy base (see this file's own header comment).
+const aiBase = playerBase(state, 1);
+const [aiBaseNeighbor] = grid.neighborsOf(aiBase.col, aiBase.row);
+state.units.push({
+  id: state.nextUnitId++,
+  ownerId: 0,
+  unitType: "tank",
+  col: aiBaseNeighbor.col,
+  row: aiBaseNeighbor.row,
+  sp: UNIT_TYPES.tank.strength,
+  maxSp: UNIT_TYPES.tank.strength,
+  remainingActions: UNIT_TYPES.tank.actionsPerTurn,
+  remainingAttacks: UNIT_TYPES.tank.attacksPerTurn,
 });
 
 fs.writeFileSync(path.join(repoRoot, "assets", "dev-save.json"), JSON.stringify(state));
