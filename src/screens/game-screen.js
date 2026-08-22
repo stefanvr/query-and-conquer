@@ -8,6 +8,7 @@ import {
   cancelQueuedBuild,
   reorderQueuedBuild,
   processTurnStart,
+  markExplored,
   moveUnit,
   planesOwingMovement,
   unloadUnit,
@@ -283,7 +284,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
         button.addEventListener("click", () => {
           queueBuild(state, base.id, unitType, activePlayer(state).id);
           renderBasePanel(base);
-          camera?.draw();
+          redraw();
         });
         basePanelBuildButtons.appendChild(button);
       }
@@ -457,9 +458,11 @@ export function initGameScreen({ onQuit, onTerminate }) {
   /** Redraws the map and re-checks the End Turn gate (§6) — every mutating branch in selectHex
    * uses this instead of calling camera.draw() directly, since any of them could change a plane's
    * actionsSpentMoving/remainingActions (moving, attacking, or removing/adding a field plane via
-   * load/unload all qualify). */
+   * load/unload all qualify) *and* could change what the human's own fog of war currently reveals
+   * (§5) — so this recomputes getVisibleState and hands the camera a fresh filtered bases/units/
+   * fog via setVisibleState, rather than just re-drawing whatever it already had. */
   function redraw() {
-    camera.draw();
+    camera.setVisibleState(getVisibleState(state, humanId));
     refreshEndTurnGate();
   }
 
@@ -596,7 +599,7 @@ export function initGameScreen({ onQuit, onTerminate }) {
     advanceCascadeToHuman();
     refreshHud();
     refreshOpenPanel();
-    camera?.draw();
+    redraw(); // AI turns can move enemy units into/out of the human's own fog of war (§5)
   }
 
   // The mid-turn menu and the surrender confirmation share one overlay backdrop (#mid-turn-menu)
@@ -645,14 +648,22 @@ export function initGameScreen({ onQuit, onTerminate }) {
       closeAllPanels();
       camera?.destroy();
 
+      // Baseline fog-of-war exploration for every player (§5), before the cascade below — if
+      // turn order happens to start on the human already, advanceCascadeToHuman's loop never
+      // runs for anyone (its condition is already false), so processTurnStart's own markExplored
+      // call would never fire and the human's own starting base would render fully unexplored.
+      for (const p of state.players) markExplored(state, p.id);
+
       advanceCascadeToHuman(); // turn order is randomized (§7) — a match can start on an AI's turn
 
       const human = state.players.find((p) => p.isHuman);
       humanId = human.id;
       const myBase = playerBase(state, human.id);
+      const visible = getVisibleState(state, humanId);
       camera = createMapCamera(canvas, state.map, {
-        bases: state.bases,
-        units: state.units,
+        bases: visible.bases,
+        units: visible.units,
+        fog: visible.fog,
         players: state.players,
         viewerId: humanId,
         onSelectHex: selectHex,

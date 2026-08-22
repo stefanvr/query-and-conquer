@@ -251,10 +251,17 @@ recovery, on the same reference unit.*
       real filtering now (bases by ever-explored, units by currently-visible), backed by a new
       shared currentlyVisibleCells (visibility.js) and persisted per-player exploredCells
       (commands.js's markExplored); passthrough unchanged when options.fogOfWar is off
-- [ ] Hide cells/units outside current view range (render wiring — data layer above is ready)
-- [ ] Distinguish "explored, not currently visible" vs. "currently in view" (style-guide.md)
-- [ ] Fog of war on/off game option wired through (already collected by options-menu.js; needs
-      end-to-end confirmation once the render wiring above lands)
+- [x] Hide cells/units outside current view range — map-canvas.js's draw() now skips terrain
+      color for an unexplored cell (solid `--ink`) and never draws a unit/base the caller's own
+      getVisibleState already filtered out; the camera holds a fresh filtered bases/units/fog via
+      a new setVisibleState, refreshed on every redraw (Stage 8's shared helper, extended here)
+- [x] Distinguish "explored, not currently visible" vs. "currently in view" (style-guide.md §7) —
+      a 30% black overlay on top of the terrain fill for explored-not-visible; visually confirmed
+      via a scratch Playwright screenshot before committing (a fresh match's own base surroundings
+      revealed, the rest solid ink)
+- [x] Fog of war on/off game option wired through — already collected by options-menu.js;
+      getVisibleState's own `fogOfWar === false` passthrough confirmed end-to-end (node:test +
+      e2e), dev save's own option flipped to off for tester ergonomics (implementation-spec.md §5)
 
 ## Stage 10 — End game, outer loop
 - [ ] Spec

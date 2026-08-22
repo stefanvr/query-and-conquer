@@ -55,7 +55,12 @@ const options = {
   aiDifficulties: ["easy"],
   mapSize: "small",
   mapType: "landOnly",
-  fogOfWar: true,
+  // Off, unlike a real match's own default (options-menu.js's checkbox defaults to on) — a
+  // deliberate dev-tool call (Stage 9/implementation-spec.md §5's own Dev save note): this save
+  // exists to let a tester reach and inspect fixtures scattered across the whole map (the AI's
+  // base, the far mountain bases, ranged units, etc.), and fogging all of that by default would
+  // make it far less useful for that purpose.
+  fogOfWar: false,
 };
 
 const state = createGameState(options, mapData, mulberry32(1));

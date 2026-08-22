@@ -9,6 +9,7 @@
 // interleaved in one pass, per-cell, which let that happen near a hex's bottom edge).
 import { deserializeGrid } from "../map/map-serialize.js";
 import { hexToPixel, hexCorners, pixelToHex } from "../map/hex-pixel.js";
+import { offsetKey } from "../map/hex-coords.js";
 import { PLAYER_COLOR_VARS } from "../state/game-state.js";
 import { UNIT_TYPES } from "../state/unit-types.js";
 
@@ -102,15 +103,24 @@ function traceShape(ctx, shape, sx, sy, radius) {
  * @param {HTMLCanvasElement} canvas
  * @param {object} mapData - parsed map JSON (width, height, rows)
  * @param {{ bases?: object[], units?: object[], players?: object[], viewerId?: number|null,
+ *   fog?: {exploredCells: Set<string>, visibleCells: Set<string>}|null,
  *   selectedHex?: {col:number,row:number}|null, onSelectHex?: (col: number, row: number) => void }} [options]
  * @returns {{ draw: () => void, zoomIn: () => void, zoomOut: () => void, centerOn: (col:number,row:number) => void,
  *   setSelectedHex: (hex: {col:number,row:number}|null) => void,
+ *   setVisibleState: (visible: {bases: object[], units: object[], fog?: object|null}) => void,
  *   setPendingUnload: (preview: {col:number,row:number,ownerId:number,unitType:string,targets:{col:number,row:number}[]}|null) => void,
  *   setPendingLoadTargets: (targets: {col:number,row:number}[]|null) => void,
  *   destroy: () => void }}
  */
 export function createMapCamera(canvas, mapData, options = {}) {
-  const { bases = [], units = [], players = [], viewerId = null } = options;
+  const { players = [], viewerId = null } = options;
+  // Fog of war (implementation-spec.md §5): bases/units are already filtered by the caller's own
+  // getVisibleState before reaching here, and reassigned wholesale on every change via
+  // setVisibleState, rather than the camera re-deriving them itself — same live-reference pattern
+  // as before fog existed, just refreshed explicitly instead of held by reference forever.
+  let bases = options.bases ?? [];
+  let units = options.units ?? [];
+  let fog = options.fog ?? null; // { exploredCells, visibleCells } (Set<string> of "col,row"), or null when fogOfWar is off
   const onSelectHex = options.onSelectHex;
   let selectedHex = options.selectedHex ?? null;
 
@@ -225,8 +235,22 @@ export function createMapCamera(canvas, mapData, options = {}) {
         ctx.beginPath();
         corners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
         ctx.closePath();
+
+        // Fog of war, three states per style-guide.md §7: unexplored -- solid --ink, nothing else
+        // drawn for it (can't be selected/targeted either); explored-not-visible -- terrain color
+        // dimmed 30%; currently visible -- terrain color at full value (today's unchanged look).
+        const key = offsetKey(col, row);
+        if (fog && !fog.exploredCells.has(key)) {
+          ctx.fillStyle = cssVar("--ink");
+          ctx.fill();
+          continue;
+        }
         ctx.fillStyle = cssVar(TERRAIN_VAR[grid.get(col, row)]);
         ctx.fill();
+        if (fog && !fog.visibleCells.has(key)) {
+          ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
+          ctx.fill();
+        }
 
         if (selectedHex && selectedHex.col === col && selectedHex.row === row) {
           ctx.lineWidth = Math.max(1, size * 0.08);
@@ -396,6 +420,12 @@ export function createMapCamera(canvas, mapData, options = {}) {
     centerOn,
     setSelectedHex(hex) {
       selectedHex = hex;
+      draw();
+    },
+    setVisibleState({ bases: newBases, units: newUnits, fog: newFog = null }) {
+      bases = newBases;
+      units = newUnits;
+      fog = newFog;
       draw();
     },
     setPendingUnload(preview) {
