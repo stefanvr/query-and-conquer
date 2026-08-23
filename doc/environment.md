@@ -20,7 +20,10 @@ document exists for. Every entry below is here because it bit.
 
 True regardless of whose machine it is.
 
-- **Node 18+ / npm 9+.** Confirmed working: Node v18.19.1, npm 9.2.0.
+- **Node 20** or compatible (pinned in `.nvmrc`). Confirmed working: Node v20.20.2, npm v10.8.2.
+  `deploy.yml` doesn't itself need a Node version — v1 ships no build step (tech-stack.md: plain
+  HTML/CSS/JS, native ES modules), so there's nothing for CI to run — this pin is for local
+  dev/test only.
 
 ---
 
@@ -38,6 +41,25 @@ wsl.exe -- bash -lc 'cd ~/query-and-conquer && npm test'
 
 Calling `bash` directly from a Windows-side tool reaches Git Bash/mingw, which has no node. Only
 the `wsl.exe -- bash -lc '...'` form gets to the real environment.
+
+### Node lives in two places — the OS package is not the one to use
+
+The `apt` package (Node 18.19.1) is what a bare `node`/`npm` resolves to by default, and is past
+its own EOL. Node 20 is installed separately via `nvm` (`~/.nvm`), scoped to this user, and
+doesn't touch or replace the apt package. Because `.nvmrc` pins `20`, activate it explicitly per
+shell:
+
+```
+wsl.exe -- bash -lc 'source ~/.nvm/nvm.sh && nvm use && cd ~/query-and-conquer && npm test'
+```
+
+`nvm use` alone (no argument) reads `.nvmrc` from the current directory — the `cd` has to happen
+*before* it, or it falls back to the `default` alias instead.
+
+**A piped or subshelled `nvm` command doesn't stick.** `nvm install 20 | tail -10` runs `nvm`
+inside the pipeline's subshell; the `PATH` change it makes dies with that subshell even though the
+install itself succeeded. Run `nvm use` as its own, unpiped command whenever the next command in
+the same shell needs it on `PATH`.
 
 ### `git commit` must run inside WSL too — this one fails silently
 
