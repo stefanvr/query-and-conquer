@@ -129,6 +129,38 @@ function isLastDefenderOfSomeBase(ctx, unit) {
   });
 }
 
+/** How each strategy's `targetPriority` scores a candidate (game spec §8) — higher wins.
+ *
+ * `lowestStrength` finishes off the wounded, so it negates remaining sp. `highestAttack` goes for
+ * the biggest threat, scoring a unit by its better attack value; a base scores 0 there, since a
+ * base never attacks and so is never the biggest threat on the board. */
+const TARGET_SCORES = {
+  lowestStrength: (candidate) => -candidate.sp,
+  highestAttack: (candidate) => {
+    const stats = UNIT_TYPES[candidate.unitType];
+    return stats ? Math.max(stats.groundAtk, stats.airAtk) : 0;
+  },
+};
+
+/** Hard difficulty's "applies the strategy's target-priority rule correctly" — the best-scoring
+ * valid candidate rather than merely the first one found. Ties break by lowest id like everything
+ * else, so a seeded match still replays identically. */
+function priorityTarget(ctx, candidates, isValid) {
+  const score = TARGET_SCORES[ctx.strategy.targetPriority] ?? TARGET_SCORES.lowestStrength;
+  let best = null;
+  let bestScore = -Infinity;
+  for (const c of [...candidates].sort(byId)) {
+    if (!isValid(c)) continue;
+    const s = score(c);
+    // Strict `>` keeps the lowest id among equals, since the list is already id-sorted.
+    if (s > bestScore) {
+      bestScore = s;
+      best = c;
+    }
+  }
+  return best;
+}
+
 /** An explored-cells set for a player who has explored everything — a hard AI knows the whole
  * map, so nothing is ever a frontier for it. Duck-typed rather than a real Set of every in-map
  * cell, which would be up to 12,000 entries rebuilt per turn to answer a question whose answer is
@@ -165,7 +197,7 @@ const DIFFICULTY_TRAITS = {
     // map immediately" — needs no rule of its own, exactly as easy's "only responds to currently
     // visible threats" needs none: both are just consequences of the board each one gets.
     perceive: (state) => ({ board: state, exploredCells: EVERYWHERE }),
-    chooseTarget: firstValidTarget,
+    chooseTarget: priorityTarget,
     stepToward: naiveStepToward,
     maxActionsPerUnit: 1,
   },
@@ -409,6 +441,7 @@ export function* aiTurnActions(state, grid, playerId) {
     grid,
     playerId,
     traits,
+    strategy, // hard's target priority is the strategy's own (game spec §8) — intent, read by execution
     // Decisions read whichever board this difficulty perceives (see this file's own header) —
     // for easy, only currently-visible enemies and ever-explored bases; for hard, everything.
     enemyUnits: board.units.filter((u) => u.ownerId !== playerId),

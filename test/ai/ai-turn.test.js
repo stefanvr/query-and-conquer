@@ -488,6 +488,40 @@ test("hard AI treats the whole map as explored, so it expands rather than explor
   assert.ok(s.units[0].col > 5, "headed for the neutral base it shouldn't have known about");
 });
 
+// --- Difficulty: target priority (game spec §8's Targeting row) ---
+
+test("hard AI applies its strategy's target priority; easy takes whichever it finds first", () => {
+  const grid = allLandGrid();
+  const board = (difficulty) => {
+    // Two enemies both in range of the tank at (5,5). The lower id is the healthy one, so
+    // first-valid and lowest-strength genuinely disagree about which to hit.
+    const s = aiState({ strategy: "aggressive", difficulty }); // aggressive = lowestStrength
+    s.units.push(
+      unit({ id: 1, col: 5, row: 5 }),
+      unit({ id: 2, ownerId: 0, col: 6, row: 5, sp: 10 }),
+      unit({ id: 3, ownerId: 0, col: 5, row: 4, sp: 2 }),
+    );
+    return s;
+  };
+
+  assert.equal(runTurn(board("easy"), grid)[0].targetId, 2, "first valid target, in id order");
+  assert.equal(runTurn(board("hard"), grid)[0].targetId, 3, "the weakest one, per the strategy");
+});
+
+test("a defensive hard AI goes for the biggest threat rather than the weakest target", () => {
+  const grid = allLandGrid();
+  const s = aiState({ strategy: "defensive", difficulty: "hard" }); // defensive = highestAttack
+  s.bases.push(base({ id: 0, ownerId: 1, col: 5, row: 6 }));
+  s.units.push(
+    unit({ id: 1, col: 5, row: 5 }),
+    unit({ id: 2, ownerId: 0, unitType: "tank", col: 6, row: 5 }),
+    unit({ id: 3, ownerId: 0, unitType: "bomber", col: 5, row: 4, actionsSpentMoving: 0, cellsFlown: 0 }),
+  );
+
+  const attack = runTurn(s, grid).find((a) => a.type === "attackUnit");
+  assert.equal(attack.targetId, 3, "the bomber outguns the tank, so it's the one to neutralize");
+});
+
 // --- Mandatory plane movement (game spec §3) applied to the AI, not just the human ---
 // A defensive AI sitting next to its own base with no enemies about is the cleanest way to get a
 // unit its strategy leaves completely idle: every rule falls through. A tank in that spot simply
