@@ -5,16 +5,16 @@
 // Two rules shape everything here:
 // 1. It never mutates state itself — every action goes through commands.js, so the AI plays by
 //    exactly the rules the human's own clicks do (tech-stack.md's CQRS-lite split).
-// 2. It decides from `getVisibleState(state, playerId)`, not canonical state — easy AI respects
-//    fog (game spec §8's Difficulty table). Commands are still handed canonical `state`, since a
-//    rule has to resolve against reality (line of sight is blocked by a unit the AI can't see,
-//    say). That's safe because getVisibleState filters by reference: a unit or base the AI picked
-//    out of the projection *is* the object canonical state holds.
+// 2. The board it *decides* from is its difficulty's business (`traits.perceive`) — easy sees a
+//    fog-filtered projection, hard sees everything. Commands are always handed canonical `state`
+//    regardless, since a rule has to resolve against reality (line of sight is blocked by a unit
+//    the AI can't see, say). That's safe because getVisibleState filters by reference: a unit or
+//    base the AI picked out of the projection *is* the object canonical state holds.
 //
-// Easy difficulty's execution traits are baked into the helpers below rather than branching on
-// difficulty everywhere: `firstValidTarget` ignores each strategy's own targetPriority, and
-// `naiveStepToward` refuses to route around obstacles. Stage 12's hard AI swaps those two
-// helpers; the strategy rules themselves are shared and don't change.
+// Difficulty is a table of traits (DIFFICULTY_TRAITS below) selected once per turn and reached
+// through `ctx.traits` — perception, target choice, movement, and how much of a unit's budget
+// gets used. The strategy rules are shared and never ask which difficulty they're running as:
+// intent and execution quality are independent axes (game spec §8).
 import { getVisibleState } from "../state/queries.js";
 import {
   moveUnit,
@@ -64,8 +64,8 @@ function nearest(from, candidates) {
 }
 
 /** Easy difficulty's "first valid target found (no optimization)" — deliberately ignores the
- * strategy's own `targetPriority`, which is what hard AI (Stage 12) will turn on instead. */
-function firstValidTarget(candidates, isValid) {
+ * strategy's own `targetPriority`, which is what hard difficulty turns on instead. */
+function firstValidTarget(ctx, candidates, isValid) {
   for (const c of [...candidates].sort(byId)) {
     if (isValid(c)) return c;
   }
@@ -114,7 +114,7 @@ function approachAndClaim(ctx, unit, base) {
     claimBase(state, grid, unit.id, base.id, playerId);
     return { type: "claim", unitId: unit.id, baseId: base.id };
   }
-  return naiveStepToward(ctx, unit, base);
+  return ctx.traits.stepToward(ctx, unit, base);
 }
 
 /** Whether `unit` is the last thing holding one of its owner's bases — no other friendly unit
@@ -129,6 +129,36 @@ function isLastDefenderOfSomeBase(ctx, unit) {
   });
 }
 
+/**
+ * The difficulty axis (game spec §8's Difficulty table), as one entry per difficulty.
+ *
+ * Difficulty is selected **once per turn** and reached through `ctx.traits`, rather than tested
+ * inside each rule. The two axes are meant to be independent: a rule that asked "am I hard?"
+ * would fork every strategy along the axis strategies.js is deliberately free of, and there'd be
+ * no single place to read what a difficulty actually is.
+ *
+ * - `perceive` — which board the AI decides from, and so what it can react to at all.
+ * - `chooseTarget` — how it picks among valid targets.
+ * - `stepToward` — how it closes distance.
+ * - `maxActionsPerUnit` — how much of each unit's budget it will actually use.
+ */
+const DIFFICULTY_TRAITS = {
+  easy: {
+    perceive: (state, playerId) => getVisibleState(state, playerId),
+    chooseTarget: firstValidTarget,
+    stepToward: naiveStepToward,
+    maxActionsPerUnit: 1,
+  },
+  // Hard's own traits arrive one at a time in the commits that follow; it starts as easy so the
+  // seam itself lands as a verifiable no-op rather than mixed in with behavior changes.
+  hard: {
+    perceive: (state, playerId) => getVisibleState(state, playerId),
+    chooseTarget: firstValidTarget,
+    stepToward: naiveStepToward,
+    maxActionsPerUnit: 1,
+  },
+};
+
 // --- Strategy rules (game spec §8's Strategies lists) ---
 // Each returns an action descriptor if it applied, or null to fall through to the next rule.
 
@@ -136,12 +166,12 @@ const RULES = {
   /** Attack any enemy unit or base in range. */
   attackInRange(ctx, unit) {
     const { state, grid, playerId } = ctx;
-    const target = firstValidTarget(ctx.enemyUnits, (e) => isValidAttackTarget(state, grid, unit, e));
+    const target = ctx.traits.chooseTarget(ctx, ctx.enemyUnits, (e) => isValidAttackTarget(state, grid, unit, e));
     if (target) {
       attackUnit(state, grid, unit.id, target.id, playerId);
       return { type: "attackUnit", unitId: unit.id, targetId: target.id };
     }
-    const base = firstValidTarget(ctx.enemyBases, (b) => isValidAttackBaseTarget(state, grid, unit, b));
+    const base = ctx.traits.chooseTarget(ctx, ctx.enemyBases, (b) => isValidAttackBaseTarget(state, grid, unit, b));
     if (base) {
       attackBase(state, grid, unit.id, base.id, playerId);
       return { type: "attackBase", unitId: unit.id, baseId: base.id };
@@ -152,7 +182,7 @@ const RULES = {
   /** Move toward the nearest known enemy unit or base. */
   advanceToNearestEnemy(ctx, unit) {
     const target = nearest(unit, [...ctx.enemyUnits, ...ctx.enemyBases]);
-    return target ? naiveStepToward(ctx, unit, target) : null;
+    return target ? ctx.traits.stepToward(ctx, unit, target) : null;
   },
 
   /** Move toward the nearest unexplored area or unclaimed base. Prefers an unclaimed base this
@@ -161,7 +191,7 @@ const RULES = {
     const claimed = RULES.expandToUnclaimedBase(ctx, unit);
     if (claimed) return claimed;
     const frontier = nearestUnexplored(ctx, unit);
-    return frontier ? naiveStepToward(ctx, unit, frontier) : null;
+    return frontier ? ctx.traits.stepToward(ctx, unit, frontier) : null;
   },
 
   /** If damaged and a friendly base has room, head back to it (and enter, once adjacent). */
@@ -174,7 +204,7 @@ const RULES = {
       loadUnit(state, grid, unit.id, base.id, playerId);
       return { type: "retreat", unitId: unit.id, baseId: base.id };
     }
-    return naiveStepToward(ctx, unit, base);
+    return ctx.traits.stepToward(ctx, unit, base);
   },
 
   /** Attack an enemy in range that's threatening one of my bases (inside that base's view). */
@@ -183,7 +213,7 @@ const RULES = {
     const threats = ctx.enemyUnits.filter((e) =>
       ctx.ownBases.some((b) => offsetDistance(e, b) <= BASE_TYPES[b.type].view),
     );
-    const target = firstValidTarget(threats, (e) => isValidAttackTarget(state, grid, unit, e));
+    const target = ctx.traits.chooseTarget(ctx, threats, (e) => isValidAttackTarget(state, grid, unit, e));
     if (!target) return null;
     attackUnit(state, grid, unit.id, target.id, playerId);
     return { type: "attackUnit", unitId: unit.id, targetId: target.id };
@@ -196,7 +226,7 @@ const RULES = {
     if (!base) return null;
     const holdRadius = BASE_TYPES[base.type].view + UNIT_TYPES[unit.unitType].view;
     if (offsetDistance(unit, base) <= holdRadius) return null;
-    return naiveStepToward(ctx, unit, base);
+    return ctx.traits.stepToward(ctx, unit, base);
   },
 
   /** Move toward (and take) the nearest known unclaimed base, if this unit can capture at all. */
@@ -282,7 +312,7 @@ function* satisfyPlaneMovement(ctx) {
   for (const plane of planesOwingMovement(state, playerId).sort(byId)) {
     while (planesOwingMovement(state, playerId).includes(plane)) {
       const home = nearest(plane, repairBases(ctx));
-      const action = (home && naiveStepToward(ctx, plane, home)) || stepAnywhere(ctx, plane);
+      const action = (home && ctx.traits.stepToward(ctx, plane, home)) || stepAnywhere(ctx, plane);
       if (!action) break; // boxed in — nothing more this plane can do about its debt
       yield action;
     }
@@ -359,12 +389,14 @@ export function* aiTurnActions(state, grid, playerId) {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return;
   const strategy = STRATEGIES[player.strategy] ?? STRATEGIES.balanced;
-  const visible = getVisibleState(state, playerId);
+  const traits = DIFFICULTY_TRAITS[player.difficulty] ?? DIFFICULTY_TRAITS.easy;
+  const visible = traits.perceive(state, playerId);
 
   const ctx = {
     state,
     grid,
     playerId,
+    traits,
     // Decisions read the fog-filtered projection (see this file's own header): visible enemy
     // units, and bases this player has at least explored once.
     enemyUnits: visible.units.filter((u) => u.ownerId !== playerId),
@@ -393,13 +425,24 @@ export function* aiTurnActions(state, grid, playerId) {
   }
 
   for (const unit of fieldUnits) {
-    if (!state.units.includes(unit)) continue; // destroyed earlier this turn (e.g. a plane crash)
-    for (const ruleName of strategy.rules) {
-      const action = RULES[ruleName](ctx, unit);
-      if (action) {
-        yield action;
-        break; // one action per unit per turn -- easy AI's unspent-budget trait (game spec §8)
+    // How much of its budget a unit gets to use is the difficulty's call (game spec §8's Action
+    // efficiency row): easy stops after one action and leaves the rest unspent, hard keeps going.
+    for (let taken = 0; taken < traits.maxActionsPerUnit; taken++) {
+      if (!state.units.includes(unit)) break; // gone (a plane crash, or it garrisoned into a base)
+      const actionsBefore = unit.remainingActions;
+
+      let action = null;
+      for (const ruleName of strategy.rules) {
+        action = RULES[ruleName](ctx, unit);
+        if (action) break;
       }
+      if (!action) break; // nothing in the strategy applies — this unit is finished for the turn
+      yield action;
+
+      // Every action a unit takes — move, attack, claim, load — spends at least one of its own
+      // actions. One that reports success without spending would otherwise be repeated forever,
+      // and guarding here is cheaper than trusting each rule to be honest about its cost.
+      if (unit.remainingActions >= actionsBefore) break;
     }
   }
 
