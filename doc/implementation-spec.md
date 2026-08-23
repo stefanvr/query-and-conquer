@@ -68,12 +68,26 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   stroke rule extended to hexes — no new token needed).
 
 ### Movement targeting
-- With a unit selected, tapping/clicking an adjacent (hex-distance 1), passable, unoccupied hex
-  moves the unit there instead of reselecting — spends that terrain's move cost (game spec §3)
-  from the unit's remaining actions. Tapping anything else (non-adjacent, impassable, occupied,
-  or no unit selected) falls back to normal selection/deselection.
-- No multi-hex pathfinding or path preview for human play in v1 — click-to-move one hex at a
-  time. (Hard AI's "full pathfinding," §8/Stage 12, is a separate AI-quality concern, not this.)
+- Selecting your own unit, on your own turn, highlights every hex it can afford to reach this
+  turn (style-guide.md §8's move-range overlay). Tapping/clicking any highlighted hex moves it
+  there; tapping anything else falls back to the priority order in Attack & claim targeting
+  below, then normal selection/deselection.
+- Reach is computed by `reachableCells` (`src/state/pathfinding.js`): a Dijkstra expansion over
+  per-terrain move costs (game spec §3) from the unit's position, bounded by its remaining
+  actions. Impassable terrain (cost `0`) and occupied hexes — any unit or base, one unit per cell
+  (§1) — are neither entered nor traversed, so the highlight only ever shows genuinely reachable
+  ground, not straight-line distance.
+- Confirming walks the stored route one hex at a time through the ordinary `moveUnit` command
+  rather than teleporting: every per-hex rule still fires exactly as it would have for individual
+  clicks (AP spend, fog reveal, a plane's fuel tick and possible crash mid-route, §3). If the unit
+  is destroyed partway, the walk stops there and its panel closes.
+- Its own module rather than UI-local, because hard AI needs the same lowest-cost routing
+  (game spec §8's Difficulty table, Stage 12).
+- **This replaces v1's original one-hex-per-click rule.** That was chosen to keep the first
+  movement pass small; reviewing build-v2 it read as tedium (a tank crossing open ground needed a
+  click per hex) with no rules benefit, since single-hop clicks and a walked route spend exactly
+  the same AP. Hard AI's pathfinding remains a separate concern — this shares the module, not the
+  decision.
 - Movement never requires line of sight for any unit type — LOS only ever gates attacks (§1's
   Attack & claim targeting). A plane's move can still destroy it outright via a fuel crash (§3's
   Plane rearm & fuel) — the map/unit panel simply reflect the unit's removal afterward, same as
@@ -82,11 +96,21 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 ### Unload destination picker
 - Clicking a filled, owned garrison/cargo slot (§2/§3) closes the base/unit panel and enters
   unload-preview mode: the garrisoned/cargo unit's own token (style-guide.md §9) draws on top of
-  the base or boat's hex, and every valid adjacent destination (passable for its type,
-  unoccupied, affordable within its full action budget) highlights.
+  the base or boat's hex, and every valid adjacent destination highlights. A destination is
+  either **open terrain** (passable for its type, unoccupied, affordable within its full action
+  budget) or **an adjacent friendly boat** whose hold accepts this unit's category and still has
+  room (§3's Cargo).
 - Clicking the base/boat hex, or the previewed unit's own hex, cancels back to its panel.
-  Clicking a highlighted hex confirms — unloads the unit there (§2/§3) and opens its unit panel
-  (§3). Clicking anything else is a no-op; stays in preview mode.
+  Clicking a highlighted hex confirms — the unit either becomes a field unit there, or joins that
+  boat's cargo — and its unit panel opens if it's a field unit afterward (§3). Clicking anything
+  else is a no-op; stays in preview mode.
+- Unloading straight into a boat costs the unit nothing, unlike unloading onto terrain (1 action
+  + move cost). Neither side of a container-to-container transfer has an action budget to charge
+  in the first place — only field units track `remainingActions` — and the same already holds in
+  the opposite direction, where a boat entering a base unloads its whole cargo for free (§2's
+  Boat entry). Charging terrain move cost would be worse than meaningless here: the unit never
+  stands on terrain, and a base's own land cell is impassable to the boat while the boat's water
+  cell is impassable to the vehicle it's loading.
 
 ### Load destination picker
 - The unit panel's Load button (§3) is a single button, shown whenever at least one adjacent
@@ -107,6 +131,14 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   neutral base there, if the unit's type can capture it (tank/fighter/fregat, game spec §4) →
   claim. Unlike Movement targeting, the target doesn't have to be adjacent — attack range can
   exceed 1 (game spec §3's per-unit table; Fregat's is 2).
+- Selecting your own unit, on your own turn, highlights what it can act on right now, alongside
+  the move-range overlay above: every enemy unit/base it could actually attack (attack-target
+  overlay), and every neutral base it could claim (claim-target overlay) — style-guide.md §8.
+  Both use the same predicates the click itself resolves through (`isValidAttackTarget`,
+  `isValidAttackBaseTarget`, `isValidClaimTarget`), so a hex is highlighted exactly when clicking
+  it would work — never a target that then no-ops. This is what makes per-unit attack ranges and
+  the LOS rule legible: before, a blocked shot and an out-of-range one were both just a click
+  that did nothing.
 - **Attack**: costs 1 action and 1 of the unit's remaining attacks this turn (game spec §3's
   Attacks/turn cap, §3 below); no-op if either is exhausted, the target's outside attack range,
   or (for a unit with `needsLOS`) line of sight to it is blocked (game spec §1: mountain cells,

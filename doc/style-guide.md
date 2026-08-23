@@ -97,10 +97,12 @@ always hidden outside current view, only terrain stays revealed once explored).
 ## 8. State / selection / highlight states
 Scope: status rendered **on the map itself** (canvas), not off-map UI (side panels, HUD, menus)
 — those already use the full component vocabulary elsewhere in this doc (§9's buttons/panels/
-dropdowns). On the map, use **text only** — no color-coded highlight boxes, icons, or glow
-effects yet. This is an intentional placeholder to limit canvas-drawing complexity; dedicated
-map UI elements (selection rings, health bars, range overlays) are expected to replace this in a
-later pass.
+dropdowns).
+
+### Entity status — text
+Per-entity status stays **text only**: no icons, badges, bars, or glow effects. Kept deliberately
+plain so a hex stays readable at small zoom levels, where anything richer collides with its
+neighbors.
 
 | State | treatment |
 |---|---|
@@ -111,6 +113,28 @@ later pass.
 
 Text uses `--parchment` on a small `--ink` backing (for legibility over any terrain color),
 `system-ui` body font, no Staatliches (that's reserved for titles/buttons per §5).
+
+### Hex overlays — what you can do here
+Replaces this section's original blanket "no highlight boxes" placeholder, which flagged range
+overlays as expected to arrive in a later pass. These answer a different question than the text
+above — not "what is this entity", but "what happens if I tap this hex" — and text can't carry
+that across dozens of hexes at once.
+
+| Overlay | treatment | means |
+|---|---|---|
+| Selected hex | `#FFFFFF` outline stroke, no fill | what's currently selected |
+| Move range | `--signal` fill, 18% alpha, no stroke | the selected unit can reach this hex this turn |
+| Attack target | `--rust` fill, 40% alpha + `--rust` stroke | tapping attacks what's here |
+| Claim target | `--signal` fill, 45% alpha + `--signal` stroke | tapping claims this neutral base |
+| Load/unload destination | `--signal` fill, 35% alpha, no stroke | a valid destination while a picker is open |
+
+Fill alpha carries weight: the ambient move-range wash sits well below anything actionable, so a
+field of reachable hexes never competes with the few targets among them. A stroke marks the two
+overlays that commit to something irreversible (attack, claim); the picker destinations don't get
+one, since a picker is already an explicit mode the player entered deliberately.
+
+Hostile actions are `--rust` and everything else is `--signal`, so color alone separates "this
+attacks something" from "this moves or takes something" without reading the hex underneath.
 
 ## 9. Components
 
