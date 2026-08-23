@@ -20,9 +20,6 @@ document exists for. Every entry below is here because it bit.
 
 True regardless of whose machine it is.
 
-- **Commits must be authored as `StefanVR` / `stefan.van.raaphorst@gmail.com`** — the personal
-  identity matching this repository's owner (`stefanvr`). This is a personal project; a commit
-  authored under a work identity is wrong and won't announce itself.
 - **Node 18+ / npm 9+.** Confirmed working: Node v18.19.1, npm 9.2.0.
 
 ---
@@ -44,9 +41,9 @@ the `wsl.exe -- bash -lc '...'` form gets to the real environment.
 
 ### `git commit` must run inside WSL too — this one fails silently
 
-Windows-side git's global identity is a **work** email; WSL's global identity is the personal one
-above. Committing through the Windows-side shell doesn't error. It just attributes the commit to
-the wrong person, and you find out much later.
+Windows-side git's global identity is a **work** email; WSL's is the personal identity this
+repository should be authored under. Committing through the Windows-side shell doesn't error. It
+just attributes the commit to the wrong person, and you find out much later.
 
 Discovered exactly that way, after two commits had already landed on `main` and `build-v2` under
 the wrong identity.
