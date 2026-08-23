@@ -1,10 +1,11 @@
 // Game options menu — per implementation-spec.md §8 "Game options menu".
 import { SIZES, TYPES, isComboSupported } from "../map/map-tables.js";
 
-// Hard stays disabled until Stage 12 (implementation-tracking-v1.md).
+// Difficulty is per-AI and independent of strategy (game spec §8) — see implementation-spec.md
+// §11 for what each one changes about how an AI plays.
 const DIFFICULTIES = [
   { value: "easy", label: "Easy", disabled: false },
-  { value: "hard", label: "Hard", disabled: true },
+  { value: "hard", label: "Hard", disabled: false },
 ];
 
 async function pickRandomMap(size, type) {
