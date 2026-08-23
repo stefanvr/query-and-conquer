@@ -276,57 +276,32 @@ recovery, on the same reference unit.*
 
 ## Stage 11 — Easy AI
 - [x] Spec
-- [x] Strategy assignment (Aggressive/Defensive/Balanced, even spread per §8's formula) —
-      `assignStrategies` (src/ai/strategies.js), applied once in `createGameState` alongside each
-      AI's own difficulty and fixed for the match
-- [x] Per-unit greedy loop, processed base-defenders → field units → newly completed units —
-      `aiTurnActions` (src/ai/ai-turn.js), a generator so the caller owns pacing. "Newly
-      completed" needed a way to be told apart from an existing defender, since both live in
-      `base.garrison`: `processTurnStart` now tags a finished build with `builtOnTurn`
+- [x] Strategy assignment (Aggressive/Defensive/Balanced, even spread per §8) —
+      `assignStrategies` (src/ai/strategies.js)
+- [x] Per-unit greedy loop, base-defenders → field units → newly completed units —
+      `aiTurnActions` (src/ai/ai-turn.js), a generator so the caller owns pacing
 - [x] Aggressive: priority list, build order, target priority
 - [x] Defensive: priority list, build order, target priority
 - [x] Balanced: priority list, build order, target priority
-- [x] Easy difficulty traits: fog-respecting info, first-valid-target, naive pathing,
-      visible-threats-only reaction — decisions read `getVisibleState`, while commands still take
-      canonical state so a rule resolves against reality (implementation-spec.md §11)
-- [x] Ad hoc: the strategy lists only describe *field* units, so a garrisoned one would never
-      leave and an AI would build units that sit in the base forever. Added deploy-from-base as
-      the garrisoned equivalent, and wrote the rule into query-and-conquer.md §8 (Deploying)
-      rather than leaving it an undocumented implementation choice — it changes AI behavior, so
-      it belongs in the design doc, along with the lightly-garrisoned-bases consequence it has
-- [x] AI speed setting (instant/fast/slow) with actions visibly animating one at a time — HUD
-      select; Instant stays fully synchronous (no `await` on that path) so ending a turn still
-      resolves inside the same click, and existing e2e timing is unaffected
+- [x] Easy difficulty traits: fog-respecting, first-valid-target, naive pathing
+      (implementation-spec.md §11)
+- [x] Ad hoc: deploy-from-base, so a garrisoned unit isn't stuck forever — written into
+      query-and-conquer.md §8 (Deploying) as a real rule, not left an implementation detail
+- [x] AI speed setting (instant/fast/slow); Instant stays synchronous so End Turn resolves in
+      one click
 
 ## Stage 11b — Map interaction pass
-*An intermediate stage pulling three items forward out of Stage 13, rather than waiting for the
-closing pass: the two map-interaction complaints raised reviewing build-v2, and the boat-unload
-gap found back in Stage 7. Same shape as Stage 5b — a focused UX pass on something already
-built, not new game rules.*
+*Pulls three items forward out of Stage 13 — the map-interaction review findings and the
+boat-unload gap from Stage 7 — rather than waiting for the closing pass.*
 - [x] Spec
-- [x] Reachable-range movement: highlight every hex the selected unit can afford to reach, and
-      move it there on click (walking the route, paying real terrain costs). Reverses
-      implementation-spec.md §1's "no multi-hex pathfinding for human play in v1" — one hex per
-      click is the tedium the review flagged
-- [x] Shared `reachableCells` pathfinding module (Dijkstra over move costs, bounded by remaining
-      AP) — Stage 12's hard AI needs the same "lowest-cost route" (§8's Difficulty table), so this
-      lands as its own module rather than inside the UI
-- [x] Attack target highlighting: mark every enemy unit/base the selected unit could actually
-      attack right now (range + LOS + attacks remaining), so the LOS rule and per-unit ranges stop
-      being guesswork
-- [x] Unload straight into an adjacent friendly boat (moved up from Stage 13) — the picker only
-      ever highlighted empty terrain, so only the boat → base direction worked. Costs 2 (1 load
-      action + the 1-AP floor every move pays)
-- [x] Ad hoc: garrison/cargo entries now carry `spentActions`, so entering a container costs
-      something that survives the trip. Every entry was previously an affordability gate that the
-      exit then forgot, letting a unit launder a spent budget by ducking into a base or boat and
-      back out, and making a base → boat → shore hop *cheaper* than unloading straight to shore.
-      Pre-dated this stage (`enterBaseWithCargo` always allowed it) but the new boat direction
-      made it reachable one more way. Cleared at the owner's turn-start, like a field unit's own
-      actions
-- [x] style-guide.md §8: replace the text-only placeholder with the real on-map overlay
-      vocabulary — that section already anticipated this ("range overlays... expected to replace
-      this in a later pass")
+- [x] Reachable-range movement (`reachableCells`, src/state/pathfinding.js) — reverses
+      implementation-spec.md §1's original "no multi-hex pathfinding" call
+- [x] Attack target highlighting: mark every enemy unit/base actually attackable right now
+      (range + LOS + attacks remaining)
+- [x] Unload straight into an adjacent friendly boat (was base → boat only); costs 2
+- [x] Ad hoc: garrison/cargo entries now carry `spentActions`, closing a budget-laundering gap
+      where entering then exiting a container was cheaper than it should be
+- [x] style-guide.md §8: real on-map overlay vocabulary replacing the text-only placeholder
 
 ## Stage 12 — Hard AI
 
@@ -334,134 +309,47 @@ built, not new game rules.*
 turn of each — the Hard one should route around obstacles the Easy one walks into, and act on
 threats outside its own view.
 
-*Plan revised before starting, per workflow.md step 1 — Stage 11 left the difficulty axis with
-clean seams, so two planned items collapse into one and two missing ones surface. Original list
-kept below in the notes on each item.*
+*Plan revised before starting (workflow.md step 1) — two planned items collapsed into one, two
+missing ones surfaced. See "Stage 12: spec for hard AI, and a revised plan".*
 
 - [x] Spec
-- [x] **First:** planes' mandatory ≥50% movement (query-and-conquer.md §3) is enforced only
-      against the *human*, as an End Turn gate (`planesOwingMovement`, Stage 8) — an AI's planes
-      are never held to it, since an AI turn has no End Turn button to block. It's a game rule,
-      not a UI rule, so both sides must obey it. Moved up from Stage 13 to lead this stage,
-      deliberately: hard AI is the first AI that moves planes with intent and spends its whole
-      budget doing it, so an AI exempt from the fuel rule would be measured against a human who
-      isn't — and every balance number taken afterwards would be meaningless. Fix the rule first,
-      then measure. `planesOwingMovement` already takes any `playerId`, so the predicate is
-      shared rather than reimplemented
-- [x] Difficulty branch point: nothing reads `player.difficulty` today — the engine hardcodes
-      easy's traits. Introduce one seam the engine selects on, rather than `if (hard)` scattered
-      through the rules; the strategy rules themselves stay shared and unchanged (game spec §8's
-      two-axes split)
-- [x] Perception: decide from canonical state instead of `getVisibleState` — full map knowledge,
-      ignoring fog. *Merged with the plan's separate "reacts to threats anywhere on the map"
-      item: that isn't a second mechanism, it's what this one produces. Easy's "visible threats
-      only" already falls out of perception the same way, with no rule of its own*
-- [x] Strategy's real target-priority rule (`lowestStrength` / `highestAttack`) instead of
-      first-valid-target. The data already sits unused in `strategies.js` for exactly this
-- [x] Full pathfinding: lowest-cost route to a target, routing around obstacles. *Not free from
-      Stage 11b as the plan assumed — `reachableCells` is bounded by this turn's remaining AP, so
-      it answers "where can I get now", not "which way is the target". Needs a companion route
-      search (A\*, hex-distance heuristic) that ignores the AP bound, with the unit walking the
-      affordable prefix each turn*
-- [x] "Respects LOS" (game spec §8's Pathing row): when a unit wants to attack but nothing is in
-      range, move to the cheapest hex it can reach that would actually give it a shot — range
-      *and* line of sight — rather than just the hex nearest the target. Without this, "respects
-      LOS" has no meaning for movement, since LOS only gates attacks
-- [x] Action efficiency: keep acting while the budget lasts, instead of easy's one action per
-      unit per turn. *Missing from the original plan — it's the Difficulty table's fifth row
-      ("uses full action budget effectively" vs "often leaves actions unspent"), and the only row
-      the plan didn't name.* Needs a no-progress guard: stop if an action didn't reduce
-      `remainingActions`, or a rule that reports success without spending anything loops forever
-- [x] Easy AI regression: easy's behavior must be bit-identical after the refactor — a seeded
-      match replaying the same action sequence is the check, not just a green suite. **Verified**
-      by running the pre-stage engine (`git show`n out of main) and the new one side by side over
-      40 seeded matches: 2000 AI turns compared action-for-action, 0 differing
-- [x] Enable "Hard" per-AI in the game options menu (`DIFFICULTIES` in options-menu.js carries a
-      `disabled` flag placed there for this stage)
-- [x] Verify the stage's own "Try it" claim with a seeded Easy-vs-Hard match, not by reasoning:
-      confirm Hard actually routes around an obstacle Easy walks into, and that it wins more
-      often than not. **Result: hard 14, easy 0** over 30 seeded matches (16 hit the 300-turn cap
-      undecided — the sim's human player sits idle and never attacks, so it takes a long time to
-      finish off; no match was *lost* by hard). Routing is covered directly by a unit test rather
-      than inferred from win rate
-- [x] Ad hoc: measured the tempo difference the balance question hangs on, rather than estimating
-      it. Hard takes **1.38×** the actions per turn that easy does (1.21 vs 0.88 over the first 40
-      turns of 10 seeded matches) — far below the ~3× predicted from "one action per unit" vs
-      "the whole budget". Most units simply don't have a second rule that applies once they've
-      moved, so the extra budget often goes unused anyway. The difficulty gap is real but much
+- [x] **First:** hold the AI to planes' mandatory ≥50% movement (query-and-conquer.md §3),
+      previously only enforced against the human — see "Hold the AI to the mandatory
+      plane-movement rule". Led the stage deliberately: Hard is the first AI to move planes with
+      intent, so measuring it before fixing this would compare it against an exempt human
+- [x] Difficulty branch point (`ctx.traits`, one seam the engine selects on rather than
+      scattered `if (hard)` checks) — see "Give difficulty a seam to hang off"
+- [x] Perception: canonical state instead of `getVisibleState` — "reacts to threats anywhere"
+      falls out of this, not a second mechanism — see "Let hard AI see the whole board"
+- [x] Real target-priority rule (`lowestStrength`/`highestAttack`) — see "Turn on the
+      strategies' target priorities for hard AI"
+- [x] Full pathfinding: an unbounded route search (A\*), not `reachableCells` (bounded by the
+      turn's own AP, so it can't answer "which way") — see "Give hard AI a route search"
+- [x] Firing-position movement ("respects LOS") and a full action budget, in one commit since
+      the first isn't observable without the second — see "Hard AI: firing positions, and a
+      full action budget"
+- [x] Easy AI regression: pre-stage engine vs. new, 40 seeded matches, 2000 AI turns compared
+      action-for-action, 0 differing
+- [x] Enable "Hard" per-AI in the game options menu
+- [x] Verified the "Try it" claim by measurement: hard 14, easy 0 over 30 seeded matches (16
+      hit the turn cap undecided; none lost by hard)
+- [x] Ad hoc: measured the tempo gap rather than estimating it — 1.38×, far below the ~3×
+      predicted, since most units have no second rule once they've moved. The difficulty gap is
       more about *what* hard does than *how much*
 
 ## Stage 13 — Map generation & hex misc
-*Split out of the old single "Stage 13 — Polishing v1" catch-all (2026-08) into four focused
-passes, per workflow.md step 1 — one closing stage had become four different kinds of work with
-four different shapes of decision (implementation gaps, layout bugs, open design questions,
-documentation debt), and lumping them together made none of them plannable on their own.*
-- [x] Spec — query-and-conquer.md §5 (neutral-base placement rule), implementation-spec.md §2
-      (Base placement subsection) and §5 (Fog of war subsection, hex selection fix). No opt-out
-      given this round, so stopping here for review before implementation, per workflow.md step 3.
-- [x] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
-      §5's placement is currently exactly N seeds for N players, so every base starts owned —
-      "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra
-      pre-neutral bases would give players a real land-grab to contest from turn 1, not just a
-      post-battle mechanic. Requires revisiting §5's own placement algorithm/text, not just the
-      implementation, since it changes a stated game rule. Stage 6 front-runs this for its own
-      dev-save testing by hand-placing one neutral base near the human's, rather than waiting on
-      the real map-generation feature.
-      **Design, as reviewed:** neutral count scales with player count *and* map size —
-      `round(playerCount × maxCells[size] ÷ maxCells.small)`, using the existing per-size
-      `maxCells` table (`map-tables.js`) rather than a new constant. The first N farthest-point
-      seeds become player bases (via a player-only region partition — see below); the M size-scaled
-      extras, seeded after them, become neutral. Neutral SP starts at half strength (10), a stored
-      value only, confirmed with the reviewer to have no mechanical effect today.
-      **Reversed during implementation (workflow.md's "when a rule turns out to be wrong"):** the
-      reviewed formula used `maxCells[size]`, the map's *nominal* cell count. Measured against real
-      generated maps, this was badly wrong for `islands`: nominal count includes all the open
-      water between islands, and a Voronoi region can land squarely inside it with zero eligible
-      land to sample from — no retry limit fixes a region that's entirely water. `large`/`extraLarge`
-      islands maps at 6 players **failed to generate 100% of the time**, even with generously raised
-      retry limits — a structural dead end, not rare bad luck. Fixed by measuring each grid's own
-      *eligible* cell count directly (reusing `eligibleBaseType`, the same predicate placement
-      itself already samples against) and scaling against that instead of the nominal table value —
-      same formula shape, same small-map anchor (a `landOnly` map's eligible count is close enough
-      to nominal there that the reviewed density is unaffected), correct for every map type.
-      **Ad hoc: graceful degradation.** Even the corrected formula can request more than a specific
-      generated map turns out to hold (measured: `large`/`extraLarge` islands at 6 players still
-      wanted more than such an archipelago's actual capacity). Rather than let *any* formula's
-      inevitable misses crash match creation, `placeBases` now retries with progressively fewer
-      neutrals (halved each time) instead of throwing, down to zero if it must — zero always
-      succeeds when player-only placement is itself feasible, unaffected by any of this (the
-      player-region partition stays isolated from the neutral one specifically so this holds).
-      Also lowered the default reseed-attempt bound (20 → 10): with the fallback in place, failing
-      faster at an infeasible count and falling back sooner measurably beat exhausting the full
-      budget on a count that was never going to work (~700ms → ~390ms worst case measured, extra
-      large/islands/6 players — the corner every other combination tested well under 250ms).
-      **Ownership-invariant note:** the player-region computation was also restructured (not just
-      the neutral count) — regions are now partitioned twice, once against player seeds alone (so
-      a neutral seed existing elsewhere can never shrink a player's Voronoi region and change
-      which cell gets sampled) and once against the full seed set for the neutral regions. Verified
-      directly: adding neutral bases produces bit-identical player placement to running with
-      `neutralCount: 0`, not merely "the same seed points" as first assumed.
-- [x] Hex selection/targeting (game-screen.js's `selectHex`) reads canonical state directly, not
-      the fog-filtered projection (Stage 9) — a precisely-aimed click can still select/inspect a
-      unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
-      framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
-      as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
-      **As specced, unchanged in implementation:** four call sites move from canonical `state` to
-      `getVisibleState(state, humanId)` — `selectForInspection`'s panel lookup, and the two
-      attack/claim-target lookups inside `selectHex`. Everything that decides whether an action is
-      *legal* keeps reading canonical state (rules must resolve against reality regardless of what
-      the acting player can see) — only *what a tap resolves to* changes. Load/unload target
-      lookups are untouched: those only ever resolve to the acting unit's own base/boat, which fog
-      never hides in the first place.
-      **Tested via e2e, not node:test** — `game-screen.js` has no direct unit-test coverage
-      anywhere in this codebase (Playwright is the only thing that ever exercises it, per
-      tech-stack.md's stated split), so the wiring check for this fix is necessarily e2e too. A
-      real match's random map layout means there's no fixed hex to assert a hidden unit/base
-      against; the test instead reads the canvas's own rendered pixel color at a corner far from
-      the human's turn-1 camera center (self-verifying that the corner really is unexplored
-      `--ink`, rather than assuming the hex math) and asserts a tap there opens no panel —
-      provable regardless of what the random map actually put there.
-- [x] *Resolved* — no more hex-misc items surfaced; proceeding with exactly the two above.
+*Split out of the old single "Stage 13 — Polishing v1" catch-all (2026-08) — one closing stage
+had become four different kinds of work, none plannable together. See "Split the old Stage 13
+catch-all into four focused stages".*
+- [x] Spec — see "Stage 13: spec for neutral bases and fog-honest selection" and its follow-up
+      revision after review
+- [x] Neutral bases seeded alongside player ones, scaling with player count and usable map
+      area — see "Seed neutral bases alongside player ones" for what shipped, including a real
+      mid-build correction (the reviewed formula broke `islands` maps) and the graceful-degradation
+      fallback that came out of it
+- [x] Hex selection/targeting now reads the fog-filtered projection, not canonical state — see
+      "Read the fog-filtered projection for hex selection, not canonical state"
+- [x] *Resolved* — no more hex-misc items surfaced beyond the two above.
 
 ## Stage 14 — UI/UX pass
 - [ ] Spec

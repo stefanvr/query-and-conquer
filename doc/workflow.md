@@ -121,6 +121,15 @@ Check items off **with a note on what actually happened**, particularly where it
 
 The checklist records how the build actually went. Its value is in the divergences.
 
+**Keep the note itself short — a sentence or two, pointing at where the full reasoning already
+lives, not a copy of it.** The commit message already carries the why (per "one commit per
+checklist step" above); a design decision already lives in whichever spec doc owns that kind of
+rule. A checklist note re-deriving either is the same reasoning written three times over —
+measured across Stages 6/12/13, item length roughly doubled stage over stage this way, purely
+from habit rather than any of those stages actually needing more explaining. Reserve real length
+for the one case a commit can't cover: something genuinely deferred, where the checklist itself
+is the only durable record until a later stage picks it up (see "Deferring work honestly" below).
+
 ---
 
 ## Deferring work honestly
