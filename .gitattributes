@@ -1,0 +1,24 @@
+# Line-ending normalisation.
+#
+# Text files are stored LF in the repository and checked out with whatever the platform uses, so
+# a Windows editor and a WSL/Linux tool can both write the same file without git seeing the
+# difference as a change. Without this, one tool rewriting a file's endings turns a small edit
+# into a whole-file diff that buries the real change in review — which happened here: a five-line
+# checkbox edit to doc/implementation-tracking-v1.md showed up as all 397 lines changed.
+* text=auto
+
+# Binary formats git must never inspect or rewrite.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.zip binary
+*.mp3 binary
+*.mp4 binary
