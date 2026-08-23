@@ -248,13 +248,54 @@ function deployFromBase(ctx, base, garrisoned) {
 
 /** Queues the first unit type this base is allowed to build, walking the strategy's own build
  * order. Skipped entirely if the base is at capacity or its queue is already full (game spec §8). */
+/** How many of each unit type `playerId` already owns or has coming — field units, boat cargo,
+ * base garrisons, in-progress builds and queued ones. Everything that will exist if nothing dies,
+ * which is what production should be reasoning about. */
+function ownedUnitCounts(state, playerId) {
+  const counts = {};
+  const add = (unitType) => {
+    counts[unitType] = (counts[unitType] ?? 0) + 1;
+  };
+  for (const unit of state.units) {
+    if (unit.ownerId !== playerId) continue;
+    add(unit.unitType);
+    for (const cargo of unit.cargo ?? []) add(cargo.unitType);
+  }
+  for (const base of state.bases) {
+    if (base.ownerId !== playerId) continue;
+    for (const garrisoned of base.garrison) add(garrisoned.unitType);
+    for (const queued of base.queue) add(queued.unitType);
+    if (base.inProgress) add(base.inProgress.unitType);
+  }
+  return counts;
+}
+
+/** Queues one unit at this base, choosing the buildable type the player owns fewest of — ties
+ * broken by position in the strategy's own build order (game spec §8). Skipped if the base is at
+ * capacity or its queue is full.
+ *
+ * Fewest-first rather than simply the top of the list, because "always the first type you're
+ * allowed to build" makes every entry after the first dead: a land or port base would produce
+ * nothing but tanks forever, and a mountain base nothing but fighters. That left the AI unable to
+ * take a mountain base at all — cracking one needs a bomber's ground attack, and it would never
+ * build one. Ties falling back to build-order position means the order still decides what arrives
+ * first and what a base reaches for when its army is balanced. */
 function runBaseProduction(ctx, base, strategy) {
   const { state, playerId } = ctx;
   if (base.queue.length >= MAX_QUEUE_LENGTH) return null;
   if (base.garrison.length + (base.inProgress ? 1 : 0) >= MAX_BASE_CAPACITY) return null;
+
   const allowed = buildableUnitTypes(base.type, base.adjacentToDeepWater);
-  const unitType = strategy.buildOrder.find((t) => allowed.includes(t));
-  if (!unitType) return null;
+  const buildable = strategy.buildOrder.filter((t) => allowed.includes(t));
+  if (buildable.length === 0) return null;
+
+  const counts = ownedUnitCounts(state, playerId);
+  let unitType = buildable[0];
+  for (const candidate of buildable) {
+    // Strict `<` keeps the earlier build-order entry when counts are equal.
+    if ((counts[candidate] ?? 0) < (counts[unitType] ?? 0)) unitType = candidate;
+  }
+
   queueBuild(state, base.id, unitType, playerId);
   return { type: "build", baseId: base.id, unitType };
 }

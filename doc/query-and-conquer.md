@@ -263,8 +263,16 @@ These are independent axes.
 Each turn, per unit — processed in order **base-defenders → field units → newly completed
 units** — the AI walks its strategy's priority list top to bottom and takes the first applicable
 action, until its action budget runs out or nothing applies. Each base independently evaluates
-its build-priority list once per turn, skipping down the list to the first type it's actually
-allowed to build; if the base is at capacity or its queue is full, it skips production that turn.
+its build-priority list once per turn and queues one unit: of the types it's actually allowed to
+build, whichever the player currently owns **fewest** of, ties broken by position in the build
+order. If the base is at capacity or its queue is full, it skips production that turn.
+
+*Fewest-first, not simply the highest-priority buildable type* — that earlier rule made every
+entry after the first unreachable, since the first is always allowed. A land or port base built
+nothing but tanks forever and a mountain base nothing but fighters, which left an AI structurally
+unable to take a mountain base: cracking one needs a bomber's ground attack, and it would never
+build a bomber. Ties falling back to build-order position keeps the order meaningful — it decides
+what arrives first, and what a base reaches for once its army is even.
 
 This is a **per-unit greedy loop**, not coordinated multi-unit planning — a deliberate v1
 simplification; combined-arms coordination is a candidate for later. Naval logistics (AI loading
@@ -347,3 +355,26 @@ they aren't lost, not because either side is confirmed wrong.
   "grounded" for the remainder of the turn it lands, and turns up rearmed only when its owner's
   next turn begins. This would meaningfully change plane tempo (a rearm trip costs a full turn
   cycle, not just the actions to get there and back) and is worth playtesting before picking one.
+
+- **Base strength (20) against the attack values that can actually reach it.** How many hits a
+  base takes to break varies enormously by attacker, and the mountain base is where that bites:
+  only planes can reach one at all, and only a Fighter can claim it (§4).
+
+  | Attacker | Ground atk | Hits for 20 SP | Strikes before rearm | Rearm trips needed |
+  |---|---|---|---|---|
+  | Bomber | 8 | 3 | 2 | 1 |
+  | Fregat | 6 | 4 | — | 0 |
+  | Carrier | 8 | 3 | — | 0 |
+  | Tank | 4 | 5 | — | 0 |
+  | Fighter | 2 | 10 | 4 | 2 |
+
+  A Fighter alone needs **ten** hits and two full rearm round-trips to bring a mountain base down
+  — impractical enough that taking one effectively *requires* pairing a Bomber (to break it) with
+  a Fighter (to claim it). That may be the intended shape, a genuine combined-arms requirement.
+  But it means one unit type is the only key to one base type, so if Bombers are scarce, expensive
+  (5× bbt, the joint-priciest after Carrier) or lost, a mountain base becomes untakeable rather
+  than merely hard — and the AI could only do it at all once its production was changed to build
+  more than one unit type (§8).
+
+  Worth deciding deliberately rather than by accident: either lower mountain-base strength,
+  raise Fighter's ground attack, or accept the pairing as the intended cost of taking one.

@@ -311,19 +311,62 @@ test("a newly completed unit isn't acted on twice -- deploying doesn't feed it b
   assert.equal(forUnit42[0].type, "deploy");
 });
 
-test("each base queues the first buildable type in its strategy's own build order", () => {
+test("with nothing owned yet, a base builds the first type in its strategy's build order", () => {
   const grid = allLandGrid();
 
   const aggressive = aiState({ strategy: "aggressive" });
   aggressive.bases.push(base({ id: 0, ownerId: 1, type: "port", adjacentToDeepWater: true }));
   const aggressiveBuild = runTurn(aggressive, grid).find((a) => a.type === "build");
-  assert.equal(aggressiveBuild.unitType, "tank", "tank leads every build order");
+  assert.equal(aggressiveBuild.unitType, "tank", "tank leads every build order, and all counts tie at zero");
 
   // A mountain base can't build a tank at all, so each strategy falls to its first *plane*.
   const defensive = aiState({ strategy: "defensive" });
   defensive.bases.push(base({ id: 0, ownerId: 1, type: "mountain" }));
   const defensiveBuild = runTurn(defensive, grid).find((a) => a.type === "build");
   assert.equal(defensiveBuild.unitType, "fighter");
+});
+
+test("a base builds the type it owns fewest of, so the build order past the first entry isn't dead", () => {
+  const s = aiState({ strategy: "aggressive" }); // tank > fighter > bomber > ...
+  const grid = allLandGrid();
+  // Already holding tanks, so the top of the order is no longer the scarcest thing.
+  s.bases.push(base({
+    id: 0,
+    ownerId: 1,
+    type: "land",
+    garrison: [{ id: 90, unitType: "tank", sp: 10 }, { id: 91, unitType: "tank", sp: 10 }],
+  }));
+
+  const build = runTurn(s, grid).find((a) => a.type === "build");
+  assert.equal(build.unitType, "fighter", "moved down the order rather than making a third tank");
+});
+
+test("a mountain base alternates fighter and bomber, which is what makes taking a mountain base possible at all", () => {
+  // The reason this matters: only planes reach a mountain base, only a fighter can claim one, and
+  // only a bomber's ground attack breaks one in a sane number of hits (game spec §9). Building
+  // nothing but fighters left the AI structurally unable to take one.
+  const s = aiState({ strategy: "aggressive" });
+  const grid = allLandGrid();
+  s.bases.push(base({ id: 0, ownerId: 1, type: "mountain" }));
+
+  const queued = [];
+  for (let turn = 0; turn < 4; turn++) {
+    const build = runTurn(s, grid).find((a) => a.type === "build");
+    if (build) queued.push(build.unitType);
+  }
+
+  assert.ok(queued.includes("bomber"), `expected a bomber among ${JSON.stringify(queued)}`);
+  assert.ok(queued.includes("fighter"), `expected a fighter among ${JSON.stringify(queued)}`);
+});
+
+test("production counts units the player already has in the field, not just at this base", () => {
+  const s = aiState({ strategy: "aggressive" });
+  const grid = allLandGrid();
+  s.bases.push(base({ id: 0, ownerId: 1, type: "land", garrison: [] })); // empty base...
+  s.units.push(unit({ id: 1, col: 2, row: 2 }), unit({ id: 2, col: 3, row: 3 })); // ...but two tanks afield
+
+  const build = runTurn(s, grid).find((a) => a.type === "build");
+  assert.equal(build.unitType, "fighter", "an empty base still knows the army is tank-heavy");
 });
 
 test("a base skips production when its queue is full or it's at capacity (game spec §8)", () => {
