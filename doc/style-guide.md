@@ -3,6 +3,15 @@
 Phase 1 visual style. Scope: enough to start implementation. Real art (tile sprites, unit
 sprites, UI chrome) can replace flat colors later without changing this spec's structure.
 
+**Purpose.** The visual vocabulary: tokens, components, and the states things can be shown in.
+
+**What belongs here.** Concrete values (colors, type, geometry) and the named treatments built
+from them.
+
+**What doesn't.** Which control appears where and what it does
+([implementation-spec.md](implementation-spec.md)), and rendering technology
+([tech-stack.md](tech-stack.md)).
+
 ---
 
 ## 1. Reference

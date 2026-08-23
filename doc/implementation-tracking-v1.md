@@ -1,31 +1,25 @@
 # Implementation tracking v1
 
-Stage-by-stage build checklist, sequenced so each stage is playable and testable using only what
-earlier stages have already built — no stage's tasks should depend on something a later stage
-hasn't built yet. Cross-references: game design in [query-and-conquer.md](query-and-conquer.md),
-tech decisions in [tech-stack.md](tech-stack.md), visuals in [style-guide.md](style-guide.md).
+**Purpose.** The build plan and its running record: what gets built, in what order, and what
+actually happened.
 
-**Workflow, per stage:**
-1. **Review the plan.** Re-read the stage's own checklist below and check whether it still holds
-   up — add, remove, or tweak steps based on what's been learned since it was written (e.g. from
-   how the previous stage actually went). Do this before touching the spec or any code.
-2. **Fill in the spec, then stop.** Check the relevant section(s) of
-   [implementation-spec.md](implementation-spec.md) — organized by game element/module, not by
-   stage, so a stage typically touches a handful of sections there, not one exclusively — and
-   write/update whichever of them the stage's features need (see that doc's own Format note).
-   That's the "Spec" checkbox at the top of each stage below. Present the result and wait for
-   explicit sign-off before writing any implementation code; update the section again if the
-   design shifts once implementation starts. Skip the wait only when the user has explicitly
-   said to for that stage (e.g. "if no significant question just do the spec and start
-   implementation") — then note any real open design questions in the spec text itself and pick
-   the sensible default rather than blocking on them, proceed straight into implementation, and
-   let review happen against the finished result instead of the spec draft.
-3. **Implement with one commit per step.** Once the spec is confirmed, work through the stage's
-   checklist items and commit each one separately rather than bundling the whole stage into a
-   single commit.
-4. **Push the feature branch before merging to main.** Push the working branch (e.g. `build-v2`)
-   to its own remote first, so its full commit history is backed up on origin independent of
-   main, then merge/fast-forward main and push that.
+**What belongs here.** Stages, their checklists, notes on how each item really went, and the
+backlog of deferred work.
+
+**What doesn't.** The process itself — that's [workflow.md](workflow.md), which every stage below
+follows. Don't restate it per stage.
+
+**Sequencing rule.** Each stage is playable and testable using only what earlier stages have
+already built — no stage's tasks depend on something a later stage hasn't built yet.
+
+Stages from 12 onward carry a **Try it:** line: how you'd actually exercise the thing once the
+stage is done, written *while planning it*. If that can't be answered concretely the stage is
+scoped wrong, and finding out at planning time costs a sentence instead of a rewrite. (Earlier
+stages predate the convention; they aren't worth backfilling.)
+
+Cross-references: game design in [query-and-conquer.md](query-and-conquer.md), tech decisions in
+[tech-stack.md](tech-stack.md), visuals in [style-guide.md](style-guide.md), code style in
+[code-conventions.md](code-conventions.md), machine setup in [environment.md](environment.md).
 
 ---
 
@@ -335,6 +329,11 @@ built, not new game rules.*
       this in a later pass")
 
 ## Stage 12 — Hard AI
+
+**Try it:** start a match with one Easy and one Hard AI, both on a paced AI speed, and watch a
+turn of each — the Hard one should route around obstacles the Easy one walks into, and act on
+threats outside its own view.
+
 - [ ] Spec
 - [ ] Full map knowledge, ignores fog of war
 - [ ] Strategy's real target-priority rule (not first-valid-target)

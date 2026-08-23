@@ -3,6 +3,20 @@
 Turn-based hex-grid strategy game. Single human player vs. 1–5 AI opponents. Each player starts
 with one base; win by capturing/destroying every other base on the map.
 
+**Purpose.** What the game *is* and what its rules are, independent of how it's built. Written so
+someone could reason about — or play — the game without reading a line of code.
+
+**What belongs here.** Entities, their properties, the rules governing them, and the edge cases
+those rules produce.
+
+**What doesn't.** Technical choices ([tech-stack.md](tech-stack.md)), how anything is presented or
+operated ([implementation-spec.md](implementation-spec.md)), visuals
+([style-guide.md](style-guide.md)), build order
+([implementation-tracking-v1.md](implementation-tracking-v1.md)).
+
+**Rule of thumb.** If changing it would change *what the game does*, it belongs here. If it would
+only change *how the game is made*, it doesn't.
+
 ---
 
 ## 1. Map

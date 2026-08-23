@@ -2,9 +2,21 @@
 
 Turn-based hex-grid strategy game
 
-See [doc/query-and-conquer.md](doc/query-and-conquer.md) for the game design spec,
-[doc/tech-stack.md](doc/tech-stack.md) for tech decisions, and
-[doc/implementation-tracking-v1.md](doc/implementation-tracking-v1.md) for the build plan.
+## Documents
+
+Each opens with a Purpose / What belongs here / What doesn't block, so there's one obvious home
+for any given kind of decision.
+
+| Doc | Owns |
+|---|---|
+| [doc/workflow.md](doc/workflow.md) | How work gets planned, reviewed, committed, merged |
+| [doc/query-and-conquer.md](doc/query-and-conquer.md) | The game and its rules |
+| [doc/tech-stack.md](doc/tech-stack.md) | What it's built with, and the trade-offs accepted |
+| [doc/environment.md](doc/environment.md) | Running it on a real machine — and what fails *silently* if wrong |
+| [doc/style-guide.md](doc/style-guide.md) | Tokens, components, visual states |
+| [doc/code-conventions.md](doc/code-conventions.md) | How code is written, and how it stays tied to these docs |
+| [doc/implementation-spec.md](doc/implementation-spec.md) | How each part is presented and operated |
+| [doc/implementation-tracking-v1.md](doc/implementation-tracking-v1.md) | The build plan and its running record |
 
 ## Development
 

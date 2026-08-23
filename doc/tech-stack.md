@@ -2,6 +2,23 @@
 
 Web based video game
 
+**Purpose.** What this is built with, and why — including what was rejected and which risks were
+knowingly accepted.
+
+**What belongs here.** Stack choices, architectural rules, testing strategy, platform targets, and
+any decision that constrains how code gets written across the whole project.
+
+**What doesn't.** Game rules ([query-and-conquer.md](query-and-conquer.md)), per-feature behavior
+([implementation-spec.md](implementation-spec.md)), visual tokens
+([style-guide.md](style-guide.md)), build sequencing
+([implementation-tracking-v1.md](implementation-tracking-v1.md)), code style
+([code-conventions.md](code-conventions.md)), and how any of it runs on a particular machine
+([environment.md](environment.md)).
+
+**Rule of thumb.** A choice belongs here if violating it in one module would be a problem for the
+project as a whole. Note *choice* — a description of what's true on a given machine isn't one,
+which is why that lives in environment.md.
+
 ## base
 * html
 * css
