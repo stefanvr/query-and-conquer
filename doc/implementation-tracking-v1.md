@@ -334,12 +334,42 @@ built, not new game rules.*
 turn of each — the Hard one should route around obstacles the Easy one walks into, and act on
 threats outside its own view.
 
+*Plan revised before starting, per workflow.md step 1 — Stage 11 left the difficulty axis with
+clean seams, so two planned items collapse into one and two missing ones surface. Original list
+kept below in the notes on each item.*
+
 - [ ] Spec
-- [ ] Full map knowledge, ignores fog of war
-- [ ] Strategy's real target-priority rule (not first-valid-target)
-- [ ] Full pathfinding (lowest-cost route, respects LOS)
-- [ ] Reacts to threats anywhere on the map, not just currently visible ones
-- [ ] Enable "Hard" per-AI in the game options menu (keep Easy-only until this stage lands)
+- [ ] Difficulty branch point: nothing reads `player.difficulty` today — the engine hardcodes
+      easy's traits. Introduce one seam the engine selects on, rather than `if (hard)` scattered
+      through the rules; the strategy rules themselves stay shared and unchanged (game spec §8's
+      two-axes split)
+- [ ] Perception: decide from canonical state instead of `getVisibleState` — full map knowledge,
+      ignoring fog. *Merged with the plan's separate "reacts to threats anywhere on the map"
+      item: that isn't a second mechanism, it's what this one produces. Easy's "visible threats
+      only" already falls out of perception the same way, with no rule of its own*
+- [ ] Strategy's real target-priority rule (`lowestStrength` / `highestAttack`) instead of
+      first-valid-target. The data already sits unused in `strategies.js` for exactly this
+- [ ] Full pathfinding: lowest-cost route to a target, routing around obstacles. *Not free from
+      Stage 11b as the plan assumed — `reachableCells` is bounded by this turn's remaining AP, so
+      it answers "where can I get now", not "which way is the target". Needs a companion route
+      search (A\*, hex-distance heuristic) that ignores the AP bound, with the unit walking the
+      affordable prefix each turn*
+- [ ] "Respects LOS" (game spec §8's Pathing row): when a unit wants to attack but nothing is in
+      range, move to the cheapest hex it can reach that would actually give it a shot — range
+      *and* line of sight — rather than just the hex nearest the target. Without this, "respects
+      LOS" has no meaning for movement, since LOS only gates attacks
+- [ ] Action efficiency: keep acting while the budget lasts, instead of easy's one action per
+      unit per turn. *Missing from the original plan — it's the Difficulty table's fifth row
+      ("uses full action budget effectively" vs "often leaves actions unspent"), and the only row
+      the plan didn't name.* Needs a no-progress guard: stop if an action didn't reduce
+      `remainingActions`, or a rule that reports success without spending anything loops forever
+- [ ] Easy AI regression: easy's behavior must be bit-identical after the refactor — a seeded
+      match replaying the same action sequence is the check, not just a green suite
+- [ ] Enable "Hard" per-AI in the game options menu (`DIFFICULTIES` in options-menu.js carries a
+      `disabled` flag placed there for this stage)
+- [ ] Verify the stage's own "Try it" claim with a seeded Easy-vs-Hard match, not by reasoning:
+      confirm Hard actually routes around an obstacle Easy walks into, and that it wins more
+      often than not
 
 ## Stage 13 — Polishing v1
 *A deliberate closing pass before considering the build done.*
