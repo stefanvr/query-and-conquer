@@ -522,6 +522,35 @@ test("a defensive hard AI goes for the biggest threat rather than the weakest ta
   assert.equal(attack.targetId, 3, "the bomber outguns the tank, so it's the one to neutralize");
 });
 
+// --- Difficulty: pathing (game spec §8's Pathing row) ---
+
+test("hard AI routes around a wall that stops an easy AI dead", () => {
+  // A wall of deep water immediately east of the unit, with one gap at the far bottom. Naive
+  // stepping only ever tries the neighbor that most reduces distance -- which is wall -- so easy
+  // gives up; hard finds the way round.
+  const walledGrid = () => {
+    const grid = allLandGrid();
+    for (let row = 0; row < MAP_SIZE - 1; row++) grid.set(6, row, "deep");
+    return grid;
+  };
+  const board = (difficulty) => {
+    const s = aiState({ strategy: "aggressive", difficulty });
+    s.units.push(unit({ id: 1, col: 5, row: 5 }), unit({ id: 2, ownerId: 0, col: 10, row: 5 }));
+    // Everything already explored, so aggressive's explore fallback can't mask the difference.
+    s.players[1].exploredCells = [...walledGrid().cells()].map((c) => offsetKey(c.col, c.row));
+    return s;
+  };
+
+  const stuck = board("easy");
+  const routing = board("hard");
+  const stuckMoves = runTurn(stuck, walledGrid()).filter((a) => a.type === "move");
+  const routingMoves = runTurn(routing, walledGrid()).filter((a) => a.type === "move");
+
+  assert.deepEqual(stuckMoves, [], "easy walked into the wall and stopped");
+  assert.ok(routingMoves.length > 0, "hard set off around it");
+  assert.notDeepEqual([routing.units[0].col, routing.units[0].row], [5, 5]);
+});
+
 // --- Mandatory plane movement (game spec §3) applied to the AI, not just the human ---
 // A defensive AI sitting next to its own base with no enemies about is the cleanest way to get a
 // unit its strategy leaves completely idle: every rule falls through. A tank in that spot simply

@@ -32,6 +32,7 @@ import {
   planesOwingMovement,
 } from "../state/commands.js";
 import { offsetDistance, offsetKey, hexesInRange } from "../map/hex-coords.js";
+import { routeTo } from "../state/pathfinding.js";
 import { UNIT_TYPES, buildableUnitTypes } from "../state/unit-types.js";
 import { BASE_TYPES } from "../state/base-types.js";
 import { STRATEGIES } from "./strategies.js";
@@ -96,6 +97,26 @@ function naiveStepToward(ctx, unit, target) {
   if (unit.col === from.col && unit.row === from.row) return null; // blocked/impassable/unaffordable
   // A plane can crash on its own move (fuel exhausted, game spec §3) -- it's already gone from
   // state.units by now, which is fine: this unit's turn ends here either way.
+  return { type: "move", unitId: unit.id, from, to: { col: unit.col, row: unit.row } };
+}
+
+/** Hard difficulty's pathing: step along the genuinely cheapest route to `target`, rather than
+ * onto whichever neighbor happens to point that way. One step per call — routing decides the
+ * direction, and the difficulty's action budget decides how far the unit gets this turn, so a
+ * unit walking a long route simply takes several of these.
+ *
+ * Recomputed per step rather than cached for the turn: the board moves underneath a route (a unit
+ * dies, a base changes hands, another of ours takes the hex we were heading through), and a stale
+ * route is how an AI walks confidently into a wall it already knows about. */
+function routedStepToward(ctx, unit, target) {
+  const { state, grid, playerId } = ctx;
+  const route = routeTo(state, grid, unit, target);
+  if (!route || route.length === 0) return null; // no route at all, or already there
+
+  const from = { col: unit.col, row: unit.row };
+  const next = route[0];
+  moveUnit(state, grid, unit.id, next.col, next.row, playerId);
+  if (unit.col === from.col && unit.row === from.row) return null; // can't afford the next step
   return { type: "move", unitId: unit.id, from, to: { col: unit.col, row: unit.row } };
 }
 
@@ -198,7 +219,7 @@ const DIFFICULTY_TRAITS = {
     // visible threats" needs none: both are just consequences of the board each one gets.
     perceive: (state) => ({ board: state, exploredCells: EVERYWHERE }),
     chooseTarget: priorityTarget,
-    stepToward: naiveStepToward,
+    stepToward: routedStepToward,
     maxActionsPerUnit: 1,
   },
 };
