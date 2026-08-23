@@ -32,7 +32,7 @@ import {
   planesOwingMovement,
 } from "../state/commands.js";
 import { offsetDistance, offsetKey, hexesInRange } from "../map/hex-coords.js";
-import { routeTo } from "../state/pathfinding.js";
+import { routeTo, reachableCells } from "../state/pathfinding.js";
 import { UNIT_TYPES, buildableUnitTypes } from "../state/unit-types.js";
 import { BASE_TYPES } from "../state/base-types.js";
 import { STRATEGIES } from "./strategies.js";
@@ -100,17 +100,63 @@ function naiveStepToward(ctx, unit, target) {
   return { type: "move", unitId: unit.id, from, to: { col: unit.col, row: unit.row } };
 }
 
+/** Whether `target` is something `unit` would attack rather than approach — an enemy unit or an
+ * enemy-held base. A neutral base is claimed, not attacked, and a bare frontier cell has no
+ * owner at all, so neither gets the firing-position treatment below. */
+function isHostile(unit, target) {
+  return target.ownerId !== null && target.ownerId !== undefined && target.ownerId !== unit.ownerId;
+}
+
+/** The cheapest hex `unit` can reach this turn from which it could actually shoot `target` —
+ * range satisfied *and* line of sight clear, with enough of its budget left after the trip to
+ * fire at all.
+ *
+ * This is what game spec §8's Pathing row means by "respects LOS": line of sight only ever gates
+ * attacks, so on its own it says nothing about where to walk. What it can say is that moving to
+ * the hex nearest a target is pointless when a mountain sits between the two, and that a hex
+ * slightly further out with a clear line is the better place to stand.
+ *
+ * Returns a `reachableCells` entry (so it carries its own cheapest route), or null if nowhere in
+ * reach this turn offers a shot. */
+function firingPosition(ctx, unit, target) {
+  const { state, grid } = ctx;
+  const attackable = target.unitType ? isValidAttackTarget : isValidAttackBaseTarget;
+  let best = null;
+  let bestKey = null;
+
+  for (const [key, cell] of reachableCells(state, grid, unit)) {
+    // A read-only probe of "what if I stood there": isValidAttackTarget reads position, budget and
+    // type off the attacker and nothing else, so a copy answers honestly without moving anything.
+    // The budget is debited by the trip, since a shot needs an action left once the unit arrives.
+    const probe = { ...unit, col: cell.col, row: cell.row, remainingActions: unit.remainingActions - cell.cost };
+    if (!attackable(state, grid, probe, target)) continue;
+    // Cheapest wins; the key breaks ties, so the choice can't depend on Map iteration order.
+    if (!best || cell.cost < best.cost || (cell.cost === best.cost && key < bestKey)) {
+      best = cell;
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
 /** Hard difficulty's pathing: step along the genuinely cheapest route to `target`, rather than
  * onto whichever neighbor happens to point that way. One step per call — routing decides the
  * direction, and the difficulty's action budget decides how far the unit gets this turn, so a
  * unit walking a long route simply takes several of these.
  *
- * Recomputed per step rather than cached for the turn: the board moves underneath a route (a unit
- * dies, a base changes hands, another of ours takes the hex we were heading through), and a stale
- * route is how an AI walks confidently into a wall it already knows about. */
+ * When the target is something this unit could shoot, it heads for a hex that would actually give
+ * it a shot (`firingPosition`) rather than for the target itself. Otherwise it takes the next step
+ * of the cheapest route (`routeTo`).
+ *
+ * Both are recomputed per step rather than cached for the turn: the board moves underneath a
+ * route (a unit dies, a base changes hands, another of ours takes the hex we were heading
+ * through), and a stale route is how an AI walks confidently into a wall it already knows about. */
 function routedStepToward(ctx, unit, target) {
   const { state, grid, playerId } = ctx;
-  const route = routeTo(state, grid, unit, target);
+  const firing = isHostile(unit, target) ? firingPosition(ctx, unit, target) : null;
+  // firingPosition's entry carries the cheapest route to that exact hex; routeTo stops *next to*
+  // its goal, which is right for an occupied target and wrong for a hex we mean to stand on.
+  const route = firing ? firing.path : routeTo(state, grid, unit, target);
   if (!route || route.length === 0) return null; // no route at all, or already there
 
   const from = { col: unit.col, row: unit.row };
@@ -220,7 +266,11 @@ const DIFFICULTY_TRAITS = {
     perceive: (state) => ({ board: state, exploredCells: EVERYWHERE }),
     chooseTarget: priorityTarget,
     stepToward: routedStepToward,
-    maxActionsPerUnit: 1,
+    // "Uses full action budget effectively" (game spec §8) — a unit keeps walking its priority
+    // list until it runs out of actions or nothing applies. Unbounded is safe rather than
+    // reckless: the loop's own no-progress guard requires every pass to spend at least one of a
+    // finite budget, so the real bound is the unit's actionsPerTurn.
+    maxActionsPerUnit: Infinity,
   },
 };
 
