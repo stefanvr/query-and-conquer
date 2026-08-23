@@ -30,9 +30,10 @@ import { getVisibleState } from "../state/queries.js";
 import { aiTurnActions } from "../ai/ai-turn.js";
 import { saveGame } from "../save/save-load.js";
 import { createMapCamera, UNIT_SHAPES } from "../render/map-canvas.js";
-import { buildableUnitTypes, UNIT_TYPES, moveCost } from "../state/unit-types.js";
+import { buildableUnitTypes, UNIT_TYPES } from "../state/unit-types.js";
 import { deserializeGrid } from "../map/map-serialize.js";
-import { offsetDistance } from "../map/hex-coords.js";
+import { offsetKey } from "../map/hex-coords.js";
+import { reachableCells } from "../state/pathfinding.js";
 
 const BASE_TYPE_LABEL = { land: "Land Base", port: "Port Base", mountain: "Mountain Base" };
 const MAX_BASE_CAPACITY = 15;
@@ -368,6 +369,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     basePanel.hidden = true;
     unitPanel.hidden = true;
     camera?.setSelectedHex(null);
+    camera?.setActionTargets({}); // nothing selected -- no reach or targets to show (§1)
     closeUnloadPreview();
     closeLoadPreview();
   }
@@ -379,6 +381,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     unitPanel.hidden = true;
     basePanel.hidden = false;
     camera.setSelectedHex({ col: base.col, row: base.row });
+    camera.setActionTargets({}); // a base has no reach/targets of its own (§1)
     renderBasePanel(base);
   }
 
@@ -438,19 +441,55 @@ export function initGameScreen({ onQuit, onGameOver }) {
     basePanel.hidden = true;
     unitPanel.hidden = false;
     camera.setSelectedHex({ col: unit.col, row: unit.row });
+    refreshActionTargets(); // show this unit's reach and what it can act on (§1)
     renderUnitPanel(unit);
   }
 
-  /** Whether tapping (col, row) with `selectedUnit` active should be treated as a move attempt —
-   * mirrors moveUnit's own validation so an invalid adjacent tap falls back to plain selection
-   * instead of silently no-op'ing as a failed move (implementation-spec.md §1 "Movement targeting"). */
-  function isValidMoveTarget(unit, col, row) {
-    if (unit.ownerId !== activePlayer(state).id) return false;
-    if (offsetDistance(unit, { col, row }) !== 1) return false;
-    if (!grid.isInMap(col, row)) return false;
-    if (baseAtHex(state, col, row) || unitAtHex(state, col, row)) return false;
-    const cost = moveCost(unit.unitType, grid.get(col, row));
-    return cost !== null && cost <= unit.remainingActions;
+  /** Where `selectedUnit` can move this turn, keyed by hex (implementation-spec.md §1's Movement
+   * targeting) — drives both the move-range overlay and resolving a tap on it, so the two can't
+   * disagree about what's reachable. Empty unless the selection is the active player's own,
+   * still-alive field unit. */
+  let moveReach = new Map();
+
+  function recomputeMoveReach() {
+    const unit = selectedUnit;
+    const actionable = unit && unit.ownerId === activePlayer(state).id && state.units.includes(unit);
+    moveReach = actionable ? reachableCells(state, grid, unit) : new Map();
+  }
+
+  /** Hands the camera everything the selected unit could act on, per style-guide.md §8's overlay
+   * table. Attack/claim reuse the very predicates the tap itself resolves through, so a hex is
+   * highlighted exactly when clicking it would do something. */
+  function refreshActionTargets() {
+    recomputeMoveReach();
+    const unit = selectedUnit;
+    if (!unit || unit.ownerId !== activePlayer(state).id || !state.units.includes(unit)) {
+      camera?.setActionTargets({});
+      return;
+    }
+    const attack = [];
+    const claim = [];
+    for (const enemy of state.units) {
+      if (isValidAttackTarget(state, grid, unit, enemy)) attack.push({ col: enemy.col, row: enemy.row });
+    }
+    for (const base of state.bases) {
+      if (isValidAttackBaseTarget(state, grid, unit, base)) attack.push({ col: base.col, row: base.row });
+      else if (isValidClaimTarget(grid, unit, base)) claim.push({ col: base.col, row: base.row });
+    }
+    camera?.setActionTargets({ move: [...moveReach.values()], attack, claim });
+  }
+
+  /** Walks `route` one hex at a time through the ordinary moveUnit command rather than teleporting,
+   * so every per-hex rule still fires exactly as it would have for individual clicks — AP spend,
+   * fog reveal, and a plane's own fuel tick, which can destroy it partway (§3). Stops early if a
+   * step is refused or the unit doesn't survive it. @returns whether the unit is still alive. */
+  function walkRoute(unit, route) {
+    for (const step of route) {
+      moveUnit(state, grid, unit.id, step.col, step.row, activePlayer(state).id);
+      if (!state.units.includes(unit)) return false; // crashed en route
+      if (unit.col !== step.col || unit.row !== step.row) break; // refused -- stop where it stands
+    }
+    return true;
   }
 
   /** Redraws the map and re-checks the End Turn gate (§6) — every mutating branch in selectHex
@@ -461,6 +500,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
    * fog via setVisibleState, rather than just re-drawing whatever it already had. */
   function redraw() {
     camera.setVisibleState(getVisibleState(state, humanId));
+    refreshActionTargets(); // reach and valid targets both shift with the board (§1)
     refreshEndTurnGate();
   }
 
@@ -544,15 +584,16 @@ export function initGameScreen({ onQuit, onGameOver }) {
       }
     }
 
-    if (selectedUnit && isValidMoveTarget(selectedUnit, col, row)) {
-      const unitId = selectedUnit.id;
-      moveUnit(state, grid, unitId, col, row, activePlayer(state).id);
-      const stillAlive = state.units.find((u) => u.id === unitId);
-      if (stillAlive) {
-        camera.setSelectedHex({ col: stillAlive.col, row: stillAlive.row });
-        renderUnitPanel(stillAlive);
+    // Movement targeting (§1): any hex in the selected unit's highlighted reach, however far —
+    // the stored route is walked hex by hex, not jumped to.
+    const destination = selectedUnit ? moveReach.get(offsetKey(col, row)) : undefined;
+    if (destination) {
+      const unit = selectedUnit;
+      if (walkRoute(unit, destination.path)) {
+        camera.setSelectedHex({ col: unit.col, row: unit.row });
+        renderUnitPanel(unit);
       } else {
-        closeAllPanels(); // a plane can crash (destroyed) from this very move, §3's fuel rule
+        closeAllPanels(); // a plane can crash mid-route (destroyed), §3's fuel rule
       }
       redraw();
       return;

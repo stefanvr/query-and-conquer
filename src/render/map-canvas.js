@@ -109,6 +109,7 @@ function traceShape(ctx, shape, sx, sy, radius) {
  *   the enemy-base non-disclosure rule that `viewerId` alone enforces.
  * @returns {{ draw: () => void, zoomIn: () => void, zoomOut: () => void, centerOn: (col:number,row:number) => void,
  *   setSelectedHex: (hex: {col:number,row:number}|null) => void,
+ *   setActionTargets: (targets: {move?: object[], attack?: object[], claim?: object[]}) => void,
  *   setVisibleState: (visible: {bases: object[], units: object[], fog?: object|null}) => void,
  *   setPendingUnload: (preview: {col:number,row:number,ownerId:number,unitType:string,targets:{col:number,row:number}[]}|null) => void,
  *   setPendingLoadTargets: (targets: {col:number,row:number}[]|null) => void,
@@ -138,6 +139,11 @@ export function createMapCamera(canvas, mapData, options = {}) {
   // normally (it hasn't moved), so this only needs the same target-hex highlight, no preview
   // token of its own.
   let pendingLoadTargets = null;
+  // What the currently selected unit could do, per hex (implementation-spec.md §1's Movement and
+  // Attack & claim targeting): `move` is everywhere it can reach this turn, `attack`/`claim` the
+  // hexes where a tap commits to that action. Sets of `offsetKey`s, so drawing is a lookup per
+  // hex rather than a scan per overlay. Rendering-only, like the pickers above.
+  let actionTargets = { move: new Set(), attack: new Set(), claim: new Set() };
 
   function baseAt(col, row) {
     return bases.find((b) => b.col === col && b.row === row);
@@ -228,6 +234,20 @@ export function createMapCamera(canvas, mapData, options = {}) {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     const size = camera.hexSize;
+
+    /** Tints the hex path currently traced, per style-guide.md §8's overlay table. `stroked`
+     * marks the overlays that commit to something irreversible (attack, claim). */
+    const fillOverlay = (colorVar, alpha, stroked = false) => {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = cssVar(colorVar);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (!stroked) return;
+      ctx.lineWidth = Math.max(1, size * 0.07);
+      ctx.strokeStyle = cssVar(colorVar);
+      ctx.stroke();
+    };
+
     const colStep = size * 1.5;
     const rowStep = size * Math.sqrt(3);
     const pad = 2;
@@ -262,20 +282,22 @@ export function createMapCamera(canvas, mapData, options = {}) {
           ctx.fill();
         }
 
+        // Hex overlays, style-guide.md §8's table. Drawn ambient-first so an actionable target
+        // always reads over the move-range wash it sits inside.
+        if (actionTargets.move.has(key)) fillOverlay("--signal", 0.25);
+        if (actionTargets.claim.has(key)) fillOverlay("--signal", 0.45, true);
+        if (actionTargets.attack.has(key)) fillOverlay("--rust", 0.4, true);
+
+        const isPickerTarget =
+          pendingUnload?.targets.some((t) => t.col === col && t.row === row) ||
+          pendingLoadTargets?.some((t) => t.col === col && t.row === row);
+        if (isPickerTarget) fillOverlay("--signal", 0.35);
+
+        // Selection outline last, so it's never tinted by an overlay drawn on top of it.
         if (selectedHex && selectedHex.col === col && selectedHex.row === row) {
           ctx.lineWidth = Math.max(1, size * 0.08);
           ctx.strokeStyle = "#FFFFFF";
           ctx.stroke();
-        }
-
-        const isTarget =
-          pendingUnload?.targets.some((t) => t.col === col && t.row === row) ||
-          pendingLoadTargets?.some((t) => t.col === col && t.row === row);
-        if (isTarget) {
-          ctx.fillStyle = cssVar("--signal");
-          ctx.globalAlpha = 0.35;
-          ctx.fill();
-          ctx.globalAlpha = 1;
         }
       }
     }
@@ -430,6 +452,13 @@ export function createMapCamera(canvas, mapData, options = {}) {
     centerOn,
     setSelectedHex(hex) {
       selectedHex = hex;
+      draw();
+    },
+    /** What the selected unit can do, per hex (implementation-spec.md §1) — arrays of
+     * {col,row}, or null/omitted for none. */
+    setActionTargets({ move = [], attack = [], claim = [] } = {}) {
+      const toKeys = (cells) => new Set(cells.map((c) => offsetKey(c.col, c.row)));
+      actionTargets = { move: toKeys(move), attack: toKeys(attack), claim: toKeys(claim) };
       draw();
     },
     setVisibleState({ bases: newBases, units: newUnits, fog: newFog = null }) {

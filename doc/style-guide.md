@@ -123,7 +123,7 @@ that across dozens of hexes at once.
 | Overlay | treatment | means |
 |---|---|---|
 | Selected hex | `#FFFFFF` outline stroke, no fill | what's currently selected |
-| Move range | `--signal` fill, 18% alpha, no stroke | the selected unit can reach this hex this turn |
+| Move range | `--signal` fill, 25% alpha, no stroke | the selected unit can reach this hex this turn |
 | Attack target | `--rust` fill, 40% alpha + `--rust` stroke | tapping attacks what's here |
 | Claim target | `--signal` fill, 45% alpha + `--signal` stroke | tapping claims this neutral base |
 | Load/unload destination | `--signal` fill, 35% alpha, no stroke | a valid destination while a picker is open |
