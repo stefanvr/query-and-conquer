@@ -230,9 +230,9 @@ function nearestUnexplored(ctx, unit) {
 }
 
 /** Deploys a garrisoned unit onto the first valid adjacent hex (easy difficulty's first-valid
- * rule again). The strategy lists all describe what a *field* unit does, so deploying is what
- * turns a garrisoned unit into one — without it an AI would build units that never leave the
- * base (implementation-spec.md §11). */
+ * rule again) — game spec §8's Deploying rule: the strategy lists all describe what a *field*
+ * unit does, so deploying is the one action available to a garrisoned unit, and what turns it
+ * into a field unit for next turn. */
 function deployFromBase(ctx, base, garrisoned) {
   const { state, grid, playerId } = ctx;
   for (const n of grid.neighborsOf(base.col, base.row)) {

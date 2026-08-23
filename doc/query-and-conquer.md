@@ -262,6 +262,20 @@ aggressive AI sometimes looking more opportunistic than coordinated.
 **Field units** = any unit not currently garrisoned/stationed at a base or other unit.
 **Ties** (equally close/equally weak options) are broken by lowest unit ID, for determinism.
 
+**Deploying.** Every strategy's priority list describes what a *field* unit does — a garrisoned
+unit can't attack, advance, or capture from inside a base. So a garrisoned unit's one available
+action is to deploy: step out onto a valid adjacent hex, at the usual cost of exiting a base
+(§3). Without this an AI would build units that never leave, and its whole priority list would
+be unreachable. Deploying is the action for that unit's turn — it starts following its
+strategy's list as a field unit from the next turn, rather than deploying and acting again in
+the same one. This applies to both garrisoned groups (existing base-defenders and newly
+completed units); each simply deploys at its own point in the processing order above.
+
+Note this makes AI bases lightly garrisoned by default, since units leave as soon as they can —
+a known consequence, and one of the things holding back a *defensive* AI in particular. Deciding
+per strategy how many units to keep home as garrison (a defensive AI holding some back, an
+aggressive one committing everything) is a candidate refinement, not v1 behavior.
+
 ### Strategies
 
 **Aggressive**

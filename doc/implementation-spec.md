@@ -208,6 +208,14 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - Build-timer tick + completion: tick down in-progress builds; on completion, add the unit to the
   garrison (starting SP: its own max strength) and, if capacity allows, pull the next queued item
   into "in-progress" with a fresh timer (cost-multiplier × bbt, game spec §2).
+- A completed build's garrison entry is tagged `builtOnTurn` (the turn number it finished on).
+  A base's garrison otherwise gives no way to tell an **existing defender** from a **newly
+  completed unit** — both are just entries in `base.garrison` — and the AI's own processing order
+  (§11, game spec §8) treats those as two separate groups, acted on at different points in the
+  turn. Comparing the tag against the current `turnNumber` is what separates them; it needs no
+  clearing, since "newly completed" simply stops being true once the turn number moves on. Set
+  for every player's builds, not just an AI's — canonical state doesn't branch on who owns a base
+  — and it round-trips through save/load like any other garrison field.
 
 ## 3. Units
 *(game spec §3 — selection, movement (path preview, action-point display), attack targeting,
@@ -534,11 +542,12 @@ speed setting affects it)*
   never by mutating state itself) and yields a short descriptor of what it did, then continues.
   The caller (§6's HUD pacing) decides whether to drain it instantly or step it with a delay —
   the engine has no timing concerns of its own, and no DOM access.
-- Per game spec §8's processing order: **base-defenders** (units already garrisoned at turn
-  start) → **field units** (`state.units`) → **newly completed units** (this turn's finished
-  builds, also garrisoned). A garrisoned unit's only move is to deploy (unload to a valid adjacent
-  hex); it becomes a field unit next turn rather than acting twice in one turn — snapshot the
-  three groups before acting so a deploy can't feed a unit back into the same pass.
+- Per game spec §8's processing order: **base-defenders** (garrison entries without a
+  `builtOnTurn` of the current turn) → **field units** (`state.units`) → **newly completed units**
+  (garrison entries tagged `builtOnTurn === state.turnNumber`, set on build completion — see §2's
+  turn-start processing for why the tag exists at all). Both garrisoned groups deploy rather than
+  running the priority list (game spec §8's Deploying rule); snapshot all three groups before
+  acting, so a unit that deploys can't be picked up again by the field-unit pass in the same turn.
 - Each unit walks its strategy's priority list top to bottom and takes the first applicable
   action, then stops (one action per unit per turn — easy AI's "often leaves actions unspent",
   game spec §8's Difficulty table, falls out of this rather than needing a separate rule).

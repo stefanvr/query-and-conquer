@@ -616,10 +616,13 @@ export function processTurnStart(state, playerId) {
       base.inProgress.remainingTurns -= 1;
       if (base.inProgress.remainingTurns <= 0) {
         const unitType = base.inProgress.unitType;
-        // `builtOnTurn` marks this entry as a *newly completed* unit for the rest of this turn —
-        // game spec §8's AI processing order treats those as their own group, acted on after
-        // existing base-defenders and field units. Nothing else reads it, and it round-trips
-        // through save/load like any other garrison field.
+        // `builtOnTurn` is what tells an existing base-defender apart from a newly completed unit
+        // — otherwise both are just entries in base.garrison — which game spec §8's AI processing
+        // order needs, since it acts on those two groups at different points in the turn. Needs
+        // no clearing: "newly completed" stops being true once turnNumber moves on. Set for every
+        // player's builds, not just an AI's (canonical state doesn't branch on who owns a base),
+        // and it round-trips through save/load like any other garrison field.
+        // See implementation-spec.md §2's turn-start processing.
         base.garrison.push({ id: state.nextUnitId++, unitType, sp: UNIT_TYPES[unitType].strength, builtOnTurn: state.turnNumber });
         base.inProgress = null;
         bumpStat(state, playerId, "unitsBuilt"); // §9 — playerId, not base.ownerId: still null here on a recapture completion (set just below)

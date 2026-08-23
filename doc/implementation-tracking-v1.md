@@ -296,8 +296,10 @@ recovery, on the same reference unit.*
       visible-threats-only reaction — decisions read `getVisibleState`, while commands still take
       canonical state so a rule resolves against reality (implementation-spec.md §11)
 - [x] Ad hoc: the strategy lists only describe *field* units, so a garrisoned one would never
-      leave — added deploy-from-base as the garrisoned equivalent, else an AI builds units that
-      sit in the base forever
+      leave and an AI would build units that sit in the base forever. Added deploy-from-base as
+      the garrisoned equivalent, and wrote the rule into query-and-conquer.md §8 (Deploying)
+      rather than leaving it an undocumented implementation choice — it changes AI behavior, so
+      it belongs in the design doc, along with the lightly-garrisoned-bases consequence it has
 - [x] AI speed setting (instant/fast/slow) with actions visibly animating one at a time — HUD
       select; Instant stays fully synchronous (no `await` on that path) so ending a turn still
       resolves inside the same click, and existing e2e timing is unaffected
