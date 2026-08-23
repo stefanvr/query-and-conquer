@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createGameState, activePlayer, playerBase } from "../../src/state/game-state.js";
+import { neutralBaseCount } from "../../src/state/base-placement.js";
+import { deserializeGrid } from "../../src/map/map-serialize.js";
 import { mulberry32 } from "../../src/map/prng.js";
 
 // 20x20 all-gras — large enough to fit several bases at the required min-distance apart
@@ -47,13 +49,33 @@ test("activePlayer resolves the player at the current turnIndex", () => {
 test("places one base per player, each starting at full strength with an empty garrison/queue", () => {
   const options = { aiDifficulties: ["easy", "hard"], mapSize: "small", mapType: "landOnly", fogOfWar: true };
   const state = createGameState(options, mapData, mulberry32(4));
-  assert.equal(state.bases.length, 3);
+  const ownedBases = state.bases.filter((b) => b.ownerId !== null);
+  assert.equal(ownedBases.length, 3);
   assert.deepEqual(
-    state.bases.map((b) => b.ownerId).sort(),
+    ownedBases.map((b) => b.ownerId).sort(),
     [0, 1, 2],
   );
-  for (const base of state.bases) {
+  for (const base of ownedBases) {
     assert.equal(base.sp, base.maxSp);
+    assert.deepEqual(base.garrison, []);
+    assert.deepEqual(base.queue, []);
+    assert.equal(base.inProgress, null);
+  }
+});
+
+test("also seeds neutral bases (game spec §5), at half strength with the same empty state", () => {
+  const options = { aiDifficulties: ["easy", "hard"], mapSize: "small", mapType: "landOnly", fogOfWar: true };
+  const state = createGameState(options, mapData, mulberry32(4));
+  // game spec §5's own formula, computed independently rather than hand-derived here -- its
+  // correctness is base-placement.test.js's job; this just confirms createGameState wires it in.
+  const grid = deserializeGrid(mapData.width, mapData.height, mapData.rows);
+  const expectedNeutralCount = neutralBaseCount(3, grid);
+  const neutralBases = state.bases.filter((b) => b.ownerId === null);
+  assert.equal(neutralBases.length, expectedNeutralCount);
+  assert.equal(state.bases.length, 3 + expectedNeutralCount, "3 owned + neutral");
+  for (const base of neutralBases) {
+    assert.equal(base.sp, base.maxSp / 2, "half strength, a stored value only (§5)");
+    assert.equal(base.lastOwnerId, null, "never owned before -- no recapture rule applies");
     assert.deepEqual(base.garrison, []);
     assert.deepEqual(base.queue, []);
     assert.equal(base.inProgress, null);

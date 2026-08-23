@@ -3,7 +3,7 @@
 // queries.js's getVisibleState.
 import { shuffle } from "../map/prng.js";
 import { deserializeGrid } from "../map/map-serialize.js";
-import { placeBases } from "./base-placement.js";
+import { placeBases, neutralBaseCount, neutralBaseStartingSp } from "./base-placement.js";
 import { BASE_TYPES } from "./base-types.js";
 import { assignStrategies } from "../ai/strategies.js";
 
@@ -41,21 +41,26 @@ export function createGameState(options, mapData, rng) {
   ];
 
   const grid = deserializeGrid(mapData.width, mapData.height, mapData.rows);
-  const sites = placeBases(grid, players.map((p) => p.id), rng);
-  const bases = sites.map((site, i) => ({
-    id: i,
-    ownerId: site.ownerId,
-    lastOwnerId: null, // set when a base goes neutral (§4) — who to auto-recapture it for
-    type: site.type,
-    col: site.col,
-    row: site.row,
-    adjacentToDeepWater: site.adjacentToDeepWater ?? false,
-    sp: BASE_TYPES[site.type].strength,
-    maxSp: BASE_TYPES[site.type].strength,
-    garrison: [],
-    queue: [],
-    inProgress: null,
-  }));
+  const neutralCount = neutralBaseCount(players.length, grid);
+  const sites = placeBases(grid, players.map((p) => p.id), rng, { neutralCount });
+  const bases = sites.map((site, i) => {
+    const strength = BASE_TYPES[site.type].strength;
+    return {
+      id: i,
+      ownerId: site.ownerId,
+      lastOwnerId: null, // set when a base goes neutral (§4) — who to auto-recapture it for
+      type: site.type,
+      col: site.col,
+      row: site.row,
+      adjacentToDeepWater: site.adjacentToDeepWater ?? false,
+      // A neutral base starts at half strength (game spec §5) — an owned one at full, undamaged.
+      sp: site.ownerId === null ? neutralBaseStartingSp(strength) : strength,
+      maxSp: strength,
+      garrison: [],
+      queue: [],
+      inProgress: null,
+    };
+  });
 
   return {
     options,
