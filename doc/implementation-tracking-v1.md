@@ -353,6 +353,23 @@ threats outside its own view.
         underneath it. Narrow viewports stack it below the map instead of beside it. Removed the
         four mobile-only test skips and both close-the-panel-first workarounds this had forced
         since Stage 5 — the e2e suite now runs every test on both viewports
+  - [ ] On mobile, selecting a tank opens its panel with the Load button below the fold, so the
+        unit's only action is invisible until scrolled to. Selecting a boat (carrier/transporter)
+        afterwards renders correctly, and the tank does too from then on — so the content isn't
+        too tall for the panel as such, the *first* render just lays out against a stale or
+        not-yet-settled panel box. Found on a real device, after the overlay fix above
+  - [ ] The "plane still owes its movement" HUD notice (`#hud-end-turn-blocked`) is an element
+        that appears and disappears in the HUD row, shoving End Turn and Menu sideways on mobile
+        — a moving target for a tap. Wants a solution that scales: this is the first
+        "you still owe an action before you can end the turn" notice, not the last, so reserving
+        space or moving the notice out of the button row should hold for the next one too,
+        rather than being special-cased for planes
+  - [ ] Move the AI speed control (Instant/Fast/Slow) out of the HUD and into the in-game menu.
+        It was put in the HUD as chrome rather than a game option (spec §6/§11) since it's
+        changeable mid-match and affects nothing about the match's rules or its save — but it
+        costs permanent HUD width for something set rarely, which mobile can't spare. Moving it
+        means updating that §6/§11 reasoning and the `#hud-ai-speed` e2e coverage, not just the
+        markup
 - [ ] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
       §5's placement is currently exactly N seeds for N players, so every base starts owned —
       "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra
