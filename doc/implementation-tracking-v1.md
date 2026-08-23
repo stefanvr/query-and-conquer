@@ -321,7 +321,15 @@ built, not new game rules.*
       attack right now (range + LOS + attacks remaining), so the LOS rule and per-unit ranges stop
       being guesswork
 - [x] Unload straight into an adjacent friendly boat (moved up from Stage 13) — the picker only
-      ever highlighted empty terrain, so only the boat → base direction worked
+      ever highlighted empty terrain, so only the boat → base direction worked. Costs 2 (1 load
+      action + the 1-AP floor every move pays)
+- [x] Ad hoc: garrison/cargo entries now carry `spentActions`, so entering a container costs
+      something that survives the trip. Every entry was previously an affordability gate that the
+      exit then forgot, letting a unit launder a spent budget by ducking into a base or boat and
+      back out, and making a base → boat → shore hop *cheaper* than unloading straight to shore.
+      Pre-dated this stage (`enterBaseWithCargo` always allowed it) but the new boat direction
+      made it reachable one more way. Cleared at the owner's turn-start, like a field unit's own
+      actions
 - [x] style-guide.md §8: replace the text-only placeholder with the real on-map overlay
       vocabulary — that section already anticipated this ("range overlays... expected to replace
       this in a later pass")
@@ -371,15 +379,6 @@ built, not new game rules.*
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
       framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
       as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
-- [ ] A unit can hop base → boat → shore in a single turn and arrive with a *full* action budget,
-      cheaper than unloading straight to shore (1 action + move cost). Every entry into a
-      container is an affordability gate rather than a running deduction — a unit that enters one
-      stops being a field unit, and garrison/cargo entries carry no `remainingActions` — so the
-      cost of getting in is forgotten by the time it comes back out. Pre-dates the boat-transfer
-      work (`enterBaseWithCargo` has always let cargo land in a base free and leave at full
-      budget); Stage 11b made it reachable in one more direction and easier to notice. Fixing it
-      properly means garrison/cargo entries remembering actions already spent this turn, and
-      turn-start clearing that — a state-shape change, not a tweak
 - [ ] Planes' mandatory ≥50% movement (query-and-conquer.md §3) is only enforced against the
       *human*, as an End Turn gate (`planesOwingMovement`, Stage 8) — an AI's planes are never
       held to it, since an AI turn has no End Turn button to block. It's a game rule, not a UI

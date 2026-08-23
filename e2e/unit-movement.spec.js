@@ -58,7 +58,7 @@ test("moving the tank to an adjacent hex spends AP and leaves the base-adjacent 
   await expect(page.locator("#unit-panel-actions")).toBeEmpty();
 });
 
-test("the Load destination picker loads the tank into the base, and the unload picker unloads it again", async ({ page }) => {
+test("the Load picker loads the tank in; a unit that spent its turn getting in can't turn straight around, but a rested one unloads", async ({ page }) => {
   const tank = await screenPosFor(page, 1, 2);
   await page.mouse.click(tank.x, tank.y);
   await expect(page.locator("#unit-panel-actions button")).toBeEnabled();
@@ -77,10 +77,23 @@ test("the Load destination picker loads the tank into the base, and the unload p
   // a second, in the next slot.
   await expect(page.locator("#base-panel-capacity")).toContainText("2/15");
 
-  await page.locator("#base-panel-garrison button").nth(1).click(); // the newly-loaded tank's slot
-  await expect(page.locator("#base-panel")).toBeHidden();
-
   const dest = await screenPosFor(page, 1, 2); // back where it started -- adjacent, passable, empty
+
+  // The tank that just walked in has nothing left this turn: it arrived on 3 AP and loading cost
+  // 2, so it can't afford the 2 to step back out (implementation-spec.md §3's spentActions).
+  // Its picker opens, but that hex isn't a valid destination, so confirming there does nothing.
+  await page.locator("#base-panel-garrison button").nth(1).click();
+  await expect(page.locator("#base-panel")).toBeHidden();
+  await page.mouse.click(dest.x, dest.y);
+  await expect(page.locator("#unit-panel")).toBeHidden(); // no unit placed -- still in the picker
+  await page.mouse.click(base.x, base.y); // cancel back out of the picker
+  await expect(page.locator("#base-panel")).toBeVisible();
+  await expect(page.locator("#base-panel-capacity")).toContainText("2/15"); // both still inside
+
+  // The tank that's been garrisoned since the save was made hasn't spent anything, so it leaves
+  // normally -- the unload picker itself works fine.
+  await page.locator("#base-panel-garrison button").nth(0).click();
+  await expect(page.locator("#base-panel")).toBeHidden();
   await page.mouse.click(dest.x, dest.y);
   await expect(page.locator("#unit-panel")).toBeVisible(); // the newly-placed unit's own panel opens
   await expect(page.locator("#unit-panel-title")).toContainText("Tank");

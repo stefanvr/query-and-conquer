@@ -13,6 +13,32 @@ const CAPTURING_UNIT_TYPES = ["tank", "fighter", "fregat"]; // §4: no other uni
  * shouldn't come out cheaper than the cheapest possible step onto open ground. */
 const BOAT_TRANSFER_COST = 2;
 
+/** Actions a garrisoned/cargo entry has already used this turn (implementation-spec.md §3's
+ * Field units). A container entry has no `remainingActions` of its own — it isn't a field unit —
+ * so what it carries instead is the running total spent before and while getting in, which its
+ * eventual exit is charged against. Absent on entries built before this existed (and on saves
+ * from then), hence the default. Cleared for every entry at its owner's turn-start. */
+function spentThisTurn(entry) {
+  return entry.spentActions ?? 0;
+}
+
+/** What a *field* unit has spent so far this turn, given its own budget. */
+function fieldUnitSpent(unit) {
+  return UNIT_TYPES[unit.unitType].actionsPerTurn - unit.remainingActions;
+}
+
+/** The garrison/cargo entry a unit becomes on entering a container, carrying forward everything
+ * it had spent this turn plus `entryCost` — so a unit can't launder a spent action budget by
+ * ducking into a base or boat and straight back out (implementation-spec.md §2's Boat entry). */
+function toContainerEntry(unit, entryCost) {
+  return {
+    id: unit.id,
+    unitType: unit.unitType,
+    sp: unit.sp, // carried over (§3/§4)
+    spentActions: fieldUnitSpent(unit) + entryCost,
+  };
+}
+
 /** Whether `playerId` is eliminated (game spec §7): zero bases owned *and* zero units anywhere —
  * both conditions together, not either alone. Owning any base keeps a player in regardless of
  * units (they can always just queue a build); having any unit keeps them in regardless of bases.
@@ -257,13 +283,14 @@ function toFieldUnit(entry, ownerId, targetCol, targetRow, remainingActions) {
 export function isValidUnloadTarget(state, grid, container, garrisoned, targetCol, targetRow) {
   if (offsetDistance({ col: container.col, row: container.row }, { col: targetCol, row: targetRow }) !== 1) return false;
   if (!grid.isInMap(targetCol, targetRow)) return false;
-  if (unloadBoatAt(state, container, garrisoned, targetCol, targetRow)) {
-    return BOAT_TRANSFER_COST <= UNIT_TYPES[garrisoned.unitType].actionsPerTurn;
-  }
+  // Everything this unit already spent this turn counts against the exit, so a mid-turn hop
+  // through a container is never cheaper than going the direct way (implementation-spec.md §3).
+  const budget = UNIT_TYPES[garrisoned.unitType].actionsPerTurn - spentThisTurn(garrisoned);
+  if (unloadBoatAt(state, container, garrisoned, targetCol, targetRow)) return BOAT_TRANSFER_COST <= budget;
   if (isBlockedForMovement(state, targetCol, targetRow)) return false;
   const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
   if (cost === null) return false;
-  return 1 + cost <= UNIT_TYPES[garrisoned.unitType].actionsPerTurn;
+  return 1 + cost <= budget;
 }
 
 /** The friendly boat at (targetCol, targetRow) that `garrisoned` could transfer straight into,
@@ -283,17 +310,20 @@ function unloadBoatAt(state, container, garrisoned, targetCol, targetRow) {
 }
 
 /** Moves a garrison/cargo entry straight into an adjacent boat's hold, if the destination is one.
- * Costs `BOAT_TRANSFER_COST`, charged the way every other container entry is — as an
- * affordability gate against the unit's action budget (`isValidUnloadTarget`), not a running
- * deduction, since a unit entering a container stops being a field unit and has no per-turn
- * budget to carry. `loadUnit` and `enterBaseWithCargo` already work exactly this way.
- * @returns whether the transfer happened. */
+ * Costs `BOAT_TRANSFER_COST`, added to what the unit had already spent this turn (rather than
+ * charged against a budget it doesn't have) — so hopping through a hold is never a way to arrive
+ * somewhere with actions it should have used getting there. @returns whether it happened. */
 function transferToBoat(state, container, entries, index, targetCol, targetRow) {
   const entry = entries[index];
   const boat = unloadBoatAt(state, container, entry, targetCol, targetRow);
   if (!boat) return false;
   entries.splice(index, 1);
-  boat.cargo.push({ id: entry.id, unitType: entry.unitType, sp: entry.sp });
+  boat.cargo.push({
+    id: entry.id,
+    unitType: entry.unitType,
+    sp: entry.sp,
+    spentActions: spentThisTurn(entry) + BOAT_TRANSFER_COST,
+  });
   return true;
 }
 
@@ -317,7 +347,8 @@ export function unloadUnit(state, grid, baseId, unitId, targetCol, targetRow, ac
 
   const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
   base.garrison.splice(index, 1);
-  const remainingActions = UNIT_TYPES[garrisoned.unitType].actionsPerTurn - (1 + cost);
+  const remainingActions =
+    UNIT_TYPES[garrisoned.unitType].actionsPerTurn - spentThisTurn(garrisoned) - (1 + cost);
   state.units.push(toFieldUnit(garrisoned, base.ownerId, targetCol, targetRow, remainingActions));
   markExplored(state, base.ownerId); // a new field unit is a new vision source (§6)
   return state;
@@ -341,7 +372,8 @@ export function unloadCargo(state, grid, boatId, unitId, targetCol, targetRow, a
 
   const cost = moveCost(cargoUnit.unitType, grid.get(targetCol, targetRow));
   boat.cargo.splice(index, 1);
-  const remainingActions = UNIT_TYPES[cargoUnit.unitType].actionsPerTurn - (1 + cost);
+  const remainingActions =
+    UNIT_TYPES[cargoUnit.unitType].actionsPerTurn - spentThisTurn(cargoUnit) - (1 + cost);
   state.units.push(toFieldUnit(cargoUnit, boat.ownerId, targetCol, targetRow, remainingActions));
   markExplored(state, boat.ownerId); // a new field unit is a new vision source (§6)
   return state;
@@ -392,7 +424,7 @@ export function loadUnit(state, grid, unitId, baseId, activePlayerId) {
   if (!isValidLoadTarget(grid, unit, base)) return state;
 
   state.units.splice(index, 1);
-  base.garrison.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp }); // sp carried over (§3/§4)
+  base.garrison.push(toContainerEntry(unit, 1 + enterCost(grid, unit)));
   return state;
 }
 
@@ -413,8 +445,17 @@ export function enterBaseWithCargo(state, grid, boatId, baseId, activePlayerId) 
   if (capacityUsed(base) + 1 + cargo.length > MAX_BASE_CAPACITY) return state;
 
   state.units.splice(index, 1);
-  base.garrison.push({ id: boat.id, unitType: boat.unitType, sp: boat.sp });
-  for (const cargoUnit of cargo) base.garrison.push({ id: cargoUnit.id, unitType: cargoUnit.unitType, sp: cargoUnit.sp });
+  base.garrison.push(toContainerEntry(boat, 1 + enterCost(grid, boat)));
+  // The cargo rides in free (game spec §2), so each entry keeps whatever it had already spent
+  // rather than being charged again for the ride.
+  for (const cargoUnit of cargo) {
+    base.garrison.push({
+      id: cargoUnit.id,
+      unitType: cargoUnit.unitType,
+      sp: cargoUnit.sp,
+      spentActions: spentThisTurn(cargoUnit),
+    });
+  }
   return state;
 }
 
@@ -455,7 +496,7 @@ export function loadIntoBoat(state, grid, unitId, boatId, activePlayerId) {
   if (!isValidLoadIntoBoatTarget(grid, unit, boat)) return state;
 
   state.units.splice(index, 1);
-  boat.cargo.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp });
+  boat.cargo.push(toContainerEntry(unit, 1 + enterCost(grid, unit)));
   return state;
 }
 
@@ -607,7 +648,7 @@ export function claimBase(state, grid, unitId, baseId, activePlayerId) {
 
   const isRecapture = base.lastOwnerId === unit.ownerId;
   state.units.splice(index, 1);
-  base.garrison.push({ id: unit.id, unitType: unit.unitType, sp: unit.sp });
+  base.garrison.push(toContainerEntry(unit, 1 + enterCost(grid, unit)));
   base.ownerId = unit.ownerId;
   base.sp = 4;
   if (!isRecapture) {
@@ -645,6 +686,10 @@ export function processTurnStart(state, playerId) {
 
     if (ownsIt) {
       if (base.sp < base.maxSp) base.sp = Math.min(base.maxSp, base.sp + 1);
+
+      // A new turn is a fresh action budget for a garrisoned unit too, exactly as it is for a
+      // field unit below — `spentActions` only ever describes the turn it was set in (§3).
+      for (const garrisoned of base.garrison) garrisoned.spentActions = 0;
 
       let repairing = 0;
       for (const garrisoned of base.garrison) {
@@ -685,6 +730,7 @@ export function processTurnStart(state, playerId) {
     unit.remainingActions = stats.actionsPerTurn;
     unit.remainingAttacks = stats.attacksPerTurn;
     if (stats.roundTripRange) unit.actionsSpentMoving = 0; // this-turn-only (§3's Plane rearm & fuel)
+    for (const cargoUnit of unit.cargo ?? []) cargoUnit.spentActions = 0; // as for a garrison, above
   }
   markExplored(state, playerId); // passive baseline vision resync (§6) — safe even if nothing moved
   return state;

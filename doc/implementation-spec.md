@@ -109,13 +109,10 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   container's own cell is impassable to the other's occupant anyway — but a transfer must not come
   out cheaper than the cheapest possible step onto open ground, which is what a free transfer
   would have made it.
-- Like every other entry into a container (`loadUnit`, `enterBaseWithCargo`), that cost is an
-  **affordability gate, not a running deduction**: a unit that enters a container stops being a
-  field unit and has no per-turn budget left to subtract from. Note the consequence — since
-  garrisoned and cargo entries don't track `remainingActions`, and every unit type has at least 2
-  actions/turn, this particular gate can't currently refuse anything. It's stated and enforced in
-  the same place the terrain branch is, so the two can't drift, and it starts binding the moment
-  either of those two facts changes.
+- That cost is real, not just a gate: it's added to the entry's own `spentActions` (§3's Field
+  units), which its eventual exit is charged against. So a unit that has already used most of its
+  turn can be refused the transfer outright, and one that hops base → boat → shore in a single
+  turn arrives with strictly less left than if it had unloaded straight to shore.
 
 ### Load destination picker
 - The unit panel's Load button (§3) is a single button, shown whenever at least one adjacent
@@ -274,6 +271,14 @@ load/unload and cargo interaction)*
 - Garrisoned units carry the same sp field (no longer just `{id, unitType}`) so damage persists
   across load/unload rather than resetting — loading keeps the unit's current sp, unloading keeps
   it too (only a freshly-completed build starts at full sp).
+- A garrison/cargo entry also carries `spentActions`: what that unit has already used this turn,
+  including whatever getting *into* the container cost. A container entry has no
+  `remainingActions` of its own — it isn't a field unit — so this is what stands in for one:
+  entering adds the entry cost to it, exiting subtracts it (plus the exit's own 1 + move cost)
+  from a full turn's budget, and the owner's turn-start clears it, exactly as a field unit's
+  actions reset. Without it a unit could launder a spent budget by stepping into a base or boat
+  and straight back out, arriving fresh — and a mid-turn hop through a hold would come out
+  cheaper than going directly. A freshly-completed build starts at 0, having done nothing yet.
 - Move cost is spent from remainingActions per hex entered (game spec §3's terrain cost table;
   `0` = impassable, not free). A unit with 0 remaining actions can't move or load/unload.
 - Both moveUnit and loadUnit/unloadUnit (and the new attack/claim commands, §1) reject a unit

@@ -1493,7 +1493,11 @@ test("unloadUnit into an adjacent boat puts the unit in its cargo, not on the ma
   unloadUnit(s, grid, base.id, 1, boat.col, boat.row, 0);
 
   assert.equal(base.garrison.length, 0, "left the base");
-  assert.deepEqual(boat.cargo, [{ id: 1, unitType: "tank", sp: 7 }], "sp carried over into the hold");
+  assert.deepEqual(
+    boat.cargo,
+    [{ id: 1, unitType: "tank", sp: 7, spentActions: 2 }],
+    "sp carried over into the hold, and the transfer's own cost recorded against this turn",
+  );
   assert.equal(s.units.some((u) => u.id === 1), false, "never became a field unit");
 });
 
@@ -1553,6 +1557,102 @@ test("a Bomber still can't board a Carrier this way either -- the transfer honou
   unloadUnit(s, grid, base.id, 1, boat.col, boat.row, 0);
   assert.equal(boat.cargo.length, 0, "no-op");
   assert.equal(base.garrison.length, 1, "still garrisoned");
+});
+
+// --- Stage 11b: a container remembers what its occupant already spent this turn ---
+
+test("hopping base -> boat -> shore in one turn is never cheaper than unloading straight to shore", () => {
+  const s = state([0], 0);
+  const garrisoned = { id: 1, unitType: "tank", sp: 10 };
+  const { grid, base, boat } = baseNextToBoat(s, { garrison: [garrisoned] });
+  grid.set(4, 5, "shallow"); // give the boat somewhere its cargo can step off onto... land at (4,4)
+
+  unloadUnit(s, grid, base.id, 1, boat.col, boat.row, 0); // base -> boat, costs 2
+  unloadCargo(s, grid, boat.id, 1, 5, 4, 0); // boat -> shore, costs 1 + gras
+
+  const fielded = s.units.find((u) => u.id === 1);
+  assert.ok(fielded, "made it ashore");
+  assert.equal(
+    fielded.remainingActions,
+    UNIT_TYPES.tank.actionsPerTurn - 2 - 2,
+    "charged for both legs, not handed a fresh budget on the way out",
+  );
+  assert.ok(
+    fielded.remainingActions < UNIT_TYPES.tank.actionsPerTurn - 2,
+    "and strictly worse than going straight to shore, which is the whole point",
+  );
+});
+
+test("a unit that already spent most of its turn can't afford to transfer into a boat", () => {
+  const s = state([0], 0);
+  // A carrier has 3 actions/turn, so 2 spent leaves 1 -- short of the transfer's cost of 2.
+  const garrisoned = { id: 1, unitType: "fighter", sp: 15, spentActions: UNIT_TYPES.fighter.actionsPerTurn - 1 };
+  const { grid, base, boat } = baseNextToBoat(s, { boatType: "carrier", garrison: [garrisoned] });
+
+  assert.equal(isValidUnloadTarget(s, grid, base, garrisoned, boat.col, boat.row), false);
+  unloadUnit(s, grid, base.id, 1, boat.col, boat.row, 0);
+  assert.equal(boat.cargo.length, 0, "no-op");
+});
+
+test("loading into a base carries the spend in, so ducking in and out again isn't free", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  const base = landBase({ id: 0, ownerId: 0, col: 6, row: 5 });
+  s.bases.push(base);
+  const unit = tank({ id: 1, col: 5, row: 5, remainingActions: 4 }); // already spent 1 this turn
+  s.units.push(unit);
+
+  loadUnit(s, grid, 1, base.id, 0); // 1 action + gras = 2 more, so 3 spent in total
+  assert.equal(base.garrison[0].spentActions, 3);
+
+  unloadUnit(s, grid, base.id, 1, 5, 5, 0); // back out again: 1 + gras
+  const backOut = s.units.find((u) => u.id === 1);
+  assert.equal(backOut.remainingActions, UNIT_TYPES.tank.actionsPerTurn - 3 - 2, "every leg still counted");
+});
+
+test("a fresh turn clears what garrisoned and cargo units had spent", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  const base = landBase({ id: 0, ownerId: 0, type: "port", col: 6, row: 5, garrison: [{ id: 1, unitType: "tank", sp: 10, spentActions: 4 }] });
+  s.bases.push(base);
+  const boat = transporter({ id: 50, col: 5, row: 5, cargo: [{ id: 2, unitType: "tank", sp: 10, spentActions: 5 }] });
+  s.units.push(boat);
+
+  processTurnStart(s, 0);
+
+  assert.equal(base.garrison[0].spentActions, 0, "garrison reset");
+  assert.equal(boat.cargo[0].spentActions, 0, "cargo reset");
+
+  // ...and with a clean slate the unit unloads on its full budget again, as it always did.
+  unloadUnit(s, grid, base.id, 1, 7, 5, 0);
+  assert.equal(s.units.find((u) => u.id === 1).remainingActions, UNIT_TYPES.tank.actionsPerTurn - 2);
+});
+
+test("a freshly completed build starts its life owing nothing", () => {
+  const s = state([0], 0);
+  const base = landBase({ ownerId: 0, inProgress: { unitType: "tank", remainingTurns: 1 } });
+  s.bases.push(base);
+
+  processTurnStart(s, 0);
+
+  const built = base.garrison.find((g) => g.unitType === "tank");
+  assert.equal(built.spentActions ?? 0, 0, "a new unit hasn't spent anything yet");
+});
+
+test("cargo riding into a base on its boat isn't charged again for the ride (game spec §2)", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  const base = landBase({ id: 0, ownerId: 0, type: "port", col: 6, row: 5 });
+  s.bases.push(base);
+  const boat = transporter({ id: 50, col: 5, row: 5, cargo: [{ id: 1, unitType: "tank", sp: 10, spentActions: 2 }] });
+  s.units.push(boat);
+
+  enterBaseWithCargo(s, grid, boat.id, base.id, 0);
+
+  const ridden = base.garrison.find((g) => g.id === 1);
+  assert.equal(ridden.spentActions, 2, "unchanged -- the boat paid for the entry, not its cargo");
 });
 
 test("unloading onto open terrain still works exactly as before, cost included", () => {
