@@ -253,10 +253,42 @@ function toFieldUnit(entry, ownerId, targetCol, targetRow, remainingActions) {
 export function isValidUnloadTarget(state, grid, container, garrisoned, targetCol, targetRow) {
   if (offsetDistance({ col: container.col, row: container.row }, { col: targetCol, row: targetRow }) !== 1) return false;
   if (!grid.isInMap(targetCol, targetRow)) return false;
+  if (unloadBoatAt(state, container, garrisoned, targetCol, targetRow)) return true;
   if (isBlockedForMovement(state, targetCol, targetRow)) return false;
   const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
   if (cost === null) return false;
   return 1 + cost <= UNIT_TYPES[garrisoned.unitType].actionsPerTurn;
+}
+
+/** The friendly boat at (targetCol, targetRow) that `garrisoned` could transfer straight into,
+ * or null — implementation-spec.md §1's Unload destination picker. Lets a unit go hold-to-hold
+ * (a base's garrison or another boat's cargo, into an adjacent boat) instead of only ever
+ * unloading onto open terrain, which is the mirror of `enterBaseWithCargo`'s boat -> base
+ * direction. `container` is excluded so a boat can't be its own destination. */
+function unloadBoatAt(state, container, garrisoned, targetCol, targetRow) {
+  const boat = unitAtHex(state, targetCol, targetRow);
+  if (!boat || boat.id === container.id) return null;
+  if (boat.ownerId !== container.ownerId) return null;
+  const capacity = UNIT_TYPES[boat.unitType].holdCapacity;
+  if (!capacity || boat.cargo.length >= capacity) return null;
+  if (CARGO_CATEGORY[boat.unitType] !== UNIT_TYPES[garrisoned.unitType].category) return null;
+  if (boat.unitType === "carrier" && !UNIT_TYPES[garrisoned.unitType].boardsCarrier) return null;
+  return boat;
+}
+
+/** Moves a garrison/cargo entry straight into an adjacent boat's hold, if the destination is one.
+ * Costs nothing: neither side of a container-to-container transfer has an action budget to charge
+ * (only field units track `remainingActions`), and the opposite direction is already free —
+ * `enterBaseWithCargo` unloads a whole cargo hold into a base for nothing. Charging terrain move
+ * cost would be meaningless besides, since the unit never stands on terrain. @returns whether the
+ * transfer happened. */
+function transferToBoat(state, container, entries, index, targetCol, targetRow) {
+  const entry = entries[index];
+  const boat = unloadBoatAt(state, container, entry, targetCol, targetRow);
+  if (!boat) return false;
+  entries.splice(index, 1);
+  boat.cargo.push({ id: entry.id, unitType: entry.unitType, sp: entry.sp });
+  return true;
 }
 
 /** Unloads a garrisoned unit from `base` onto the given (player-chosen) adjacent hex —
@@ -273,6 +305,9 @@ export function unloadUnit(state, grid, baseId, unitId, targetCol, targetRow, ac
 
   const garrisoned = base.garrison[index];
   if (!isValidUnloadTarget(state, grid, base, garrisoned, targetCol, targetRow)) return state;
+  // The destination may be an adjacent friendly boat rather than open terrain (§1) — then it's a
+  // hold-to-hold transfer, and the unit never becomes a field unit at all.
+  if (transferToBoat(state, base, base.garrison, index, targetCol, targetRow)) return state;
 
   const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
   base.garrison.splice(index, 1);
@@ -294,6 +329,9 @@ export function unloadCargo(state, grid, boatId, unitId, targetCol, targetRow, a
 
   const cargoUnit = boat.cargo[index];
   if (!isValidUnloadTarget(state, grid, boat, cargoUnit, targetCol, targetRow)) return state;
+  // Straight into another adjacent friendly boat, if that's the destination (§1) — same
+  // hold-to-hold transfer a base's garrison can make.
+  if (transferToBoat(state, boat, boat.cargo, index, targetCol, targetRow)) return state;
 
   const cost = moveCost(cargoUnit.unitType, grid.get(targetCol, targetRow));
   boat.cargo.splice(index, 1);

@@ -14,6 +14,7 @@ import {
   markExplored,
   unloadUnit,
   unloadCargo,
+  isValidUnloadTarget,
   loadUnit,
   isValidLoadTarget,
   enterBaseWithCargo,
@@ -1456,4 +1457,112 @@ test("loading/unloading/claiming a unit never bumps unitsBuilt or unitsLost -- r
 
   loadUnit(s, grid, 1, base.id, 0);
   assert.deepEqual(s.players[0].stats, { unitsBuilt: 0, unitsLost: 0 });
+});
+
+// --- Stage 11b: unloading straight into an adjacent friendly boat ---
+
+/** A port base at (6,5) holding `garrison`, with a friendly boat on water at (5,5) beside it. */
+function baseNextToBoat(s, { boatType = "transporter", garrison = [], cargo = [] } = {}) {
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  const base = landBase({ id: 0, ownerId: 0, type: "port", col: 6, row: 5, garrison });
+  s.bases.push(base);
+  const boat = {
+    ...transporter({ id: 50, col: 5, row: 5, cargo }),
+    unitType: boatType,
+    sp: UNIT_TYPES[boatType].strength,
+    maxSp: UNIT_TYPES[boatType].strength,
+  };
+  s.units.push(boat);
+  return { grid, base, boat };
+}
+
+test("isValidUnloadTarget now accepts an adjacent friendly boat with room, which used to be rejected as occupied", () => {
+  const s = state([0], 0);
+  const garrisoned = { id: 1, unitType: "tank", sp: 10 };
+  const { grid, base, boat } = baseNextToBoat(s, { garrison: [garrisoned] });
+
+  assert.equal(isValidUnloadTarget(s, grid, base, garrisoned, boat.col, boat.row), true);
+});
+
+test("unloadUnit into an adjacent boat puts the unit in its cargo, not on the map", () => {
+  const s = state([0], 0);
+  const garrisoned = { id: 1, unitType: "tank", sp: 7 };
+  const { grid, base, boat } = baseNextToBoat(s, { garrison: [garrisoned] });
+
+  unloadUnit(s, grid, base.id, 1, boat.col, boat.row, 0);
+
+  assert.equal(base.garrison.length, 0, "left the base");
+  assert.deepEqual(boat.cargo, [{ id: 1, unitType: "tank", sp: 7 }], "sp carried over into the hold");
+  assert.equal(s.units.some((u) => u.id === 1), false, "never became a field unit");
+});
+
+test("unloadCargo transfers straight from one boat to another adjacent one", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  grid.set(6, 5, "shallow");
+  const from = transporter({ id: 50, col: 5, row: 5, cargo: [{ id: 1, unitType: "tank", sp: 10 }] });
+  const to = transporter({ id: 51, col: 6, row: 5, cargo: [] });
+  s.units.push(from, to);
+
+  unloadCargo(s, grid, from.id, 1, to.col, to.row, 0);
+
+  assert.deepEqual(from.cargo, []);
+  assert.equal(to.cargo[0].id, 1);
+});
+
+test("a boat is never a valid unload destination for itself", () => {
+  const s = state([0], 0);
+  const grid = allLandGrid();
+  grid.set(5, 5, "shallow");
+  const boat = transporter({ id: 50, col: 5, row: 5, cargo: [{ id: 1, unitType: "tank", sp: 10 }] });
+  s.units.push(boat);
+
+  assert.equal(isValidUnloadTarget(s, grid, boat, boat.cargo[0], boat.col, boat.row), false);
+});
+
+test("transferring into a boat is rejected for an enemy boat, a full hold, or a category it can't carry", () => {
+  const enemy = state([0], 0);
+  const enemyCase = baseNextToBoat(enemy, { garrison: [{ id: 1, unitType: "tank", sp: 10 }] });
+  enemyCase.boat.ownerId = 1;
+  assert.equal(isValidUnloadTarget(enemy, enemyCase.grid, enemyCase.base, enemy.bases[0].garrison[0], 5, 5), false, "enemy boat");
+
+  const full = state([0], 0);
+  const fullCase = baseNextToBoat(full, {
+    garrison: [{ id: 1, unitType: "tank", sp: 10 }],
+    cargo: Array.from({ length: 5 }, (_, i) => ({ id: 90 + i, unitType: "tank", sp: 10 })),
+  });
+  assert.equal(isValidUnloadTarget(full, fullCase.grid, fullCase.base, full.bases[0].garrison[0], 5, 5), false, "full hold");
+
+  const mismatch = state([0], 0);
+  const mismatchCase = baseNextToBoat(mismatch, { boatType: "carrier", garrison: [{ id: 1, unitType: "tank", sp: 10 }] });
+  assert.equal(
+    isValidUnloadTarget(mismatch, mismatchCase.grid, mismatchCase.base, mismatch.bases[0].garrison[0], 5, 5),
+    false,
+    "a carrier holds planes, not a tank",
+  );
+});
+
+test("a Bomber still can't board a Carrier this way either -- the transfer honours boardsCarrier", () => {
+  const s = state([0], 0);
+  const garrisoned = { id: 1, unitType: "bomber", sp: 10 };
+  const { grid, base, boat } = baseNextToBoat(s, { boatType: "carrier", garrison: [garrisoned] });
+
+  assert.equal(isValidUnloadTarget(s, grid, base, garrisoned, boat.col, boat.row), false);
+  unloadUnit(s, grid, base.id, 1, boat.col, boat.row, 0);
+  assert.equal(boat.cargo.length, 0, "no-op");
+  assert.equal(base.garrison.length, 1, "still garrisoned");
+});
+
+test("unloading onto open terrain still works exactly as before, cost included", () => {
+  const s = state([0], 0);
+  const garrisoned = { id: 1, unitType: "tank", sp: 10 };
+  const { grid, base } = baseNextToBoat(s, { garrison: [garrisoned] });
+
+  unloadUnit(s, grid, base.id, 1, 7, 5, 0); // plain gras, away from the boat
+
+  const fielded = s.units.find((u) => u.id === 1);
+  assert.ok(fielded, "became a field unit");
+  assert.equal(fielded.remainingActions, UNIT_TYPES.tank.actionsPerTurn - 2, "1 action + gras move cost");
 });

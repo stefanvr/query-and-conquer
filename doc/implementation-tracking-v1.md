@@ -310,19 +310,19 @@ closing pass: the two map-interaction complaints raised reviewing build-v2, and 
 gap found back in Stage 7. Same shape as Stage 5b — a focused UX pass on something already
 built, not new game rules.*
 - [x] Spec
-- [ ] Reachable-range movement: highlight every hex the selected unit can afford to reach, and
+- [x] Reachable-range movement: highlight every hex the selected unit can afford to reach, and
       move it there on click (walking the route, paying real terrain costs). Reverses
       implementation-spec.md §1's "no multi-hex pathfinding for human play in v1" — one hex per
       click is the tedium the review flagged
-- [ ] Shared `reachableCells` pathfinding module (Dijkstra over move costs, bounded by remaining
+- [x] Shared `reachableCells` pathfinding module (Dijkstra over move costs, bounded by remaining
       AP) — Stage 12's hard AI needs the same "lowest-cost route" (§8's Difficulty table), so this
       lands as its own module rather than inside the UI
-- [ ] Attack target highlighting: mark every enemy unit/base the selected unit could actually
+- [x] Attack target highlighting: mark every enemy unit/base the selected unit could actually
       attack right now (range + LOS + attacks remaining), so the LOS rule and per-unit ranges stop
       being guesswork
-- [ ] Unload straight into an adjacent friendly boat (moved up from Stage 13) — the picker only
+- [x] Unload straight into an adjacent friendly boat (moved up from Stage 13) — the picker only
       ever highlighted empty terrain, so only the boat → base direction worked
-- [ ] style-guide.md §8: replace the text-only placeholder with the real on-map overlay
+- [x] style-guide.md §8: replace the text-only placeholder with the real on-map overlay
       vocabulary — that section already anticipated this ("range overlays... expected to replace
       this in a later pass")
 
