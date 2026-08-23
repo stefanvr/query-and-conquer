@@ -56,11 +56,23 @@ function emptySlot() {
   return el;
 }
 
-/** Fills a slot element (button or div, caller's choice) with icon + type label + an optional
- * second line (e.g. a queue position or a build timer). */
-function fillSlotContent(el, unitType, secondLine) {
+/** Actions a garrisoned/cargo unit still has this turn — its type's `actionsPerTurn` less whatever
+ * it already spent getting where it is (implementation-spec.md §3's Field units). Shown in place
+ * of the type name on garrison/cargo slots: the slot icon already carries the type
+ * (style-guide.md §9), while this answers the question actually being asked of a stored unit —
+ * can it act this turn? Without it, a unit that spent its budget loading in refuses to deploy for
+ * no visible reason. */
+function slotApLabel(entry) {
+  const perTurn = UNIT_TYPES[entry.unitType].actionsPerTurn;
+  return `${perTurn - (entry.spentActions ?? 0)}/${perTurn} AP`;
+}
+
+/** Fills a slot element (button or div, caller's choice) with icon + label + an optional second
+ * line (e.g. a queue position or a build timer). `primaryLabel` overrides the type name. */
+function fillSlotContent(el, unitType, secondLine, primaryLabel) {
   const label = document.createElement("span");
-  label.textContent = unitType.toUpperCase();
+  label.textContent = primaryLabel ?? unitType.toUpperCase();
+  el.title = unitType.toUpperCase(); // the type is still reachable when the label is showing something else
   el.append(slotIcon(unitType), label);
   if (secondLine) {
     const sub = document.createElement("span");
@@ -260,14 +272,14 @@ export function initGameScreen({ onQuit, onGameOver }) {
       if (!isOwnTurn) {
         const el = document.createElement("div");
         el.className = "slot";
-        fillSlotContent(el, garrisoned.unitType, spLabel);
+        fillSlotContent(el, garrisoned.unitType, spLabel, slotApLabel(garrisoned));
         basePanelGarrison.appendChild(el);
         continue;
       }
       const el = document.createElement("button");
       el.type = "button";
       el.className = "slot";
-      fillSlotContent(el, garrisoned.unitType, spLabel);
+      fillSlotContent(el, garrisoned.unitType, spLabel, slotApLabel(garrisoned));
       el.addEventListener("click", () => openUnloadPreview("base", base, garrisoned));
       basePanelGarrison.appendChild(el);
     }
@@ -337,14 +349,14 @@ export function initGameScreen({ onQuit, onGameOver }) {
         if (!isOwnTurn) {
           const el = document.createElement("div");
           el.className = "slot";
-          fillSlotContent(el, cargoUnit.unitType, cargoSpLabel);
+          fillSlotContent(el, cargoUnit.unitType, cargoSpLabel, slotApLabel(cargoUnit));
           unitPanelCargo.appendChild(el);
           continue;
         }
         const el = document.createElement("button");
         el.type = "button";
         el.className = "slot";
-        fillSlotContent(el, cargoUnit.unitType, cargoSpLabel);
+        fillSlotContent(el, cargoUnit.unitType, cargoSpLabel, slotApLabel(cargoUnit));
         el.addEventListener("click", () => openUnloadPreview("boat", unit, cargoUnit));
         unitPanelCargo.appendChild(el);
       }

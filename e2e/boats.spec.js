@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { UNIT_TYPES } from "../src/state/unit-types.js";
 
 // UI-wiring smoke tests for Stage 7's boats/cargo — per doc/tech-stack.md, Playwright stays a
 // thin layer; the command logic itself is covered by node:test. Uses the ?dev-gated dev save
@@ -34,7 +35,14 @@ test("selecting the dev-save transporter shows its cargo slot with the tank it's
   await expect(page.locator("#unit-panel")).toBeVisible();
   await expect(page.locator("#unit-panel-title")).toContainText("Transporter");
   await expect(page.locator("#unit-panel-cargo-section")).toBeVisible();
-  await expect(page.locator("#unit-panel-cargo")).toContainText("TANK");
+
+  // A cargo slot labels the unit's remaining actions rather than its type — the icon already
+  // carries the type, and what matters about a stored unit is whether it can act. The type stays
+  // reachable on the slot's title.
+  const slot = page.locator("#unit-panel-cargo .slot").first();
+  await expect(slot).toContainText(`/${UNIT_TYPES.tank.actionsPerTurn} AP`);
+  await expect(slot).toContainText(`/${UNIT_TYPES.tank.strength} SP`);
+  await expect(slot).toHaveAttribute("title", "TANK");
 });
 
 test("moving the transporter onto adjacent deep water spends AP (movement over water)", async ({ page }, testInfo) => {

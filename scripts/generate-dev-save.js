@@ -40,7 +40,7 @@ import { fileURLToPath } from "node:url";
 import { createGameState, playerBase } from "../src/state/game-state.js";
 import { queueBuild, processTurnStart, unloadUnit } from "../src/state/commands.js";
 import { deserializeGrid, serializeGrid } from "../src/map/map-serialize.js";
-import { buildTurns, UNIT_TYPES } from "../src/state/unit-types.js";
+import { buildTurns, UNIT_TYPES, moveCost } from "../src/state/unit-types.js";
 import { offsetDistance } from "../src/map/hex-coords.js";
 import { mulberry32 } from "../src/map/prng.js";
 
@@ -101,6 +101,12 @@ state.bases.push({
 // completes on the AI's very next turn-start -- so ending the human's turn right after
 // neutralizing it demonstrates the auto-recapture rule (game spec §4) without a multi-turn wait.
 const aiBase = playerBase(state, 1);
+// Real placement puts the AI ~40 rows below the human, which is a long walk for testing anything
+// that involves both sides. Pulled 20 rows closer, onto verified land far enough from every other
+// base to keep §1's 5-cell minimum. Every fixture below is positioned relative to aiBase, so they
+// all move with it.
+aiBase.col = 12;
+aiBase.row = 22;
 aiBase.sp = UNIT_TYPES.tank.groundAtk * UNIT_TYPES.tank.attacksPerTurn;
 aiBase.inProgress = { unitType: "tank", remainingTurns: 1 };
 const [aiBaseNeighbor] = grid.neighborsOf(aiBase.col, aiBase.row);
@@ -147,6 +153,20 @@ for (let distance = 2; distance <= 6; distance++) {
   aiWaterChain.push(aiWaterCell);
 }
 for (const { col, row } of aiWaterChain) grid.set(col, row, "deep");
+
+// That chain starts on a cell adjacent to the AI's own base, which changes what kind of base it
+// is: game spec §2 says a land base is "not adjacent to any water", a port base "must be adjacent
+// to water". Carving the water without reclassifying left the fixture in a state the rules
+// forbid — and left the AI unable to build boats from an obvious coastline. The chain is deep, so
+// it's carrier-capable too.
+aiBase.type = "port";
+aiBase.adjacentToDeepWater = true;
+
+// A human port base on the far side of that water, so the fregat and carrier out here have
+// somewhere friendly to dock — boat repair, plane rearm, and carrier loading were otherwise
+// untestable without sailing all the way home. Placed at the 5-cell minimum from the AI's base
+// (§1) so the two ports are genuinely contesting the same water.
+const forwardPort = { col: 17, row: 19 };
 
 state.map.rows = serializeGrid(grid);
 
@@ -303,5 +323,81 @@ state.units.push({
   cargo: [{ id: state.nextUnitId++, unitType: "tank", sp: UNIT_TYPES.tank.strength }],
 });
 
+state.bases.push({
+  id: state.bases.length,
+  ownerId: 0,
+  lastOwnerId: null,
+  type: "port",
+  col: forwardPort.col,
+  row: forwardPort.row,
+  adjacentToDeepWater: true,
+  sp: 20,
+  maxSp: 20,
+  garrison: [],
+  queue: [],
+  inProgress: null,
+});
+
+// --- Verify the hand-built fixtures actually obey the rules they're meant to demonstrate. ---
+// These are asserts rather than comments because every one of them has been wrong at some point:
+// a base left classified as land after water was carved beside it, and an off-by-one that put two
+// units at the wrong ranges. A fixture that's subtly wrong costs more than no fixture at all.
+const LAND_TERRAINS = new Set(["gras", "gravel", "sand"]);
+for (const base of state.bases) {
+  const neighbors = grid.neighborsOf(base.col, base.row);
+  const adjacentWater = neighbors.filter((n) => grid.get(n.col, n.row) === "shallow" || grid.get(n.col, n.row) === "deep");
+  const terrain = grid.get(base.col, base.row);
+
+  if (base.type === "land" && adjacentWater.length > 0) {
+    throw new Error(`base ${base.id} at ${base.col},${base.row} is typed land but touches water (game spec §2)`);
+  }
+  if (base.type === "port") {
+    if (adjacentWater.length === 0) throw new Error(`port base ${base.id} touches no water (§2)`);
+    const deepAdjacent = neighbors.some((n) => grid.get(n.col, n.row) === "deep");
+    if (base.adjacentToDeepWater !== deepAdjacent) {
+      throw new Error(`port base ${base.id} has adjacentToDeepWater=${base.adjacentToDeepWater} but deep-adjacency is ${deepAdjacent}`);
+    }
+  }
+  if (base.type === "mountain") {
+    if (!neighbors.every((n) => grid.get(n.col, n.row) === "mountain")) {
+      throw new Error(`mountain base ${base.id} has a non-mountain neighbour (§2)`);
+    }
+  } else if (!LAND_TERRAINS.has(terrain)) {
+    throw new Error(`base ${base.id} sits on ${terrain}, which is not buildable land (§2)`);
+  }
+
+}
+
+// §1's 5-cell minimum between bases is reported rather than enforced, because the hand-placed
+// human cluster (neutral base, port, mountain, all clustered near the home base for convenient
+// testing) has violated it since Stage 6. That's a fixture decision, not a rules bug — but it's
+// printed on every run so it can't quietly become invisible, and so anything newly added is
+// checked against it.
+const tooClose = [];
+for (let i = 0; i < state.bases.length; i++) {
+  for (let j = i + 1; j < state.bases.length; j++) {
+    const distance = offsetDistance(state.bases[i], state.bases[j]);
+    if (distance < 5) tooClose.push(`  bases ${state.bases[i].id} (${state.bases[i].type}) and ${state.bases[j].id} (${state.bases[j].type}): ${distance}`);
+  }
+}
+
+// One unit per cell, and none of them standing on terrain they can't occupy (§1/§3).
+const occupied = new Set();
+for (const unit of state.units) {
+  const key = `${unit.col},${unit.row}`;
+  if (occupied.has(key)) throw new Error(`two units share ${key} (§1)`);
+  occupied.add(key);
+  if (state.bases.some((b) => b.col === unit.col && b.row === unit.row)) {
+    throw new Error(`unit ${unit.id} stands on a base at ${key}`);
+  }
+  if (moveCost(unit.unitType, grid.get(unit.col, unit.row)) === null) {
+    throw new Error(`${unit.unitType} ${unit.id} sits on ${grid.get(unit.col, unit.row)}, impassable for it (§3)`);
+  }
+}
+
 fs.writeFileSync(path.join(repoRoot, "assets", "dev-save.json"), JSON.stringify(state));
-console.log("Wrote assets/dev-save.json");
+console.log(`Wrote assets/dev-save.json — ${state.bases.length} bases, ${state.units.length} units`);
+if (tooClose.length > 0) {
+  console.log(`\nNote: ${tooClose.length} base pairs are closer than §1's 5-cell minimum (pre-existing, see comment above):`);
+  console.log(tooClose.join("\n"));
+}
