@@ -48,6 +48,35 @@ test("control returns to the human after every AI turn, with no silent failure",
   expect(errors).toEqual([]);
 });
 
+test("Hard is selectable, and a match of hard AIs plays its turns without failing", async ({ page }) => {
+  // Hard AI does far more per turn than easy — full budgets, route searches, firing positions —
+  // so it exercises paths a match of easy AIs never reaches. This is the smoke test that the
+  // whole of it survives a real match rather than only the unit fixtures.
+  const errors = [];
+  page.on("pageerror", (err) => errors.push(String(err)));
+
+  await page.click("#start-button");
+  await page.click("#new-game-button");
+  await page.selectOption("#opt-ai-count", "2");
+
+  const difficulties = page.locator("#opt-ai-difficulties select");
+  await expect(difficulties).toHaveCount(2);
+  for (let i = 0; i < 2; i++) await difficulties.nth(i).selectOption("hard");
+
+  await page.click("#start-match-button");
+  await expect(page.locator("#screen-game")).toBeVisible();
+
+  const endTurn = page.locator("#end-turn-button");
+  for (let turn = 1; turn <= 6; turn++) {
+    await expect(page.locator("#hud-turn-indicator")).toContainText("Human");
+    await expect(endTurn).toBeEnabled();
+    await expect(page.locator("#hud-end-turn-blocked")).not.toContainText("AI turn failed");
+    await endTurn.click();
+  }
+
+  expect(errors).toEqual([]);
+});
+
 test("rapid End Turn clicks don't desync the HUD from whose turn it is", async ({ page }) => {
   // The incident happened while clicking fast. Each click legitimately ends a turn, so the count
   // should simply advance — what must not happen is control being left with an AI.

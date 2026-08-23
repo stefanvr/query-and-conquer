@@ -5,16 +5,16 @@
 // Two rules shape everything here:
 // 1. It never mutates state itself — every action goes through commands.js, so the AI plays by
 //    exactly the rules the human's own clicks do (tech-stack.md's CQRS-lite split).
-// 2. It decides from `getVisibleState(state, playerId)`, not canonical state — easy AI respects
-//    fog (game spec §8's Difficulty table). Commands are still handed canonical `state`, since a
-//    rule has to resolve against reality (line of sight is blocked by a unit the AI can't see,
-//    say). That's safe because getVisibleState filters by reference: a unit or base the AI picked
-//    out of the projection *is* the object canonical state holds.
+// 2. The board it *decides* from is its difficulty's business (`traits.perceive`) — easy sees a
+//    fog-filtered projection, hard sees everything. Commands are always handed canonical `state`
+//    regardless, since a rule has to resolve against reality (line of sight is blocked by a unit
+//    the AI can't see, say). That's safe because getVisibleState filters by reference: a unit or
+//    base the AI picked out of the projection *is* the object canonical state holds.
 //
-// Easy difficulty's execution traits are baked into the helpers below rather than branching on
-// difficulty everywhere: `firstValidTarget` ignores each strategy's own targetPriority, and
-// `naiveStepToward` refuses to route around obstacles. Stage 12's hard AI swaps those two
-// helpers; the strategy rules themselves are shared and don't change.
+// Difficulty is a table of traits (DIFFICULTY_TRAITS below) selected once per turn and reached
+// through `ctx.traits` — perception, target choice, movement, and how much of a unit's budget
+// gets used. The strategy rules are shared and never ask which difficulty they're running as:
+// intent and execution quality are independent axes (game spec §8).
 import { getVisibleState } from "../state/queries.js";
 import {
   moveUnit,
@@ -29,8 +29,10 @@ import {
   isValidClaimTarget,
   isValidLoadTarget,
   isValidUnloadTarget,
+  planesOwingMovement,
 } from "../state/commands.js";
 import { offsetDistance, offsetKey, hexesInRange } from "../map/hex-coords.js";
+import { routeTo, reachableCells } from "../state/pathfinding.js";
 import { UNIT_TYPES, buildableUnitTypes } from "../state/unit-types.js";
 import { BASE_TYPES } from "../state/base-types.js";
 import { STRATEGIES } from "./strategies.js";
@@ -63,8 +65,8 @@ function nearest(from, candidates) {
 }
 
 /** Easy difficulty's "first valid target found (no optimization)" — deliberately ignores the
- * strategy's own `targetPriority`, which is what hard AI (Stage 12) will turn on instead. */
-function firstValidTarget(candidates, isValid) {
+ * strategy's own `targetPriority`, which is what hard difficulty turns on instead. */
+function firstValidTarget(ctx, candidates, isValid) {
   for (const c of [...candidates].sort(byId)) {
     if (isValid(c)) return c;
   }
@@ -98,6 +100,72 @@ function naiveStepToward(ctx, unit, target) {
   return { type: "move", unitId: unit.id, from, to: { col: unit.col, row: unit.row } };
 }
 
+/** Whether `target` is something `unit` would attack rather than approach — an enemy unit or an
+ * enemy-held base. A neutral base is claimed, not attacked, and a bare frontier cell has no
+ * owner at all, so neither gets the firing-position treatment below. */
+function isHostile(unit, target) {
+  return target.ownerId !== null && target.ownerId !== undefined && target.ownerId !== unit.ownerId;
+}
+
+/** The cheapest hex `unit` can reach this turn from which it could actually shoot `target` —
+ * range satisfied *and* line of sight clear, with enough of its budget left after the trip to
+ * fire at all.
+ *
+ * This is what game spec §8's Pathing row means by "respects LOS": line of sight only ever gates
+ * attacks, so on its own it says nothing about where to walk. What it can say is that moving to
+ * the hex nearest a target is pointless when a mountain sits between the two, and that a hex
+ * slightly further out with a clear line is the better place to stand.
+ *
+ * Returns a `reachableCells` entry (so it carries its own cheapest route), or null if nowhere in
+ * reach this turn offers a shot. */
+function firingPosition(ctx, unit, target) {
+  const { state, grid } = ctx;
+  const attackable = target.unitType ? isValidAttackTarget : isValidAttackBaseTarget;
+  let best = null;
+  let bestKey = null;
+
+  for (const [key, cell] of reachableCells(state, grid, unit)) {
+    // A read-only probe of "what if I stood there": isValidAttackTarget reads position, budget and
+    // type off the attacker and nothing else, so a copy answers honestly without moving anything.
+    // The budget is debited by the trip, since a shot needs an action left once the unit arrives.
+    const probe = { ...unit, col: cell.col, row: cell.row, remainingActions: unit.remainingActions - cell.cost };
+    if (!attackable(state, grid, probe, target)) continue;
+    // Cheapest wins; the key breaks ties, so the choice can't depend on Map iteration order.
+    if (!best || cell.cost < best.cost || (cell.cost === best.cost && key < bestKey)) {
+      best = cell;
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
+/** Hard difficulty's pathing: step along the genuinely cheapest route to `target`, rather than
+ * onto whichever neighbor happens to point that way. One step per call — routing decides the
+ * direction, and the difficulty's action budget decides how far the unit gets this turn, so a
+ * unit walking a long route simply takes several of these.
+ *
+ * When the target is something this unit could shoot, it heads for a hex that would actually give
+ * it a shot (`firingPosition`) rather than for the target itself. Otherwise it takes the next step
+ * of the cheapest route (`routeTo`).
+ *
+ * Both are recomputed per step rather than cached for the turn: the board moves underneath a
+ * route (a unit dies, a base changes hands, another of ours takes the hex we were heading
+ * through), and a stale route is how an AI walks confidently into a wall it already knows about. */
+function routedStepToward(ctx, unit, target) {
+  const { state, grid, playerId } = ctx;
+  const firing = isHostile(unit, target) ? firingPosition(ctx, unit, target) : null;
+  // firingPosition's entry carries the cheapest route to that exact hex; routeTo stops *next to*
+  // its goal, which is right for an occupied target and wrong for a hex we mean to stand on.
+  const route = firing ? firing.path : routeTo(state, grid, unit, target);
+  if (!route || route.length === 0) return null; // no route at all, or already there
+
+  const from = { col: unit.col, row: unit.row };
+  const next = route[0];
+  moveUnit(state, grid, unit.id, next.col, next.row, playerId);
+  if (unit.col === from.col && unit.row === from.row) return null; // can't afford the next step
+  return { type: "move", unitId: unit.id, from, to: { col: unit.col, row: unit.row } };
+}
+
 /** Own bases with room to take a unit in — what "a friendly base can repair it this turn" (game
  * spec §8's Defensive rule 1) actually gates on. The ≤5-repairs-per-turn cap only changes how
  * fast a unit heals once inside (implementation-spec.md §2), not whether it can get in. */
@@ -113,7 +181,7 @@ function approachAndClaim(ctx, unit, base) {
     claimBase(state, grid, unit.id, base.id, playerId);
     return { type: "claim", unitId: unit.id, baseId: base.id };
   }
-  return naiveStepToward(ctx, unit, base);
+  return ctx.traits.stepToward(ctx, unit, base);
 }
 
 /** Whether `unit` is the last thing holding one of its owner's bases — no other friendly unit
@@ -128,6 +196,84 @@ function isLastDefenderOfSomeBase(ctx, unit) {
   });
 }
 
+/** How each strategy's `targetPriority` scores a candidate (game spec §8) — higher wins.
+ *
+ * `lowestStrength` finishes off the wounded, so it negates remaining sp. `highestAttack` goes for
+ * the biggest threat, scoring a unit by its better attack value; a base scores 0 there, since a
+ * base never attacks and so is never the biggest threat on the board. */
+const TARGET_SCORES = {
+  lowestStrength: (candidate) => -candidate.sp,
+  highestAttack: (candidate) => {
+    const stats = UNIT_TYPES[candidate.unitType];
+    return stats ? Math.max(stats.groundAtk, stats.airAtk) : 0;
+  },
+};
+
+/** Hard difficulty's "applies the strategy's target-priority rule correctly" — the best-scoring
+ * valid candidate rather than merely the first one found. Ties break by lowest id like everything
+ * else, so a seeded match still replays identically. */
+function priorityTarget(ctx, candidates, isValid) {
+  const score = TARGET_SCORES[ctx.strategy.targetPriority] ?? TARGET_SCORES.lowestStrength;
+  let best = null;
+  let bestScore = -Infinity;
+  for (const c of [...candidates].sort(byId)) {
+    if (!isValid(c)) continue;
+    const s = score(c);
+    // Strict `>` keeps the lowest id among equals, since the list is already id-sorted.
+    if (s > bestScore) {
+      bestScore = s;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/** An explored-cells set for a player who has explored everything — a hard AI knows the whole
+ * map, so nothing is ever a frontier for it. Duck-typed rather than a real Set of every in-map
+ * cell, which would be up to 12,000 entries rebuilt per turn to answer a question whose answer is
+ * always the same (`nearestUnexplored` only ever asks `.has`). */
+const EVERYWHERE = { has: () => true };
+
+/**
+ * The difficulty axis (game spec §8's Difficulty table), as one entry per difficulty.
+ *
+ * Difficulty is selected **once per turn** and reached through `ctx.traits`, rather than tested
+ * inside each rule. The two axes are meant to be independent: a rule that asked "am I hard?"
+ * would fork every strategy along the axis strategies.js is deliberately free of, and there'd be
+ * no single place to read what a difficulty actually is.
+ *
+ * - `perceive` — which board the AI decides from, and so what it can react to at all.
+ * - `chooseTarget` — how it picks among valid targets.
+ * - `stepToward` — how it closes distance.
+ * - `maxActionsPerUnit` — how much of each unit's budget it will actually use.
+ */
+const DIFFICULTY_TRAITS = {
+  easy: {
+    perceive: (state, player) => ({
+      board: getVisibleState(state, player.id),
+      exploredCells: new Set(player.exploredCells),
+    }),
+    chooseTarget: firstValidTarget,
+    stepToward: naiveStepToward,
+    maxActionsPerUnit: 1,
+  },
+  // Hard's remaining traits arrive one at a time in the commits that follow.
+  hard: {
+    // Canonical state, not a projection: hard ignores fog entirely (game spec §8's Information
+    // row, and the exemption tech-stack.md states). Its Reaction row — "can react anywhere on the
+    // map immediately" — needs no rule of its own, exactly as easy's "only responds to currently
+    // visible threats" needs none: both are just consequences of the board each one gets.
+    perceive: (state) => ({ board: state, exploredCells: EVERYWHERE }),
+    chooseTarget: priorityTarget,
+    stepToward: routedStepToward,
+    // "Uses full action budget effectively" (game spec §8) — a unit keeps walking its priority
+    // list until it runs out of actions or nothing applies. Unbounded is safe rather than
+    // reckless: the loop's own no-progress guard requires every pass to spend at least one of a
+    // finite budget, so the real bound is the unit's actionsPerTurn.
+    maxActionsPerUnit: Infinity,
+  },
+};
+
 // --- Strategy rules (game spec §8's Strategies lists) ---
 // Each returns an action descriptor if it applied, or null to fall through to the next rule.
 
@@ -135,12 +281,12 @@ const RULES = {
   /** Attack any enemy unit or base in range. */
   attackInRange(ctx, unit) {
     const { state, grid, playerId } = ctx;
-    const target = firstValidTarget(ctx.enemyUnits, (e) => isValidAttackTarget(state, grid, unit, e));
+    const target = ctx.traits.chooseTarget(ctx, ctx.enemyUnits, (e) => isValidAttackTarget(state, grid, unit, e));
     if (target) {
       attackUnit(state, grid, unit.id, target.id, playerId);
       return { type: "attackUnit", unitId: unit.id, targetId: target.id };
     }
-    const base = firstValidTarget(ctx.enemyBases, (b) => isValidAttackBaseTarget(state, grid, unit, b));
+    const base = ctx.traits.chooseTarget(ctx, ctx.enemyBases, (b) => isValidAttackBaseTarget(state, grid, unit, b));
     if (base) {
       attackBase(state, grid, unit.id, base.id, playerId);
       return { type: "attackBase", unitId: unit.id, baseId: base.id };
@@ -151,7 +297,7 @@ const RULES = {
   /** Move toward the nearest known enemy unit or base. */
   advanceToNearestEnemy(ctx, unit) {
     const target = nearest(unit, [...ctx.enemyUnits, ...ctx.enemyBases]);
-    return target ? naiveStepToward(ctx, unit, target) : null;
+    return target ? ctx.traits.stepToward(ctx, unit, target) : null;
   },
 
   /** Move toward the nearest unexplored area or unclaimed base. Prefers an unclaimed base this
@@ -160,7 +306,7 @@ const RULES = {
     const claimed = RULES.expandToUnclaimedBase(ctx, unit);
     if (claimed) return claimed;
     const frontier = nearestUnexplored(ctx, unit);
-    return frontier ? naiveStepToward(ctx, unit, frontier) : null;
+    return frontier ? ctx.traits.stepToward(ctx, unit, frontier) : null;
   },
 
   /** If damaged and a friendly base has room, head back to it (and enter, once adjacent). */
@@ -173,7 +319,7 @@ const RULES = {
       loadUnit(state, grid, unit.id, base.id, playerId);
       return { type: "retreat", unitId: unit.id, baseId: base.id };
     }
-    return naiveStepToward(ctx, unit, base);
+    return ctx.traits.stepToward(ctx, unit, base);
   },
 
   /** Attack an enemy in range that's threatening one of my bases (inside that base's view). */
@@ -182,7 +328,7 @@ const RULES = {
     const threats = ctx.enemyUnits.filter((e) =>
       ctx.ownBases.some((b) => offsetDistance(e, b) <= BASE_TYPES[b.type].view),
     );
-    const target = firstValidTarget(threats, (e) => isValidAttackTarget(state, grid, unit, e));
+    const target = ctx.traits.chooseTarget(ctx, threats, (e) => isValidAttackTarget(state, grid, unit, e));
     if (!target) return null;
     attackUnit(state, grid, unit.id, target.id, playerId);
     return { type: "attackUnit", unitId: unit.id, targetId: target.id };
@@ -195,7 +341,7 @@ const RULES = {
     if (!base) return null;
     const holdRadius = BASE_TYPES[base.type].view + UNIT_TYPES[unit.unitType].view;
     if (offsetDistance(unit, base) <= holdRadius) return null;
-    return naiveStepToward(ctx, unit, base);
+    return ctx.traits.stepToward(ctx, unit, base);
   },
 
   /** Move toward (and take) the nearest known unclaimed base, if this unit can capture at all. */
@@ -246,8 +392,48 @@ function deployFromBase(ctx, base, garrisoned) {
   return null;
 }
 
-/** Queues the first unit type this base is allowed to build, walking the strategy's own build
- * order. Skipped entirely if the base is at capacity or its queue is already full (game spec §8). */
+/** Moves `unit` onto the first adjacent hex it can actually enter, with no preference at all —
+ * the last resort when a plane owes movement (below) and has nowhere it would rather go, such as
+ * one already sitting next to its own base. Returns the move descriptor, or null if every
+ * neighbor is blocked, impassable, or unaffordable. */
+function stepAnywhere(ctx, unit) {
+  const { state, grid, playerId } = ctx;
+  for (const n of grid.neighborsOf(unit.col, unit.row)) {
+    const from = { col: unit.col, row: unit.row };
+    moveUnit(state, grid, unit.id, n.col, n.row, playerId);
+    if (unit.col === from.col && unit.row === from.row) continue;
+    return { type: "move", unitId: unit.id, from, to: { col: unit.col, row: unit.row } };
+  }
+  return null;
+}
+
+/** Game spec §3's mandatory ≥50% plane movement, applied to this AI exactly as the human's End
+ * Turn gate applies it to the human (implementation-spec.md §6).
+ *
+ * It's a game rule, not a UI rule, so an AI turn must not end with a plane still owing movement
+ * any more than a human turn can. Until now an AI's planes were silently exempt — the gate was
+ * built as a disabled End Turn button, and an AI turn has no button to disable.
+ *
+ * A plane that owes movement heads for the nearest own base that could rearm it, which is what
+ * the rule's own fuel fiction describes; if it has nowhere better to be (no such base, or naive
+ * stepping can't get any closer to one) it takes any step at all — the rule demands movement,
+ * not useful movement. Each step is yielded, so a paced AI turn shows the plane flying.
+ *
+ * Termination: every iteration either moves the plane, spending at least 1 of a finite action
+ * budget, or gives up on it. A plane can also crash mid-loop on its own fuel (game spec §3),
+ * which removes it from `state.units` and so from the predicate. */
+function* satisfyPlaneMovement(ctx) {
+  const { state, playerId } = ctx;
+  for (const plane of planesOwingMovement(state, playerId).sort(byId)) {
+    while (planesOwingMovement(state, playerId).includes(plane)) {
+      const home = nearest(plane, repairBases(ctx));
+      const action = (home && ctx.traits.stepToward(ctx, plane, home)) || stepAnywhere(ctx, plane);
+      if (!action) break; // boxed in — nothing more this plane can do about its debt
+      yield action;
+    }
+  }
+}
+
 /** How many of each unit type `playerId` already owns or has coming — field units, boat cargo,
  * base garrisons, in-progress builds and queued ones. Everything that will exist if nothing dies,
  * which is what production should be reasoning about. */
@@ -318,19 +504,22 @@ export function* aiTurnActions(state, grid, playerId) {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return;
   const strategy = STRATEGIES[player.strategy] ?? STRATEGIES.balanced;
-  const visible = getVisibleState(state, playerId);
+  const traits = DIFFICULTY_TRAITS[player.difficulty] ?? DIFFICULTY_TRAITS.easy;
+  const { board, exploredCells } = traits.perceive(state, player);
 
   const ctx = {
     state,
     grid,
     playerId,
-    // Decisions read the fog-filtered projection (see this file's own header): visible enemy
-    // units, and bases this player has at least explored once.
-    enemyUnits: visible.units.filter((u) => u.ownerId !== playerId),
-    enemyBases: visible.bases.filter((b) => b.ownerId !== null && b.ownerId !== playerId),
-    neutralBases: visible.bases.filter((b) => b.ownerId === null),
+    traits,
+    strategy, // hard's target priority is the strategy's own (game spec §8) — intent, read by execution
+    // Decisions read whichever board this difficulty perceives (see this file's own header) —
+    // for easy, only currently-visible enemies and ever-explored bases; for hard, everything.
+    enemyUnits: board.units.filter((u) => u.ownerId !== playerId),
+    enemyBases: board.bases.filter((b) => b.ownerId !== null && b.ownerId !== playerId),
+    neutralBases: board.bases.filter((b) => b.ownerId === null),
     ownBases: state.bases.filter((b) => b.ownerId === playerId), // own property is never fogged
-    exploredCells: new Set(player.exploredCells),
+    exploredCells,
   };
 
   // Game spec §8's processing order: base-defenders -> field units -> newly completed units. All
@@ -352,13 +541,24 @@ export function* aiTurnActions(state, grid, playerId) {
   }
 
   for (const unit of fieldUnits) {
-    if (!state.units.includes(unit)) continue; // destroyed earlier this turn (e.g. a plane crash)
-    for (const ruleName of strategy.rules) {
-      const action = RULES[ruleName](ctx, unit);
-      if (action) {
-        yield action;
-        break; // one action per unit per turn -- easy AI's unspent-budget trait (game spec §8)
+    // How much of its budget a unit gets to use is the difficulty's call (game spec §8's Action
+    // efficiency row): easy stops after one action and leaves the rest unspent, hard keeps going.
+    for (let taken = 0; taken < traits.maxActionsPerUnit; taken++) {
+      if (!state.units.includes(unit)) break; // gone (a plane crash, or it garrisoned into a base)
+      const actionsBefore = unit.remainingActions;
+
+      let action = null;
+      for (const ruleName of strategy.rules) {
+        action = RULES[ruleName](ctx, unit);
+        if (action) break;
       }
+      if (!action) break; // nothing in the strategy applies — this unit is finished for the turn
+      yield action;
+
+      // Every action a unit takes — move, attack, claim, load — spends at least one of its own
+      // actions. One that reports success without spending would otherwise be repeated forever,
+      // and guarding here is cheaper than trusting each rule to be honest about its cost.
+      if (unit.remainingActions >= actionsBefore) break;
     }
   }
 
@@ -366,6 +566,12 @@ export function* aiTurnActions(state, grid, playerId) {
     const action = deployFromBase(ctx, base, garrisoned);
     if (action) yield action;
   }
+
+  // Last, because it's a debt settled at the end of the turn rather than an intent: every plane
+  // has had its own chance to move for a reason first, and only what's still owing gets forced.
+  // Newly deployed planes are included, exactly as the human's own gate includes a plane they
+  // just unloaded (game spec §3).
+  yield* satisfyPlaneMovement(ctx);
 
   for (const base of [...ctx.ownBases].sort(byId)) {
     const action = runBaseProduction(ctx, base, strategy);

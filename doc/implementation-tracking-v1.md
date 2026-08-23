@@ -334,12 +334,62 @@ built, not new game rules.*
 turn of each — the Hard one should route around obstacles the Easy one walks into, and act on
 threats outside its own view.
 
-- [ ] Spec
-- [ ] Full map knowledge, ignores fog of war
-- [ ] Strategy's real target-priority rule (not first-valid-target)
-- [ ] Full pathfinding (lowest-cost route, respects LOS)
-- [ ] Reacts to threats anywhere on the map, not just currently visible ones
-- [ ] Enable "Hard" per-AI in the game options menu (keep Easy-only until this stage lands)
+*Plan revised before starting, per workflow.md step 1 — Stage 11 left the difficulty axis with
+clean seams, so two planned items collapse into one and two missing ones surface. Original list
+kept below in the notes on each item.*
+
+- [x] Spec
+- [x] **First:** planes' mandatory ≥50% movement (query-and-conquer.md §3) is enforced only
+      against the *human*, as an End Turn gate (`planesOwingMovement`, Stage 8) — an AI's planes
+      are never held to it, since an AI turn has no End Turn button to block. It's a game rule,
+      not a UI rule, so both sides must obey it. Moved up from Stage 13 to lead this stage,
+      deliberately: hard AI is the first AI that moves planes with intent and spends its whole
+      budget doing it, so an AI exempt from the fuel rule would be measured against a human who
+      isn't — and every balance number taken afterwards would be meaningless. Fix the rule first,
+      then measure. `planesOwingMovement` already takes any `playerId`, so the predicate is
+      shared rather than reimplemented
+- [x] Difficulty branch point: nothing reads `player.difficulty` today — the engine hardcodes
+      easy's traits. Introduce one seam the engine selects on, rather than `if (hard)` scattered
+      through the rules; the strategy rules themselves stay shared and unchanged (game spec §8's
+      two-axes split)
+- [x] Perception: decide from canonical state instead of `getVisibleState` — full map knowledge,
+      ignoring fog. *Merged with the plan's separate "reacts to threats anywhere on the map"
+      item: that isn't a second mechanism, it's what this one produces. Easy's "visible threats
+      only" already falls out of perception the same way, with no rule of its own*
+- [x] Strategy's real target-priority rule (`lowestStrength` / `highestAttack`) instead of
+      first-valid-target. The data already sits unused in `strategies.js` for exactly this
+- [x] Full pathfinding: lowest-cost route to a target, routing around obstacles. *Not free from
+      Stage 11b as the plan assumed — `reachableCells` is bounded by this turn's remaining AP, so
+      it answers "where can I get now", not "which way is the target". Needs a companion route
+      search (A\*, hex-distance heuristic) that ignores the AP bound, with the unit walking the
+      affordable prefix each turn*
+- [x] "Respects LOS" (game spec §8's Pathing row): when a unit wants to attack but nothing is in
+      range, move to the cheapest hex it can reach that would actually give it a shot — range
+      *and* line of sight — rather than just the hex nearest the target. Without this, "respects
+      LOS" has no meaning for movement, since LOS only gates attacks
+- [x] Action efficiency: keep acting while the budget lasts, instead of easy's one action per
+      unit per turn. *Missing from the original plan — it's the Difficulty table's fifth row
+      ("uses full action budget effectively" vs "often leaves actions unspent"), and the only row
+      the plan didn't name.* Needs a no-progress guard: stop if an action didn't reduce
+      `remainingActions`, or a rule that reports success without spending anything loops forever
+- [x] Easy AI regression: easy's behavior must be bit-identical after the refactor — a seeded
+      match replaying the same action sequence is the check, not just a green suite. **Verified**
+      by running the pre-stage engine (`git show`n out of main) and the new one side by side over
+      40 seeded matches: 2000 AI turns compared action-for-action, 0 differing
+- [x] Enable "Hard" per-AI in the game options menu (`DIFFICULTIES` in options-menu.js carries a
+      `disabled` flag placed there for this stage)
+- [x] Verify the stage's own "Try it" claim with a seeded Easy-vs-Hard match, not by reasoning:
+      confirm Hard actually routes around an obstacle Easy walks into, and that it wins more
+      often than not. **Result: hard 14, easy 0** over 30 seeded matches (16 hit the 300-turn cap
+      undecided — the sim's human player sits idle and never attacks, so it takes a long time to
+      finish off; no match was *lost* by hard). Routing is covered directly by a unit test rather
+      than inferred from win rate
+- [x] Ad hoc: measured the tempo difference the balance question hangs on, rather than estimating
+      it. Hard takes **1.38×** the actions per turn that easy does (1.21 vs 0.88 over the first 40
+      turns of 10 seeded matches) — far below the ~3× predicted from "one action per unit" vs
+      "the whole budget". Most units simply don't have a second rule that applies once they've
+      moved, so the extra budget often goes unused anyway. The difficulty gap is real but much
+      more about *what* hard does than *how much*
 
 ## Stage 13 — Polishing v1
 *A deliberate closing pass before considering the build done.*
@@ -370,6 +420,15 @@ threats outside its own view.
         costs permanent HUD width for something set rarely, which mobile can't spare. Moving it
         means updating that §6/§11 reasoning and the `#hud-ai-speed` e2e coverage, not just the
         markup
+  - [ ] `unit-movement.spec.js`'s "moving the tank to an adjacent hex" failed twice in about
+        sixteen full-suite runs during Stage 12, then passed twelve consecutive runs and always
+        passes in isolation. Both failures were in runs that took 30s and 15s against a normal
+        6–7s, so machine load is the likely cause rather than a logic defect — but the test
+        computes a screen position from the canvas box and assumes the camera is still centred on
+        the base at the default hex size, and canvas re-measurement became asynchronous
+        (`ResizeObserver`) in the Stage 13 viewport fix above. A widened timing window under load
+        fits what was seen. Not chased further because it wouldn't reproduce; if it resurfaces,
+        the fix is to make the test wait for stable canvas dimensions rather than assuming them
 - [ ] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
       §5's placement is currently exactly N seeds for N players, so every base starts owned —
       "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra
@@ -383,12 +442,6 @@ threats outside its own view.
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
       framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
       as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
-- [ ] Planes' mandatory ≥50% movement (query-and-conquer.md §3) is only enforced against the
-      *human*, as an End Turn gate (`planesOwingMovement`, Stage 8) — an AI's planes are never
-      held to it, since an AI turn has no End Turn button to block. It's a game rule, not a UI
-      rule, so the two sides should be symmetrical: either the AI's own turn has to satisfy it
-      before ending, or the rule needs a penalty that applies to whoever breaks it. Noticed while
-      building Stage 11; left alone rather than guessing at which of those two the design intends
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 

@@ -3,19 +3,20 @@ import assert from "node:assert/strict";
 import { aiTurnActions } from "../../src/ai/ai-turn.js";
 import { TerrainGrid } from "../../src/map/grid.js";
 import { UNIT_TYPES } from "../../src/state/unit-types.js";
-import { offsetKey } from "../../src/map/hex-coords.js";
+import { offsetKey, offsetDistance } from "../../src/map/hex-coords.js";
+import { planesOwingMovement, isValidAttackTarget } from "../../src/state/commands.js";
 
 const MAP_SIZE = 20;
 
 /** AI player 1 vs. human player 0. Fog defaults off, so a rule test isn't also implicitly a
  * visibility test — the one test that cares turns it on explicitly. */
-function aiState({ strategy = "aggressive", fogOfWar = false, turnNumber = 1 } = {}) {
+function aiState({ strategy = "aggressive", fogOfWar = false, turnNumber = 1, difficulty = "easy" } = {}) {
   return {
     options: { fogOfWar },
     map: { width: MAP_SIZE, height: MAP_SIZE },
     players: [
       { id: 0, slot: 0, isHuman: true, difficulty: null, strategy: null, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
-      { id: 1, slot: 1, isHuman: false, difficulty: "easy", strategy, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
+      { id: 1, slot: 1, isHuman: false, difficulty, strategy, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
     ],
     bases: [],
     units: [],
@@ -444,4 +445,224 @@ test("a whole AI turn is deterministic -- identical action sequences from identi
   const grid = allLandGrid();
 
   assert.deepEqual(runTurn(build(), grid), runTurn(build(), grid));
+});
+
+// --- Difficulty: perception (game spec §8's Information and Reaction rows) ---
+
+test("hard AI ignores fog -- it advances on an enemy an easy AI in the same spot can't see", () => {
+  const grid = allLandGrid();
+  const board = (difficulty) => {
+    const s = aiState({ strategy: "aggressive", fogOfWar: true, difficulty });
+    // Far outside the tank's view of 3, and unexplored: invisible to anyone respecting fog.
+    s.units.push(unit({ id: 1, col: 5, row: 5 }), unit({ id: 2, ownerId: 0, col: 17, row: 5 }));
+    return s;
+  };
+
+  const blind = board("easy");
+  const blindActions = runTurn(blind, grid);
+  const seeing = board("hard");
+  const seeingActions = runTurn(seeing, grid);
+
+  // Easy can't see the enemy, so aggressive falls through to exploring; hard heads straight at it.
+  assert.ok(!blindActions.some((a) => a.type === "move" && a.to.col > 5 && a.to.row === 5));
+  assert.ok(seeingActions.some((a) => a.type === "move"));
+  // Distance rather than a hand-worked coordinate: stepping east off an odd column legitimately
+  // changes the row too (odd-q offset), so "row is still 5" would be asserting the wrong geometry.
+  assert.ok(
+    offsetDistance(seeing.units[0], seeing.units[1]) < offsetDistance({ col: 5, row: 5 }, seeing.units[1]),
+    "closed the distance to the enemy it shouldn't have been able to see",
+  );
+});
+
+test("hard AI treats the whole map as explored, so it expands rather than exploring", () => {
+  const grid = allLandGrid();
+  const s = aiState({ strategy: "aggressive", fogOfWar: true, difficulty: "hard" });
+  s.units.push(unit({ id: 1, col: 5, row: 5 }));
+  s.bases.push(base({ id: 0, ownerId: null, col: 9, row: 5 })); // neutral, unexplored, far off
+  s.players[1].exploredCells = [];
+
+  const actions = runTurn(s, grid);
+
+  // With nothing unexplored to walk toward, aggressive rule 3 can only be the expand half. Using
+  // its whole budget, it doesn't merely set off toward the base — it gets there and takes it.
+  assert.ok(actions.some((a) => a.type === "move"));
+  assert.equal(s.bases[0].ownerId, 1, "claimed the neutral base it shouldn't have known about");
+});
+
+// --- Difficulty: target priority (game spec §8's Targeting row) ---
+
+test("hard AI applies its strategy's target priority; easy takes whichever it finds first", () => {
+  const grid = allLandGrid();
+  const board = (difficulty) => {
+    // Two enemies both in range of the tank at (5,5). The lower id is the healthy one, so
+    // first-valid and lowest-strength genuinely disagree about which to hit.
+    const s = aiState({ strategy: "aggressive", difficulty }); // aggressive = lowestStrength
+    s.units.push(
+      unit({ id: 1, col: 5, row: 5 }),
+      unit({ id: 2, ownerId: 0, col: 6, row: 5, sp: 10 }),
+      unit({ id: 3, ownerId: 0, col: 5, row: 4, sp: 2 }),
+    );
+    return s;
+  };
+
+  assert.equal(runTurn(board("easy"), grid)[0].targetId, 2, "first valid target, in id order");
+  assert.equal(runTurn(board("hard"), grid)[0].targetId, 3, "the weakest one, per the strategy");
+});
+
+test("a defensive hard AI goes for the biggest threat rather than the weakest target", () => {
+  const grid = allLandGrid();
+  const s = aiState({ strategy: "defensive", difficulty: "hard" }); // defensive = highestAttack
+  s.bases.push(base({ id: 0, ownerId: 1, col: 5, row: 6 }));
+  s.units.push(
+    unit({ id: 1, col: 5, row: 5 }),
+    unit({ id: 2, ownerId: 0, unitType: "tank", col: 6, row: 5 }),
+    unit({ id: 3, ownerId: 0, unitType: "bomber", col: 5, row: 4, actionsSpentMoving: 0, cellsFlown: 0 }),
+  );
+
+  const attack = runTurn(s, grid).find((a) => a.type === "attackUnit");
+  assert.equal(attack.targetId, 3, "the bomber outguns the tank, so it's the one to neutralize");
+});
+
+// --- Difficulty: pathing (game spec §8's Pathing row) ---
+
+test("hard AI routes around a wall that stops an easy AI dead", () => {
+  // A wall of deep water immediately east of the unit, with one gap at the far bottom. Naive
+  // stepping only ever tries the neighbor that most reduces distance -- which is wall -- so easy
+  // gives up; hard finds the way round.
+  const walledGrid = () => {
+    const grid = allLandGrid();
+    for (let row = 0; row < MAP_SIZE - 1; row++) grid.set(6, row, "deep");
+    return grid;
+  };
+  const board = (difficulty) => {
+    const s = aiState({ strategy: "aggressive", difficulty });
+    s.units.push(unit({ id: 1, col: 5, row: 5 }), unit({ id: 2, ownerId: 0, col: 10, row: 5 }));
+    // Everything already explored, so aggressive's explore fallback can't mask the difference.
+    s.players[1].exploredCells = [...walledGrid().cells()].map((c) => offsetKey(c.col, c.row));
+    return s;
+  };
+
+  const stuck = board("easy");
+  const routing = board("hard");
+  const stuckMoves = runTurn(stuck, walledGrid()).filter((a) => a.type === "move");
+  const routingMoves = runTurn(routing, walledGrid()).filter((a) => a.type === "move");
+
+  assert.deepEqual(stuckMoves, [], "easy walked into the wall and stopped");
+  assert.ok(routingMoves.length > 0, "hard set off around it");
+  assert.notDeepEqual([routing.units[0].col, routing.units[0].row], [5, 5]);
+});
+
+test("hard AI takes a hex it can actually shoot from, not merely one near the target", () => {
+  // The Fregat is the only unit where this can matter: range 2 *and* needing line of sight, so
+  // there are hexes in range of a target that still can't fire on it.
+  const grid = new TerrainGrid(MAP_SIZE, MAP_SIZE, () => true);
+  for (const { col, row } of grid.cells()) grid.set(col, row, "shallow");
+  grid.set(5, 7, "mountain"); // sits on the straight line between the two
+
+  const s = aiState({ strategy: "aggressive", difficulty: "hard" });
+  const shooter = unit({ id: 1, unitType: "fregat", col: 5, row: 5 });
+  const prey = unit({ id: 2, ownerId: 0, unitType: "fregat", col: 5, row: 8 });
+  s.units.push(shooter, prey);
+  s.players[1].exploredCells = [...grid.cells()].map((c) => offsetKey(c.col, c.row));
+
+  runTurn(s, grid);
+
+  // Judged from where it ended up, with a fresh turn's budget: the question is whether it chose a
+  // hex with a clear line, not whether it had an action left over after walking there.
+  const rested = { ...shooter, remainingActions: UNIT_TYPES.fregat.actionsPerTurn, remainingAttacks: 1 };
+  assert.ok(isValidAttackTarget(s, grid, rested, prey), "ended the turn with a clear shot lined up");
+});
+
+// --- Difficulty: action efficiency (game spec §8's Action efficiency row) ---
+
+test("hard AI spends a unit's whole budget; easy stops after a single action", () => {
+  const grid = allLandGrid();
+  const board = (difficulty) => {
+    const s = aiState({ strategy: "aggressive", difficulty });
+    s.units.push(unit({ id: 1, col: 5, row: 5 }), unit({ id: 2, ownerId: 0, col: 14, row: 5 }));
+    s.players[1].exploredCells = [...grid.cells()].map((c) => offsetKey(c.col, c.row));
+    return s;
+  };
+
+  const lazy = board("easy");
+  const thorough = board("hard");
+  const lazyMoves = runTurn(lazy, grid).filter((a) => a.type === "move");
+  const thoroughMoves = runTurn(thorough, grid).filter((a) => a.type === "move");
+
+  assert.equal(lazyMoves.length, 1, "one action per unit, the rest of the budget left unspent");
+  assert.equal(thoroughMoves.length, UNIT_TYPES.tank.actionsPerTurn, "walked out its whole budget");
+  assert.equal(thorough.units[0].remainingActions, 0);
+});
+
+test("a unit whose rules stop applying doesn't burn the rest of its budget", () => {
+  // Defensive, at full strength, sitting inside its own hold radius with no enemies: every rule
+  // falls through. An unbounded budget must not turn that into an infinite loop or a pointless
+  // walk -- "no rule applied" ends the unit's turn just as running out of actions does.
+  const s = aiState({ strategy: "defensive", difficulty: "hard" });
+  const grid = allLandGrid();
+  const idler = unit({ id: 1, col: 10, row: 11 });
+  s.units.push(idler);
+  s.bases.push(base({ id: 0, ownerId: 1, col: 10, row: 10 }));
+
+  assert.deepEqual(runTurn(s, grid).filter((a) => a.type === "move"), []);
+  assert.equal(idler.remainingActions, UNIT_TYPES.tank.actionsPerTurn, "budget untouched");
+});
+
+// --- Mandatory plane movement (game spec §3) applied to the AI, not just the human ---
+// A defensive AI sitting next to its own base with no enemies about is the cleanest way to get a
+// unit its strategy leaves completely idle: every rule falls through. A tank in that spot simply
+// does nothing; a plane must still fly.
+
+/** A plane fixture with the fuel counters moveUnit maintains (§3's Plane rearm & fuel). */
+function plane(overrides = {}) {
+  return unit({ unitType: "fighter", actionsSpentMoving: 0, cellsFlown: 0, ...overrides });
+}
+
+test("an idle AI plane is still made to fly its mandatory 50% -- the rule binds the AI, not just the human", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  const idle = plane({ id: 1, col: 10, row: 11 });
+  s.units.push(idle);
+  s.bases.push(base({ id: 0, ownerId: 1, col: 10, row: 10 }));
+
+  // Base production runs every turn regardless, so these tests look at the movement actions only.
+  const moves = runTurn(s, grid).filter((a) => a.type === "move");
+
+  assert.ok(moves.length > 0, "the plane was made to move despite its strategy having no use for it");
+  // Half of the fighter's 8 actions per turn.
+  assert.ok(idle.actionsSpentMoving >= UNIT_TYPES.fighter.actionsPerTurn / 2);
+  assert.deepEqual(planesOwingMovement(s, 1), [], "no plane still owes movement when the turn ends");
+});
+
+test("an idle AI tank is left alone -- mandatory movement is a plane rule", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  const idle = unit({ id: 1, col: 10, row: 11 });
+  s.units.push(idle);
+  s.bases.push(base({ id: 0, ownerId: 1, col: 10, row: 10 }));
+
+  assert.deepEqual(runTurn(s, grid).filter((a) => a.type === "move"), []);
+  assert.deepEqual([idle.col, idle.row], [10, 11]);
+});
+
+test("a plane that already flew its share isn't forced to fly further", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  const flown = plane({ id: 1, col: 10, row: 11, actionsSpentMoving: UNIT_TYPES.fighter.actionsPerTurn / 2 });
+  s.units.push(flown);
+  s.bases.push(base({ id: 0, ownerId: 1, col: 10, row: 10 }));
+
+  assert.deepEqual(runTurn(s, grid).filter((a) => a.type === "move"), []);
+  assert.deepEqual([flown.col, flown.row], [10, 11]);
+});
+
+test("a plane with no base to head for still satisfies the rule", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  const stranded = plane({ id: 1, col: 10, row: 11 });
+  s.units.push(stranded); // no bases at all -- nowhere to rearm, but the rule still applies
+  const actions = runTurn(s, grid);
+
+  assert.ok(actions.length > 0);
+  assert.deepEqual(planesOwingMovement(s, 1), []);
 });

@@ -468,6 +468,9 @@ control, entry point to the mid-turn menu)*
 - End Turn is disabled, with a short inline message below the button, while the human player has
   any field plane that still owes its mandatory movement this turn (§3's Plane rearm & fuel) —
   message names the blocking unit(s) by type, e.g. "Fighter still needs to move (2/4 AP)".
+  This button is only how the rule is *presented* to the human — the rule itself binds every
+  player, and an AI turn satisfies it directly (§11) rather than being exempt for want of a
+  button to disable.
 - Entry point (button/icon) opening the mid-turn menu (§8).
 - AI-speed select (Instant / Fast / Slow, game spec §7) — HUD chrome rather than a game option,
   since it's changeable mid-match and changes nothing about the match's own rules or save. See
@@ -503,7 +506,7 @@ or unit; hosts the interaction described in §2/§3 above)*
   query param, not a build-time flag — no build step exists to gate it at (tech-stack.md).
 
 ### Game options menu
-- Controls: AI count (1–5), per-AI difficulty (Easy only — Hard stays disabled until Stage 12),
+- Controls: AI count (1–5), per-AI difficulty (Easy or Hard, chosen independently per AI — §11),
   map size, map type (Islands option disabled when size = Small), fog of war toggle.
 - Dropdowns per style-guide.md §9 "Selection components".
 - Confirm: picks a random map from `assets/maps/` matching the chosen size + type, randomizes
@@ -577,10 +580,14 @@ speed setting affects it)*
   `difficulty`: build `["aggressive","defensive","balanced"]` repeated `ceil(numAI / 3)` times,
   truncate to the AI count, shuffle with the match's own rng, assign in order (game spec §8).
 
-### Perception (easy difficulty)
-- Every decision reads `getVisibleState(state, aiId)` (§5) — easy AI respects fog, so it only
-  knows currently-visible enemy units and ever-explored bases. Hard AI's canonical-state exemption
-  (tech-stack.md) is Stage 12; nothing here reads canonical state to decide.
+### Perception
+- The board an AI decides from is chosen once per turn, by difficulty: **easy** reads
+  `getVisibleState(state, aiId)` (§5) and so knows only currently-visible enemy units and
+  ever-explored bases; **hard** reads canonical state and so knows everything (game spec §8's
+  Information row, and tech-stack.md's stated exemption).
+- Each difficulty's Reaction row falls out of this with no rule of its own — easy responds only to
+  what it can see because that is all its board contains, and hard reacts anywhere on the map for
+  the same reason. Neither is a separate check.
 - Commands still take canonical `state`, not the projection — a rule must resolve against reality
   (e.g. LOS blocked by a unit the AI can't see). The projection filters *which* objects the AI
   considers; it doesn't change how an action then resolves. Safe because `getVisibleState`
@@ -606,6 +613,13 @@ speed setting affects it)*
   build; skipped entirely if the base is at capacity or its queue is full (game spec §8).
 - Ties (equally close, equally valid) break by lowest id — determinism, so a seeded match replays
   identically and tests are stable.
+- **Mandatory plane movement** (game spec §3) is settled last, after every unit has had its own
+  chance to act for a reason: any of this player's field planes still owing movement is then made
+  to fly, heading for the nearest own base that could rearm it, or taking any step at all when
+  there's nowhere better to be. The rule demands movement, not useful movement. Planes deployed
+  this turn are included, exactly as the human's gate includes a plane they just unloaded.
+  Shares `planesOwingMovement` with §6's End Turn gate rather than restating the condition, so
+  the two sides cannot drift apart.
 
 ### Easy-difficulty execution traits (game spec §8's Difficulty table)
 - **First valid target, no optimization**: each strategy's stated target priority (lowest
@@ -617,6 +631,32 @@ speed setting affects it)*
   unit's turn ends there — no routing around obstacles, which is exactly the "may waste actions
   on obstacles" the design doc calls for, and leaves Stage 12's real pathfinding a genuine upgrade.
 - **Visible threats only** falls out of the perception rule above; no separate check.
+
+### Hard-difficulty execution traits (game spec §8's Difficulty table)
+Difficulty is a **seam the engine selects once per turn**, not a condition tested inside the
+rules: the engine picks a perception source, a target chooser, and a mover, then runs the same
+strategy rules either way. Branching on difficulty inside each rule would fork every rule in
+`strategies.js` along an axis that is supposed to be independent of it (game spec §8).
+
+- **Real target priority**: the strategy's own `targetPriority` decides — `lowestStrength` picks
+  the valid target with the least remaining sp (finish off the wounded), `highestAttack` the one
+  with the greatest attack value (neutralize the biggest threat). Ties still break by lowest id,
+  so a seeded match replays identically.
+- **Lowest-cost routing**: a route search over the same per-terrain move costs as
+  `reachableCells`, but *not* bounded by this turn's remaining AP — the unit walks the affordable
+  prefix of the route each turn and continues next turn. `reachableCells` alone can't serve here:
+  it answers "where can I get to right now", so a target beyond one turn's reach yields nothing to
+  aim at. A\* with a hex-distance heuristic, since an unbounded Dijkstra per unit per turn over a
+  12,000-cell map (§1) is the one place this loop could get genuinely expensive.
+- **Respects LOS**: when a unit wants to attack and nothing is in range, it moves to the cheapest
+  reachable hex from which some enemy *would* be attackable — range and line of sight both
+  satisfied — rather than simply the hex nearest the target. LOS only ever gates attacks, so this
+  is the only place the Pathing row's "respects LOS" can mean anything for movement.
+- **Full action budget**: a unit keeps walking its priority list while it still has actions,
+  instead of easy's one action per unit per turn. Each pass must reduce `remainingActions`; if a
+  rule reports an action that spent nothing, the unit stops. Without that guard a rule that
+  succeeds without spending loops forever, and the guard is cheaper than trusting every rule to
+  be honest about its own cost.
 
 ### Strategy rules
 - Rules are the design doc's own lists (game spec §8), with these implementation readings:

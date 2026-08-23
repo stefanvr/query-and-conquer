@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reachableCells } from "../../src/state/pathfinding.js";
+import { reachableCells, routeTo } from "../../src/state/pathfinding.js";
 import { TerrainGrid } from "../../src/map/grid.js";
 import { offsetKey, offsetDistance } from "../../src/map/hex-coords.js";
 import { UNIT_TYPES } from "../../src/state/unit-types.js";
@@ -199,4 +199,65 @@ test("reachableCells never mutates the state or the unit it's given", () => {
   reachableCells(s, grid, unit);
 
   assert.equal(JSON.stringify({ units: s.units, bases: s.bases }), before);
+});
+
+// --- routeTo: the unbounded route search hard AI steers by ---
+
+test("routeTo reaches a target far beyond one turn's action budget", () => {
+  const grid = grasGrid();
+  const s = state();
+  const unit = tank({ col: 1, row: 7 });
+  const target = { col: 13, row: 7 };
+
+  const route = routeTo(s, grid, unit, target);
+
+  assert.ok(route.length > UNIT_TYPES.tank.actionsPerTurn, "a multi-turn route, which reachableCells can't express");
+  assert.equal(offsetDistance(route[route.length - 1], target), 1, "ends next to the target, not on it");
+  assert.equal(offsetDistance(route[0], unit), 1, "starts with a single step from where the unit stands");
+});
+
+test("routeTo returns an empty route when the unit is already next to its target", () => {
+  const grid = grasGrid();
+  assert.deepEqual(routeTo(state(), grid, tank({ col: 7, row: 7 }), { col: 8, row: 7 }), []);
+});
+
+test("routeTo goes around impassable terrain instead of giving up at it", () => {
+  const grid = grasGrid();
+  // A wall of deep water across the tank's path, with one gap left at the bottom.
+  for (let row = 0; row < SIZE - 1; row++) grid.set(9, row, "deep");
+  const s = state();
+  const unit = tank({ col: 7, row: 7 });
+
+  const route = routeTo(s, grid, unit, { col: 12, row: 7 });
+
+  assert.ok(route, "found a way round");
+  assert.ok(route.some((step) => step.row >= SIZE - 2), "detoured through the gap rather than the wall");
+  assert.ok(route.every((step) => grid.get(step.col, step.row) !== "deep"));
+});
+
+test("routeTo returns null when the target is genuinely walled off", () => {
+  const grid = grasGrid();
+  for (let row = 0; row < SIZE; row++) grid.set(9, row, "deep"); // no gap this time
+  assert.equal(routeTo(state(), grid, tank({ col: 7, row: 7 }), { col: 12, row: 7 }), null);
+});
+
+test("routeTo prefers a longer cheap route over a short expensive one", () => {
+  const grid = grasGrid();
+  // Mountains (cost 2 for a tank) straight ahead; grass everywhere else.
+  for (const row of [6, 7, 8]) grid.set(8, row, "mountain");
+  const s = state();
+
+  const route = routeTo(s, grid, tank({ col: 7, row: 7 }), { col: 10, row: 7 });
+
+  assert.ok(route.every((step) => grid.get(step.col, step.row) !== "mountain"), "went around the range");
+});
+
+test("routeTo treats occupied hexes as walls, since they can't be moved into", () => {
+  const grid = grasGrid();
+  const s = state();
+  // Box the tank in completely with other units.
+  const unit = tank({ col: 7, row: 7 });
+  s.units.push(unit, ...grid.neighborsOf(7, 7).map((n, i) => tank({ id: 10 + i, col: n.col, row: n.row })));
+
+  assert.equal(routeTo(s, grid, unit, { col: 12, row: 7 }), null);
 });
