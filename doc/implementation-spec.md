@@ -174,10 +174,13 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 ### Base placement (game spec §5)
 - Runs once at match start (createGameState), after a map is picked — not pre-baked into the
   map JSON, since it depends on player count, which varies per match.
-- N + M seed points (N = player count, M = neutral-base count, also player count) via
-  farthest-point sampling over in-map cells: first seed random, each next seed is the in-map cell
-  maximizing its minimum distance to seeds already chosen. Every in-map cell's region = its
-  nearest seed (implicit Voronoi tessellation, no explicit region-boundary construction needed).
+- N + M seed points (N = player count; M = neutral-base count, game spec §5's
+  `round(N × mapData.size's maxCells ÷ SIZES.small.maxCells)` — the existing per-size `maxCells`
+  table in `map-tables.js`, so this is a genuine ratio against that table, not a new constant
+  invented alongside it) via farthest-point sampling over in-map cells: first seed random, each
+  next seed is the in-map cell maximizing its minimum distance to seeds already chosen. Every
+  in-map cell's region = its nearest seed (implicit Voronoi tessellation, no explicit
+  region-boundary construction needed).
 - Per region: rejection-sample a candidate cell — its own terrain determines which base type(s)
   it's eligible for (Land/Port/Mountain location rules, game spec §2); check hex-distance >= 5
   from every already-placed base (any player *or neutral*, §1's min-base-distance rule); place if
@@ -191,13 +194,14 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   reimplementation of it. It also means the neutral bases, being seeded *after* the player bases
   already exist, naturally fall into the gaps between them — exactly the contestable "in-between"
   territory the land-grab (game spec §5) is meant to create, rather than landing anywhere random.
-- A neutral base's SP starts at **0**, not its type's full strength — matching the invariant
-  every other unclaimed base in the system already holds (`ownerId === null` implies `sp === 0`
-  everywhere else: `attackBase` only ever sets a base neutral by driving its sp to exactly 0, and
-  `claimBase` immediately sets sp to 4 on claim, so an unclaimed base is never otherwise observed
-  at any other value). `maxSp` still starts at the type's full strength regardless, same as an
-  owned base — it's the repair ceiling once someone eventually holds it, not a reflection of
-  current health.
+- A neutral base's SP starts at **half its type's strength** (10 of 20, game spec §5) — a stored
+  value only, with no mechanical effect today: `isValidClaimTarget` never reads `sp` at all
+  (proximity + capturing unit type + affordability is the whole rule), `claimBase` unconditionally
+  resets `sp` to 4 the moment a claim succeeds regardless of what it was before, and the base
+  panel never shows a non-owned base's SP either way (`isOwnBase` below). Set now so the value
+  exists and is right if something later reads it — not because anything does yet. `maxSp` starts
+  at the type's full strength regardless, same as an owned base — it's the repair ceiling once
+  someone eventually holds it, not a reflection of current health.
 - A player base's SP starts at full strength (20, §2) — no damage exists yet (combat lands
   Stage 6). Unchanged by the above.
 

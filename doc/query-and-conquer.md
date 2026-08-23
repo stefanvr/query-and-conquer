@@ -188,13 +188,20 @@ changing anything else.
 
 **Player bases:** one region, and so one base, per player — owned by that player from the start.
 
-**Neutral bases:** as many additional regions — and so additional bases — as there are players,
-placed unowned. They start at 0 strength, same as any other unclaimed base (§4's "claiming an
-unclaimed base" applies to them exactly as it does to one that went neutral through combat), and
-give every match a land-grab to contest from turn 1 rather than only after a base has already
-changed hands once. Subject to the same min-distance rule (§1) as every other base, regardless of
-owner or lack of one — a neutral base is never placed closer to a player's own base, or to
-another neutral, than the game already requires between any two bases.
+**Neutral bases:** additional regions — and so additional bases — placed unowned, giving every
+match a land-grab to contest from turn 1 rather than only after a base has already changed hands
+once ("claiming an unclaimed base," below, applies to them exactly as it does to one that went
+neutral through combat). Count scales with both player count and map size:
+`round(player count × map cells ÷ small map's cells)` — a small map gets one neutral base per
+player, the same density as before; a bigger map gets proportionally more, since it has
+proportionally more room to spread them across (an extra-large map, at 7.5× a small map's cells,
+gets roughly 7.5 neutral bases per player). Subject to the same min-distance rule (§1) as every
+other base, regardless of owner or lack of one — a neutral base is never placed closer to a
+player's own base, or to another neutral, than the game already requires between any two bases.
+
+They start at half strength (10 of 20) — a stored value only, since claiming a base has never
+depended on its strength (only proximity and unit type, below) and an unclaimed base's strength
+was never shown to anyone but its own owner regardless.
 
 ---
 

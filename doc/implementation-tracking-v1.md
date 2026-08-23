@@ -407,16 +407,21 @@ documentation debt), and lumping them together made none of them plannable on th
       implementation, since it changes a stated game rule. Stage 6 front-runs this for its own
       dev-save testing by hand-placing one neutral base near the human's, rather than waiting on
       the real map-generation feature.
-      **Design chosen (spec):** neutral count = player count (doubling total bases). The first N
-      farthest-point seeds (unchanged from today) become player bases; M more, seeded after them
-      by the same process, become neutral — landing in the gaps between player regions rather
-      than anywhere arbitrary. Neutral SP starts at 0, matching the `ownerId === null → sp === 0`
-      invariant every other unclaimed base already holds; `maxSp` stays the type's full strength.
-      **Flagged for review:** the neutral-count formula (player count) and whether it should also
-      scale with map size — picked as the simplest defensible default, not measured against
-      anything. Doubling the region count may also raise the reseed/candidate-exhaustion rate on
-      small or land-only maps with few players; worth confirming empirically once implemented
-      rather than assuming the existing bounded-attempts logic just absorbs it.
+      **Design (revised after review):** neutral count scales with player count *and* map size —
+      `round(playerCount × maxCells[size] ÷ maxCells.small)`, using the existing per-size
+      `maxCells` table (`map-tables.js`) rather than a new constant. A small map keeps the
+      original player-count density ("sounds ok" as reviewed); an extra-large map (7.5× a small
+      map's cells) gets ~7.5× as many neutral bases per player, since it has proportionally more
+      room to spread them across. The first N farthest-point seeds (unchanged from today) become
+      player bases; the M size-scaled extras, seeded after them by the same process, become
+      neutral — landing in the gaps between player regions rather than anywhere arbitrary.
+      Neutral SP starts at **half strength (10)**, a stored value only: neither `isValidClaimTarget`
+      nor the base panel's non-disclosure logic reads a non-owned base's SP, so this has no
+      mechanical effect today — set for when something eventually does, not because anything
+      currently does. `maxSp` stays the type's full strength.
+      **Still worth confirming empirically once implemented:** the larger region count on big
+      maps with many players may raise the reseed/candidate-exhaustion rate; the existing
+      bounded-attempts logic should absorb it, but that's an assumption, not yet a measurement.
 - [ ] Hex selection/targeting (game-screen.js's `selectHex`) reads canonical state directly, not
       the fog-filtered projection (Stage 9) — a precisely-aimed click can still select/inspect a
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
