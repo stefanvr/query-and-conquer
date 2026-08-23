@@ -368,11 +368,13 @@ for (const base of state.bases) {
 
 }
 
-// §1's 5-cell minimum between bases is reported rather than enforced, because the hand-placed
-// human cluster (neutral base, port, mountain, all clustered near the home base for convenient
-// testing) has violated it since Stage 6. That's a fixture decision, not a rules bug — but it's
-// printed on every run so it can't quietly become invisible, and so anything newly added is
-// checked against it.
+// §1's 5-cell minimum between bases is reported rather than enforced. The hand-placed human
+// cluster (neutral base, port, mountain, all sitting near the home base so a tester can reach
+// them without a long walk) has violated it since Stage 6, and that was reviewed and accepted as
+// a deliberate fixture trade — this save is a test rig, not a generated map, and the rule exists
+// to keep *generated* layouts fair. Don't "fix" the cluster; it's close together on purpose.
+// Still printed on every run, so the exception stays visible and anything newly added gets
+// checked against the rule rather than inheriting the exemption by accident.
 const tooClose = [];
 for (let i = 0; i < state.bases.length; i++) {
   for (let j = i + 1; j < state.bases.length; j++) {
