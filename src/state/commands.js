@@ -8,6 +8,10 @@ import { currentlyVisibleCells } from "./visibility.js";
 const MAX_QUEUE_LENGTH = 5; // §2
 const MAX_BASE_CAPACITY = 15; // §2: garrisoned + in-progress builds count against it
 const CAPTURING_UNIT_TYPES = ["tank", "fighter", "fregat"]; // §4: no other unit type can capture a base
+/** Unloading straight into an adjacent boat (implementation-spec.md §1): 1 for the load/unload
+ * action itself, + 1 as the floor every move pays — no terrain is crossed, but a transfer
+ * shouldn't come out cheaper than the cheapest possible step onto open ground. */
+const BOAT_TRANSFER_COST = 2;
 
 /** Whether `playerId` is eliminated (game spec §7): zero bases owned *and* zero units anywhere —
  * both conditions together, not either alone. Owning any base keeps a player in regardless of
@@ -253,7 +257,9 @@ function toFieldUnit(entry, ownerId, targetCol, targetRow, remainingActions) {
 export function isValidUnloadTarget(state, grid, container, garrisoned, targetCol, targetRow) {
   if (offsetDistance({ col: container.col, row: container.row }, { col: targetCol, row: targetRow }) !== 1) return false;
   if (!grid.isInMap(targetCol, targetRow)) return false;
-  if (unloadBoatAt(state, container, garrisoned, targetCol, targetRow)) return true;
+  if (unloadBoatAt(state, container, garrisoned, targetCol, targetRow)) {
+    return BOAT_TRANSFER_COST <= UNIT_TYPES[garrisoned.unitType].actionsPerTurn;
+  }
   if (isBlockedForMovement(state, targetCol, targetRow)) return false;
   const cost = moveCost(garrisoned.unitType, grid.get(targetCol, targetRow));
   if (cost === null) return false;
@@ -277,11 +283,11 @@ function unloadBoatAt(state, container, garrisoned, targetCol, targetRow) {
 }
 
 /** Moves a garrison/cargo entry straight into an adjacent boat's hold, if the destination is one.
- * Costs nothing: neither side of a container-to-container transfer has an action budget to charge
- * (only field units track `remainingActions`), and the opposite direction is already free —
- * `enterBaseWithCargo` unloads a whole cargo hold into a base for nothing. Charging terrain move
- * cost would be meaningless besides, since the unit never stands on terrain. @returns whether the
- * transfer happened. */
+ * Costs `BOAT_TRANSFER_COST`, charged the way every other container entry is — as an
+ * affordability gate against the unit's action budget (`isValidUnloadTarget`), not a running
+ * deduction, since a unit entering a container stops being a field unit and has no per-turn
+ * budget to carry. `loadUnit` and `enterBaseWithCargo` already work exactly this way.
+ * @returns whether the transfer happened. */
 function transferToBoat(state, container, entries, index, targetCol, targetRow) {
   const entry = entries[index];
   const boat = unloadBoatAt(state, container, entry, targetCol, targetRow);

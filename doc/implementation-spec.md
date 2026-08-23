@@ -104,13 +104,18 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   Clicking a highlighted hex confirms — the unit either becomes a field unit there, or joins that
   boat's cargo — and its unit panel opens if it's a field unit afterward (§3). Clicking anything
   else is a no-op; stays in preview mode.
-- Unloading straight into a boat costs the unit nothing, unlike unloading onto terrain (1 action
-  + move cost). Neither side of a container-to-container transfer has an action budget to charge
-  in the first place — only field units track `remainingActions` — and the same already holds in
-  the opposite direction, where a boat entering a base unloads its whole cargo for free (§2's
-  Boat entry). Charging terrain move cost would be worse than meaningless here: the unit never
-  stands on terrain, and a base's own land cell is impassable to the boat while the boat's water
-  cell is impassable to the vehicle it's loading.
+- Unloading straight into a boat costs **2**: 1 for the load/unload action itself (game spec §3),
+  + 1 as the floor every move pays. No terrain is crossed — the unit goes hold to hold, and each
+  container's own cell is impassable to the other's occupant anyway — but a transfer must not come
+  out cheaper than the cheapest possible step onto open ground, which is what a free transfer
+  would have made it.
+- Like every other entry into a container (`loadUnit`, `enterBaseWithCargo`), that cost is an
+  **affordability gate, not a running deduction**: a unit that enters a container stops being a
+  field unit and has no per-turn budget left to subtract from. Note the consequence — since
+  garrisoned and cargo entries don't track `remainingActions`, and every unit type has at least 2
+  actions/turn, this particular gate can't currently refuse anything. It's stated and enforced in
+  the same place the terrain branch is, so the two can't drift, and it starts binding the moment
+  either of those two facts changes.
 
 ### Load destination picker
 - The unit panel's Load button (§3) is a single button, shown whenever at least one adjacent
