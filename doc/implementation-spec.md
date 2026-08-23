@@ -43,6 +43,15 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - Pan: mouse/touch drag. Zoom: scroll wheel / pinch, plus on-screen +/- buttons as a fallback.
   `touch-action: none` on the canvas element only.
 - Initial camera: centered on the human player's own base.
+- The selection panel (§7) is a **layout sibling** of the canvas, never an overlay on it: the map
+  shrinks to the space left over, so nothing the player can tap is ever underneath the panel. Wide
+  viewports put it beside the map, narrow ones below it. Floating it over the canvas meant an open
+  panel sat on the very hexes being tapped — and hid the zoom buttons at any width.
+- The canvas re-measures whenever its own box changes, not only on window resize, since a panel
+  opening or closing changes it. A stale canvas size misplaces every hex, so taps hit-test against
+  the previous geometry. Panel toggles re-measure synchronously; a `ResizeObserver` catches
+  anything else. Resizing keeps whatever was at the centre centred, rather than pinning the
+  top-left corner.
 - Base markers: owner's accent-color stroke, or steel-gray if unowned (§2/§4). A label under
   your own base shows its SP and, if a build's in progress, `Building: [unit type]` — an
   enemy-owned base's marker has no label at all, matching its panel's own non-disclosure (§2/§4).

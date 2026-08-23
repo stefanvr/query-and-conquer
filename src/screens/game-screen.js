@@ -396,6 +396,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     selectedQueueIndex = null;
     basePanel.hidden = true;
     unitPanel.hidden = true;
+    camera?.resize(); // the map just reclaimed the panel's space — re-measure before any hit-test
     camera?.setSelectedHex(null);
     camera?.setActionTargets({}); // nothing selected -- no reach or targets to show (§1)
     closeUnloadPreview();
@@ -408,6 +409,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     selectedQueueIndex = null;
     unitPanel.hidden = true;
     basePanel.hidden = false;
+    camera.resize(); // the panel just took space from the map — re-measure before any hit-test
     camera.setSelectedHex({ col: base.col, row: base.row });
     camera.setActionTargets({}); // a base has no reach/targets of its own (§1)
     renderBasePanel(base);
@@ -430,6 +432,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     selectedQueueIndex = null;
     basePanel.hidden = true;
     unitPanel.hidden = true;
+    camera?.resize(); // the map just reclaimed the panel's space — re-measure before any hit-test
     camera.setPendingUnload({
       col: container.col,
       row: container.row,
@@ -454,6 +457,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     selectedQueueIndex = null;
     basePanel.hidden = true;
     unitPanel.hidden = true;
+    camera?.resize(); // the map just reclaimed the panel's space — re-measure before any hit-test
     camera.setPendingLoadTargets(computeLoadTargets(unit));
   }
 
@@ -468,6 +472,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     selectedBase = null;
     basePanel.hidden = true;
     unitPanel.hidden = false;
+    camera.resize(); // the panel just took space from the map — re-measure before any hit-test
     camera.setSelectedHex({ col: unit.col, row: unit.row });
     refreshActionTargets(); // show this unit's reach and what it can act on (§1)
     renderUnitPanel(unit);

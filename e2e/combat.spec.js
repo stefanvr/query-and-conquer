@@ -28,12 +28,7 @@ async function screenPosFor(page, col, row) {
   return { x: box.x + box.width / 2 + (p.x - base.x), y: box.y + box.height / 2 + (p.y - base.y) };
 }
 
-test("clicking an adjacent neutral base with a selected tank claims it", async ({ page }, testInfo) => {
-  // Same test-geometry note as unit-movement.spec.js's move test: on a narrow mobile viewport,
-  // the open unit panel can overlay the neutral base's hex near canvas-center, so the claiming
-  // click never reaches the canvas at all.
-  testInfo.skip(testInfo.project.name === "mobile-chromium", "neutral base hex falls under the open side panel on narrow viewports");
-
+test("clicking an adjacent neutral base with a selected tank claims it", async ({ page }) => {
   const tank = await screenPosFor(page, 1, 2);
   await page.mouse.click(tank.x, tank.y);
   await expect(page.locator("#unit-panel")).toBeVisible();
@@ -44,7 +39,10 @@ test("clicking an adjacent neutral base with a selected tank claims it", async (
   // The claiming tank is gone (garrisoned into the base it just took) — no unit panel left open.
   await expect(page.locator("#unit-panel")).toBeHidden();
 
-  await page.mouse.click(neutralBase.x, neutralBase.y);
+  // Recomputed rather than reused: closing the panel gave its space back to the map, so the canvas
+  // resized and the earlier screen position no longer points at the same hex.
+  const baseAfterClaim = await screenPosFor(page, 2, 2);
+  await page.mouse.click(baseAfterClaim.x, baseAfterClaim.y);
   await expect(page.locator("#base-panel")).toBeVisible();
   await expect(page.locator("#base-panel-owner")).toContainText("Human");
   await expect(page.locator("#base-panel-capacity")).toContainText("1/15");

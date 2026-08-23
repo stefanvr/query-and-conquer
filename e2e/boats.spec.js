@@ -45,9 +45,7 @@ test("selecting the dev-save transporter shows its cargo slot with the tank it's
   await expect(slot).toHaveAttribute("title", "TANK");
 });
 
-test("moving the transporter onto adjacent deep water spends AP (movement over water)", async ({ page }, testInfo) => {
-  testInfo.skip(testInfo.project.name === "mobile-chromium", "destination hex falls under the open side panel on narrow viewports");
-
+test("moving the transporter onto adjacent deep water spends AP (movement over water)", async ({ page }) => {
   const boat = await screenPosFor(page, 5, 2);
   await page.mouse.click(boat.x, boat.y);
   const apBefore = await page.locator("#unit-panel-ap").textContent();
@@ -59,9 +57,7 @@ test("moving the transporter onto adjacent deep water spends AP (movement over w
   expect(apAfter).not.toBe(apBefore);
 });
 
-test("the transporter entering the port base with the Load picker unloads it and its cargo for free", async ({ page }, testInfo) => {
-  testInfo.skip(testInfo.project.name === "mobile-chromium", "base hex falls under the open side panel on narrow viewports");
-
+test("the transporter entering the port base with the Load picker unloads it and its cargo for free", async ({ page }) => {
   const boat = await screenPosFor(page, 5, 2);
   await page.mouse.click(boat.x, boat.y);
   await page.click("#unit-panel-actions button"); // opens the load destination picker

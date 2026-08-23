@@ -346,17 +346,13 @@ threats outside its own view.
 - [ ] Spec
 - [ ] Edge-case sweep against query-and-conquer.md
 - [ ] UI/UX pass
-  - [ ] On narrow (mobile) viewports, an open side panel (base/unit) can visually overlap
-        canvas-center, so a tap there hits the panel instead of the hex underneath it — known
-        since Stage 5's movement tests, worked around there and in Stage 5b's e2e tests by
-        clicking a panel's own close button first rather than tapping through it. Needs an actual
-        layout fix (e.g. panel width/position that never covers canvas-center, or canvas taps
-        during an open panel routing to the hex regardless of panel bounds).
-  - [ ] Improve attack UX — flagged during a build-v2 review as needing a better pass than
-        today's plain click-an-enemy-hex targeting; to be described in more detail when this
-        stage is planned
-  - [ ] Improve movement UX — flagged during the same review, alongside the attack UX item above;
-        to be described in more detail when this stage is planned
+  - [x] An open side panel could overlap the map, so a tap meant for a hex hit the panel instead —
+        worst on narrow viewports where it covered canvas-centre, but it hid the zoom buttons at
+        any width. Fixed by making the panel a layout sibling of the canvas rather than an overlay:
+        it takes its own space, the canvas shrinks to what's left, and nothing tappable can sit
+        underneath it. Narrow viewports stack it below the map instead of beside it. Removed the
+        four mobile-only test skips and both close-the-panel-first workarounds this had forced
+        since Stage 5 — the e2e suite now runs every test on both viewports
 - [ ] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
       §5's placement is currently exactly N seeds for N players, so every base starts owned —
       "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra

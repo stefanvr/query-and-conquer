@@ -294,6 +294,10 @@ body {
   position: relative;
   flex: 1;
   overflow: hidden;
+  /* A flex item won't shrink below its content's intrinsic size by default, and a canvas has one.
+     Without these it refuses to give room to an opening panel and overflows the row instead. */
+  min-width: 0;
+  min-height: 0;
 }
 
 #map-canvas,
@@ -352,18 +356,40 @@ body {
   display: none;
 }
 
-/* --- Base panel (side panel over the map canvas, Stage 4) --- */
+/* --- Game body: map + selection panel, side by side --- */
+/* The panel is a layout sibling of the canvas, not an overlay on top of it. Floating it over the
+   map meant an open panel could sit on the hex you were trying to tap — worst on narrow screens,
+   where it covered canvas-centre, but it also hid the zoom buttons at any width. As a sibling it
+   takes its own space, the canvas shrinks to what's left, and nothing tappable is ever underneath
+   it. `min-height: 0` lets the row actually shrink inside its flex parent instead of overflowing. */
+.game-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
 .side-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(300px, 80vw);
+  position: relative; /* anchors the close button, which is absolutely positioned within */
+  flex: 0 0 min(300px, 40vw);
   background: var(--olive);
   border-left: 1px solid var(--steel);
   padding: 20px 16px;
   overflow-y: auto;
-  z-index: 5;
+}
+
+/* Narrow screens: stack instead, so the map keeps the full width and the panel takes height it
+   can afford. Portrait phones have height to spare and no width to give. */
+@media (max-width: 700px) {
+  .game-body {
+    flex-direction: column;
+  }
+
+  .side-panel {
+    flex: 0 0 auto;
+    max-height: 45vh;
+    border-left: none;
+    border-top: 1px solid var(--steel);
+  }
 }
 
 .side-panel[hidden] {

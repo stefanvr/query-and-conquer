@@ -28,6 +28,14 @@ async function screenPosFor(page, col, row) {
   return { x: box.x + box.width / 2 + (p.x - base.x), y: box.y + box.height / 2 + (p.y - base.y) };
 }
 
+/** Clicks a hex, resolving its position at the moment of the click. Always prefer this to holding
+ * a position in a variable: opening or closing a panel resizes the canvas, so a coordinate worked
+ * out beforehand can point at a different hex by the time it's used. */
+async function clickHex(page, col, row) {
+  const pos = await screenPosFor(page, col, row);
+  await page.mouse.click(pos.x, pos.y);
+}
+
 test("selecting the dev-save tank shows its panel with AP and a Load button", async ({ page }) => {
   const tank = await screenPosFor(page, 1, 2);
   await page.mouse.click(tank.x, tank.y);
@@ -38,13 +46,7 @@ test("selecting the dev-save tank shows its panel with AP and a Load button", as
   await expect(page.locator("#unit-panel-actions button")).toContainText("Load");
 });
 
-test("moving the tank to an adjacent hex spends AP and leaves the base-adjacent action unavailable", async ({ page }, testInfo) => {
-  // On a narrow mobile viewport, the unit panel (opened by the first click, up to 80vw wide)
-  // can overlay the destination hex near canvas-center, so the second click never reaches the
-  // canvas at all — a test-geometry artifact of clicking right next to an open side panel, not
-  // an app bug (desktop coverage below already confirms the click -> moveUnit wiring works).
-  testInfo.skip(testInfo.project.name === "mobile-chromium", "destination hex falls under the open side panel on narrow viewports");
-
+test("moving the tank to an adjacent hex spends AP and leaves the base-adjacent action unavailable", async ({ page }) => {
   const tank = await screenPosFor(page, 1, 2);
   await page.mouse.click(tank.x, tank.y);
   const apBefore = await page.locator("#unit-panel-ap").textContent();
@@ -66,27 +68,24 @@ test("the Load picker loads the tank in; a unit that spent its turn getting in c
   await page.click("#unit-panel-actions button"); // opens the load destination picker
   await expect(page.locator("#unit-panel")).toBeHidden();
 
-  const base = await screenPosFor(page, 0, 2);
-  await page.mouse.click(base.x, base.y); // confirm: load into the base
+  await clickHex(page, 0, 2); // confirm: load into the base
   await expect(page.locator("#unit-panel")).toBeHidden(); // no panel auto-opens after a successful load
   await expect(page.locator("#base-panel")).toBeHidden();
 
-  await page.mouse.click(base.x, base.y); // open its panel
+  await clickHex(page, 0, 2); // open its panel
   await expect(page.locator("#base-panel")).toBeVisible();
   // The dev save already garrisons one (damaged) tank for repair testing (Stage 6) -- this makes
   // a second, in the next slot.
   await expect(page.locator("#base-panel-capacity")).toContainText("2/15");
-
-  const dest = await screenPosFor(page, 1, 2); // back where it started -- adjacent, passable, empty
 
   // The tank that just walked in has nothing left this turn: it arrived on 3 AP and loading cost
   // 2, so it can't afford the 2 to step back out (implementation-spec.md §3's spentActions).
   // Its picker opens, but that hex isn't a valid destination, so confirming there does nothing.
   await page.locator("#base-panel-garrison button").nth(1).click();
   await expect(page.locator("#base-panel")).toBeHidden();
-  await page.mouse.click(dest.x, dest.y);
+  await clickHex(page, 1, 2); // back where it started -- adjacent, passable, empty
   await expect(page.locator("#unit-panel")).toBeHidden(); // no unit placed -- still in the picker
-  await page.mouse.click(base.x, base.y); // cancel back out of the picker
+  await clickHex(page, 0, 2); // cancel back out of the picker
   await expect(page.locator("#base-panel")).toBeVisible();
   await expect(page.locator("#base-panel-capacity")).toContainText("2/15"); // both still inside
 
@@ -94,16 +93,13 @@ test("the Load picker loads the tank in; a unit that spent its turn getting in c
   // normally -- the unload picker itself works fine.
   await page.locator("#base-panel-garrison button").nth(0).click();
   await expect(page.locator("#base-panel")).toBeHidden();
-  await page.mouse.click(dest.x, dest.y);
+  await clickHex(page, 1, 2);
   await expect(page.locator("#unit-panel")).toBeVisible(); // the newly-placed unit's own panel opens
   await expect(page.locator("#unit-panel-title")).toContainText("Tank");
 
-  // Close via the panel's own button rather than clicking the base's canvas position again --
-  // on a narrow mobile viewport the still-open unit panel can overlay canvas-center (same
-  // test-geometry note as unit-movement's move test above), so a canvas click there would hit
-  // the panel, not the base hex underneath it.
-  await page.click("#unit-panel-close");
-  await page.mouse.click(base.x, base.y);
+  // Clicking straight through to the base hex, with the unit panel still open — the panel takes
+  // its own space rather than floating over the map, so there is nothing underneath it to miss.
+  await clickHex(page, 0, 2);
   await expect(page.locator("#base-panel-capacity")).toContainText("1/15"); // back to just the damaged one
 });
 

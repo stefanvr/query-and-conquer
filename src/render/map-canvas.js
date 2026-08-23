@@ -320,9 +320,24 @@ export function createMapCamera(canvas, mapData, options = {}) {
     }
   }
 
+  let hasSized = false;
+
+  /** Re-measures the canvas, keeping whatever was at the centre of the viewport still centred.
+   * The camera stores a top-left offset, so resizing without this pins the top-left corner and
+   * everything appears to slide — which happens every time a selection panel opens or closes
+   * beside the map, since that changes the canvas's width. Anchoring the centre instead means the
+   * thing you were looking at stays where you were looking. */
   function resize() {
+    const previousCentre = hasSized
+      ? { x: camera.x + canvas.width / 2, y: camera.y + canvas.height / 2 }
+      : null;
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
+    hasSized = true;
+    if (previousCentre) {
+      camera.x = previousCentre.x - canvas.width / 2;
+      camera.y = previousCentre.y - canvas.height / 2;
+    }
     draw();
   }
 
@@ -434,6 +449,12 @@ export function createMapCamera(canvas, mapData, options = {}) {
   canvas.addEventListener("pointercancel", onPointerEnd);
   canvas.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("resize", resize);
+  // The canvas also changes size without the window doing so — a selection panel opening or
+  // closing beside it takes space out of the row. A window resize listener never hears about that,
+  // and a stale canvas.width silently misplaces every hex, so hit-testing lands on the wrong cell.
+  // Observing the element itself catches every cause rather than the one we happened to think of.
+  const resizeObserver = new ResizeObserver(() => resize());
+  resizeObserver.observe(canvas);
 
   // Deferred to the next frame: this canvas is typically sized right after its screen becomes
   // visible (main.js's showScreen), and reading clientWidth/clientHeight in that same
@@ -450,6 +471,12 @@ export function createMapCamera(canvas, mapData, options = {}) {
     zoomIn: () => zoomBy(1.25, canvas.width / 2, canvas.height / 2),
     zoomOut: () => zoomBy(1 / 1.25, canvas.width / 2, canvas.height / 2),
     centerOn,
+    /** Re-measure now rather than waiting for the ResizeObserver, which fires asynchronously.
+     * Callers that change the canvas's size themselves — opening or closing a panel beside it —
+     * should use this: between the layout change and the observer firing, the canvas's stored size
+     * is stale, so a tap in that window hit-tests against the previous geometry and selects the
+     * wrong hex. */
+    resize,
     setSelectedHex(hex) {
       selectedHex = hex;
       draw();
@@ -482,6 +509,7 @@ export function createMapCamera(canvas, mapData, options = {}) {
       canvas.removeEventListener("pointercancel", onPointerEnd);
       canvas.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", resize);
+      resizeObserver.disconnect();
     },
   };
 }
