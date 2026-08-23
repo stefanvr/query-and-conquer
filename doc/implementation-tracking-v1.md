@@ -391,44 +391,12 @@ kept below in the notes on each item.*
       moved, so the extra budget often goes unused anyway. The difficulty gap is real but much
       more about *what* hard does than *how much*
 
-## Stage 13 — Polishing v1
-*A deliberate closing pass before considering the build done.*
+## Stage 13 — Map generation & hex misc
+*Split out of the old single "Stage 13 — Polishing v1" catch-all (2026-08) into four focused
+passes, per workflow.md step 1 — one closing stage had become four different kinds of work with
+four different shapes of decision (implementation gaps, layout bugs, open design questions,
+documentation debt), and lumping them together made none of them plannable on their own.*
 - [ ] Spec
-- [ ] Edge-case sweep against query-and-conquer.md
-- [ ] UI/UX pass
-  - [x] An open side panel could overlap the map, so a tap meant for a hex hit the panel instead —
-        worst on narrow viewports where it covered canvas-centre, but it hid the zoom buttons at
-        any width. Fixed by making the panel a layout sibling of the canvas rather than an overlay:
-        it takes its own space, the canvas shrinks to what's left, and nothing tappable can sit
-        underneath it. Narrow viewports stack it below the map instead of beside it. Removed the
-        four mobile-only test skips and both close-the-panel-first workarounds this had forced
-        since Stage 5 — the e2e suite now runs every test on both viewports
-  - [ ] On mobile, selecting a tank opens its panel with the Load button below the fold, so the
-        unit's only action is invisible until scrolled to. Selecting a boat (carrier/transporter)
-        afterwards renders correctly, and the tank does too from then on — so the content isn't
-        too tall for the panel as such, the *first* render just lays out against a stale or
-        not-yet-settled panel box. Found on a real device, after the overlay fix above
-  - [ ] The "plane still owes its movement" HUD notice (`#hud-end-turn-blocked`) is an element
-        that appears and disappears in the HUD row, shoving End Turn and Menu sideways on mobile
-        — a moving target for a tap. Wants a solution that scales: this is the first
-        "you still owe an action before you can end the turn" notice, not the last, so reserving
-        space or moving the notice out of the button row should hold for the next one too,
-        rather than being special-cased for planes
-  - [ ] Move the AI speed control (Instant/Fast/Slow) out of the HUD and into the in-game menu.
-        It was put in the HUD as chrome rather than a game option (spec §6/§11) since it's
-        changeable mid-match and affects nothing about the match's rules or its save — but it
-        costs permanent HUD width for something set rarely, which mobile can't spare. Moving it
-        means updating that §6/§11 reasoning and the `#hud-ai-speed` e2e coverage, not just the
-        markup
-  - [ ] `unit-movement.spec.js`'s "moving the tank to an adjacent hex" failed twice in about
-        sixteen full-suite runs during Stage 12, then passed twelve consecutive runs and always
-        passes in isolation. Both failures were in runs that took 30s and 15s against a normal
-        6–7s, so machine load is the likely cause rather than a logic defect — but the test
-        computes a screen position from the canvas box and assumes the camera is still centred on
-        the base at the default hex size, and canvas re-measurement became asynchronous
-        (`ResizeObserver`) in the Stage 13 viewport fix above. A widened timing window under load
-        fits what was seen. Not chased further because it wouldn't reproduce; if it resurfaces,
-        the fix is to make the test wait for stable canvas dimensions rather than assuming them
 - [ ] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
       §5's placement is currently exactly N seeds for N players, so every base starts owned —
       "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra
@@ -442,6 +410,81 @@ kept below in the notes on each item.*
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
       framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
       as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
+- [ ] *Thin so far* — only one hex-specific loose end is on file (above); everything else found
+      during the split was either UI/UX or map-generation-adjacent and moved to those buckets.
+      Add anything else that belongs here before starting
+
+## Stage 14 — UI/UX pass
+- [ ] Spec
+- [x] An open side panel could overlap the map, so a tap meant for a hex hit the panel instead —
+      worst on narrow viewports where it covered canvas-centre, but it hid the zoom buttons at
+      any width. Fixed by making the panel a layout sibling of the canvas rather than an overlay:
+      it takes its own space, the canvas shrinks to what's left, and nothing tappable can sit
+      underneath it. Narrow viewports stack it below the map instead of beside it. Removed the
+      four mobile-only test skips and both close-the-panel-first workarounds this had forced
+      since Stage 5 — the e2e suite now runs every test on both viewports. *(Landed while this
+      was still filed under the old Stage 13, before the split above — kept here since this is
+      where the rest of the UI/UX pass now lives.)*
+- [ ] On mobile, selecting a tank opens its panel with the Load button below the fold, so the
+      unit's only action is invisible until scrolled to. Selecting a boat (carrier/transporter)
+      afterwards renders correctly, and the tank does too from then on — so the content isn't
+      too tall for the panel as such, the *first* render just lays out against a stale or
+      not-yet-settled panel box. Found on a real device, after the overlay fix above
+- [ ] The "plane still owes its movement" HUD notice (`#hud-end-turn-blocked`) is an element
+      that appears and disappears in the HUD row, shoving End Turn and Menu sideways on mobile
+      — a moving target for a tap. Wants a solution that scales: this is the first
+      "you still owe an action before you can end the turn" notice, not the last, so reserving
+      space or moving the notice out of the button row should hold for the next one too,
+      rather than being special-cased for planes
+- [ ] Move the AI speed control (Instant/Fast/Slow) out of the HUD and into the in-game menu.
+      It was put in the HUD as chrome rather than a game option (spec §6/§11) since it's
+      changeable mid-match and affects nothing about the match's rules or its save — but it
+      costs permanent HUD width for something set rarely, which mobile can't spare. Moving it
+      means updating that §6/§11 reasoning and the `#hud-ai-speed` e2e coverage, not just the
+      markup
+- [ ] No dedicated attack/capture animation or toast — the base/unit panel's own SP/owner
+      display (implementation-spec.md §2/§3, already live) and the map's own token/marker removal
+      on death are the only feedback right now. Deferred here since Stage 4/6
+- [ ] `unit-movement.spec.js`'s "moving the tank to an adjacent hex" failed twice in about
+      sixteen full-suite runs during Stage 12, then passed twelve consecutive runs and always
+      passes in isolation. Both failures were in runs that took 30s and 15s against a normal
+      6–7s, so machine load is the likely cause rather than a logic defect — but the test
+      computes a screen position from the canvas box and assumes the camera is still centred on
+      the base at the default hex size, and canvas re-measurement became asynchronous
+      (`ResizeObserver`) in the panel-overlay fix above. A widened timing window under load fits
+      what was seen. Not chased further because it wouldn't reproduce; if it resurfaces, the fix
+      is to make the test wait for stable canvas dimensions rather than assuming them
+
+## Stage 15 — Balance & gameplay
+*A real-play pass rather than a code-correctness one: settling the open design questions that
+only a played match can answer, not a unit test. Game spec §9 ("Balance considerations") moves
+here in full — decided-on-paper-only tuning content doesn't belong in a doc meant to state
+settled rules (workflow.md's "when a rule turns out to be wrong" applies in reverse: this is
+content that was never a rule to begin with). Whatever gets decided writes back into
+query-and-conquer.md as ordinary rule text; §9 itself goes away once nothing is left open there.*
+- [ ] Spec
+- [ ] Gameplay questionnaire — gaps a played match can surface that a seeded sim or a unit test
+      structurally can't (a sim has no opinion on whether something *feels* right):
+  - Does Hard AI feel meaningfully stronger than Easy in a real match, or does the measured 1.38×
+      action-tempo gap (Stage 12) read as too close for the difficulty label to be honest?
+  - Now that an AI's planes are held to the mandatory ≥50% movement rule (Stage 12), does a
+      Hard AI's plane use look purposeful in a real game, or does the forced movement read as
+      erratic/wasteful?
+  - Plane rearm/refuel timing (moved from game spec §9): instant, same-turn rearm vs. resolving
+      at the owner's next turn-start — play both and compare tempo, don't just reason about it
+  - Mountain-base takedown (moved from game spec §9): does the Bomber+Fighter pairing the
+      strength table implies feel like an intended combined-arms puzzle, or genuinely too hard?
+      If too hard: lower mountain-base strength, raise Fighter's ground attack, or leave it and
+      document the pairing as the intended cost
+  - Anything else surfaced by the Stage 12 manual match test
+- [ ] Decide and implement whatever the questionnaire above settles; fold each resolved question
+      back into query-and-conquer.md's normal rule text (not a new open-questions appendix)
+
+## Stage 16 — Closing pass
+*The deliberate closing sweep before considering v1 done — what's left once map/hex, UI/UX, and
+balance have their own stages above.*
+- [ ] Spec
+- [ ] Edge-case sweep against query-and-conquer.md
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 

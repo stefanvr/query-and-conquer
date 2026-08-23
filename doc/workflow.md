@@ -114,7 +114,10 @@ Check items off **with a note on what actually happened**, particularly where it
 - Already handled by earlier generic work: say so, and what confirmed it.
 - Found and fixed along the way but not in the plan: add it as an `Ad hoc:` item, rather than
   leaving the checklist looking like the plan was perfect.
-- Deliberately not done: move it to Stage 13 with the reasoning, don't silently drop it.
+- Deliberately not done: move it to whichever closing-pass stage fits the kind of gap (map/hex,
+  UI/UX, balance, or the final audit — query-and-conquer's own tracking doc splits these into
+  separate stages once there's enough of each kind to plan on its own), with the reasoning. Don't
+  silently drop it.
 
 The checklist records how the build actually went. Its value is in the divergences.
 
@@ -122,9 +125,9 @@ The checklist records how the build actually went. Its value is in the divergenc
 
 ## Deferring work honestly
 
-When something real is found but shouldn't be fixed now, write it into Stage 13 with enough
-detail to act on later: what's wrong, why it was deferred, what fixing it would take. "Not a minor
-tweak" is useful; a stub saying "improve X" is not.
+When something real is found but shouldn't be fixed now, write it into whichever closing-pass
+stage fits it (see above) with enough detail to act on later: what's wrong, why it was deferred,
+what fixing it would take. "Not a minor tweak" is useful; a stub saying "improve X" is not.
 
 Anything deferred because it needs a **decision** rather than work should say which decision and
 what the options are. That's what makes it resumable.

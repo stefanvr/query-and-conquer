@@ -336,8 +336,9 @@ load/unload and cargo interaction)*
   planes as cargo), matching the game spec's asymmetric wording ("Fighter: base/carrier",
   "Bomber: base") read as a hard boarding restriction, not just a rearm-location nuance. A
   freshly-built plane starts at `0`/`0` (already rearmed). Rearm is instant, same turn as entry —
-  query-and-conquer.md §9 flags "resolve at the owner's next turn-start instead" as an open
-  rebalancing option, not yet decided; revisit this bullet if that changes.
+  implementation-tracking-v1.md's Stage 15 (Balance & gameplay) flags "resolve at the owner's
+  next turn-start instead" as an open rebalancing option, not yet decided; revisit this bullet if
+  that changes.
 - **Strike limit**: `isValidAttackTarget`/`isValidAttackBaseTarget` also reject a plane whose
   `strikesUsed` has reached its type's `maxStrikes` — same no-op-if-exhausted treatment as
   `remainingAttacks`/`remainingActions` (§1). A successful attack increments `strikesUsed`.
@@ -392,7 +393,7 @@ indicators)*
   uses (§2).
 - No dedicated attack/capture animation or toast for v1 — the base/unit panel's own SP/owner
   display (§2/§3, already live) and the map's own token/marker removal on death are the only
-  feedback. A full pass on this belongs to Stage 13's UI/UX polish, not here.
+  feedback. A full pass on this belongs to Stage 14's UI/UX polish, not here.
 
 ## 5. Fog of war
 *(game spec §6 — visual treatment of hidden / explored-but-not-visible / currently-visible
