@@ -132,9 +132,17 @@ export function initGameScreen({ onQuit, onGameOver }) {
   let pendingUnload = null; // { containerType, container, garrisoned } while the unload picker is active (§1)
   let pendingLoad = null; // the unit while the load destination picker is active (§1)
   let aiTurnInProgress = false; // true while AI turns are animating (§11) — human input is locked out
+  let aiTurnFailure = null; // set if an AI turn threw; keeps the HUD saying so rather than failing silently
+
+  /** Whether it's the viewing human's own turn. Every action this screen performs is gated on it,
+   * and every command it issues is issued *as* `humanId` — never as "whoever is active" — so the
+   * UI structurally cannot act for another player, whatever state the turn cascade is in. */
+  function isHumanTurn() {
+    return activePlayer(state).id === humanId;
+  }
 
   function refreshHud() {
-    const visible = getVisibleState(state, activePlayer(state).id);
+    const visible = getVisibleState(state, humanId);
     const player = activePlayer(visible);
     const { text, colorVar } = playerLabel(player);
     turnIndicator.textContent = `Turn ${visible.turnNumber} — ${text}`;
@@ -147,6 +155,14 @@ export function initGameScreen({ onQuit, onGameOver }) {
    * rearm & fuel). Call after anything that could change a plane's actionsSpentMoving or
    * remainingActions. */
   function refreshEndTurnGate() {
+    // A failed AI turn outranks everything: the match can't be trusted from here, so say so and
+    // keep saying it, rather than letting the next refresh quietly clear the message.
+    if (aiTurnFailure) {
+      endTurnButton.disabled = true;
+      endTurnBlockedMessage.hidden = false;
+      endTurnBlockedMessage.textContent = "An AI turn failed — see the browser console. Reload to continue.";
+      return;
+    }
     const owing = planesOwingMovement(state, humanId);
     // Also disabled while the AI is mid-turn (§11) — but with no blocker message, since that's a
     // transient "wait your turn", not something the human can act on the way a plane's mandatory
@@ -178,7 +194,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     const used = base.garrison.length + (base.inProgress ? 1 : 0);
     basePanelCapacity.textContent = `${used}/${MAX_BASE_CAPACITY} capacity`;
 
-    const isOwnTurn = base.ownerId === activePlayer(state).id;
+    const isOwnTurn = base.ownerId === humanId && isHumanTurn();
 
     // --- Building slot: always shown (even idle), so Queue/Garrison below never shift. ---
     basePanelBuildSlot.innerHTML = "";
@@ -227,7 +243,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
       upButton.setAttribute("aria-label", "Move earlier in queue");
       upButton.disabled = selectedQueueIndex === 0;
       upButton.addEventListener("click", () => {
-        reorderQueuedBuild(state, base.id, selectedQueueIndex, -1, activePlayer(state).id);
+        reorderQueuedBuild(state, base.id, selectedQueueIndex, -1, humanId);
         selectedQueueIndex -= 1;
         renderBasePanel(base);
       });
@@ -238,7 +254,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
       removeButton.textContent = "✕";
       removeButton.setAttribute("aria-label", "Remove from queue");
       removeButton.addEventListener("click", () => {
-        cancelQueuedBuild(state, base.id, selectedQueueIndex, activePlayer(state).id);
+        cancelQueuedBuild(state, base.id, selectedQueueIndex, humanId);
         selectedQueueIndex = null;
         renderBasePanel(base);
       });
@@ -250,7 +266,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
       downButton.setAttribute("aria-label", "Move later in queue");
       downButton.disabled = selectedQueueIndex === base.queue.length - 1;
       downButton.addEventListener("click", () => {
-        reorderQueuedBuild(state, base.id, selectedQueueIndex, 1, activePlayer(state).id);
+        reorderQueuedBuild(state, base.id, selectedQueueIndex, 1, humanId);
         selectedQueueIndex += 1;
         renderBasePanel(base);
       });
@@ -293,7 +309,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
         button.append(slotIcon(unitType), document.createTextNode(`Build ${unitType}`));
         button.disabled = base.queue.length >= 5;
         button.addEventListener("click", () => {
-          queueBuild(state, base.id, unitType, activePlayer(state).id);
+          queueBuild(state, base.id, unitType, humanId);
           renderBasePanel(base);
           redraw();
         });
@@ -337,7 +353,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     unitPanelCargoSection.hidden = !unit.cargo;
     if (unit.cargo) {
       unitPanelCargo.innerHTML = "";
-      const isOwnTurn = unit.ownerId === activePlayer(state).id;
+      const isOwnTurn = unit.ownerId === humanId && isHumanTurn();
       const capacity = UNIT_TYPES[unit.unitType].holdCapacity;
       for (let i = 0; i < capacity; i++) {
         const cargoUnit = unit.cargo[i];
@@ -363,7 +379,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     }
 
     unitPanelActions.innerHTML = "";
-    const canAct = unit.ownerId === activePlayer(state).id;
+    const canAct = unit.ownerId === humanId && isHumanTurn();
     if (canAct && computeLoadTargets(unit).length > 0) {
       const button = document.createElement("button");
       button.type = "button";
@@ -465,7 +481,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
 
   function recomputeMoveReach() {
     const unit = selectedUnit;
-    const actionable = unit && unit.ownerId === activePlayer(state).id && state.units.includes(unit);
+    const actionable = unit && unit.ownerId === humanId && isHumanTurn() && state.units.includes(unit);
     moveReach = actionable ? reachableCells(state, grid, unit) : new Map();
   }
 
@@ -475,7 +491,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
   function refreshActionTargets() {
     recomputeMoveReach();
     const unit = selectedUnit;
-    if (!unit || unit.ownerId !== activePlayer(state).id || !state.units.includes(unit)) {
+    if (!unit || unit.ownerId !== humanId || !isHumanTurn() || !state.units.includes(unit)) {
       camera?.setActionTargets({});
       return;
     }
@@ -497,7 +513,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
    * step is refused or the unit doesn't survive it. @returns whether the unit is still alive. */
   function walkRoute(unit, route) {
     for (const step of route) {
-      moveUnit(state, grid, unit.id, step.col, step.row, activePlayer(state).id);
+      moveUnit(state, grid, unit.id, step.col, step.row, humanId);
       if (!state.units.includes(unit)) return false; // crashed en route
       if (unit.col !== step.col || unit.row !== step.row) break; // refused -- stop where it stands
     }
@@ -518,6 +534,15 @@ export function initGameScreen({ onQuit, onGameOver }) {
 
   function selectHex(col, row) {
     if (aiTurnInProgress) return; // map clicks are ignored while the AI is playing (§11)
+    // Acting requires it to actually be the human's turn — inspecting is always allowed. Every
+    // action below is gated on this rather than on the *active* player having the right units,
+    // so that a turn left on someone else (a cascade that failed part-way, say) can never hand
+    // the human control of that player's army. Nothing about the UI should be able to act as
+    // anyone but the viewer.
+    if (!isHumanTurn()) {
+      selectForInspection(col, row);
+      return;
+    }
     if (pendingUnload) {
       const { containerType, container, garrisoned } = pendingUnload;
       if (col === container.col && row === container.row) {
@@ -530,8 +555,8 @@ export function initGameScreen({ onQuit, onGameOver }) {
       }
       const targets = computeUnloadTargets(container, garrisoned);
       if (targets.some((t) => t.col === col && t.row === row)) {
-        if (containerType === "base") unloadUnit(state, grid, container.id, garrisoned.id, col, row, activePlayer(state).id);
-        else unloadCargo(state, grid, container.id, garrisoned.id, col, row, activePlayer(state).id);
+        if (containerType === "base") unloadUnit(state, grid, container.id, garrisoned.id, col, row, humanId);
+        else unloadCargo(state, grid, container.id, garrisoned.id, col, row, humanId);
         closeUnloadPreview();
         const placedUnit = state.units.find((u) => u.id === garrisoned.id);
         if (placedUnit) openUnitPanel(placedUnit);
@@ -555,11 +580,11 @@ export function initGameScreen({ onQuit, onGameOver }) {
         if (targetBase) {
           // A boat entering a base always uses the (possibly empty) free-bulk-cargo path (§2);
           // anything else uses the ordinary single-unit load.
-          if (unit.cargo) enterBaseWithCargo(state, grid, unit.id, targetBase.id, activePlayer(state).id);
-          else loadUnit(state, grid, unit.id, targetBase.id, activePlayer(state).id);
+          if (unit.cargo) enterBaseWithCargo(state, grid, unit.id, targetBase.id, humanId);
+          else loadUnit(state, grid, unit.id, targetBase.id, humanId);
         } else {
           const targetBoat = unitAtHex(state, col, row);
-          loadIntoBoat(state, grid, unit.id, targetBoat.id, activePlayer(state).id);
+          loadIntoBoat(state, grid, unit.id, targetBoat.id, humanId);
         }
         closeLoadPreview();
         if (state.units.includes(unit)) openUnitPanel(unit);
@@ -573,23 +598,23 @@ export function initGameScreen({ onQuit, onGameOver }) {
     // Attack & claim targeting (implementation-spec.md §1) takes priority over Movement
     // targeting below — an occupied hex never matches isValidMoveTarget anyway, so there's no
     // overlap to resolve, only a fallback when the attack/claim itself isn't currently valid.
-    if (selectedUnit && selectedUnit.ownerId === activePlayer(state).id) {
+    if (selectedUnit && selectedUnit.ownerId === humanId) {
       const targetUnit = unitAtHex(state, col, row);
       if (targetUnit && isValidAttackTarget(state, grid, selectedUnit, targetUnit)) {
-        attackUnit(state, grid, selectedUnit.id, targetUnit.id, activePlayer(state).id);
+        attackUnit(state, grid, selectedUnit.id, targetUnit.id, humanId);
         renderUnitPanel(selectedUnit);
         redraw();
         return;
       }
       const targetBase = baseAtHex(state, col, row);
       if (targetBase && isValidAttackBaseTarget(state, grid, selectedUnit, targetBase)) {
-        attackBase(state, grid, selectedUnit.id, targetBase.id, activePlayer(state).id);
+        attackBase(state, grid, selectedUnit.id, targetBase.id, humanId);
         renderUnitPanel(selectedUnit);
         redraw();
         return;
       }
       if (targetBase && isValidClaimTarget(grid, selectedUnit, targetBase)) {
-        claimBase(state, grid, selectedUnit.id, targetBase.id, activePlayer(state).id);
+        claimBase(state, grid, selectedUnit.id, targetBase.id, humanId);
         closeAllPanels(); // the claiming unit is gone -- garrisoned into the base it just took
         redraw();
         return;
@@ -611,6 +636,12 @@ export function initGameScreen({ onQuit, onGameOver }) {
       return;
     }
 
+    selectForInspection(col, row);
+  }
+
+  /** Opens whatever is on the hex, without acting on it — the fallback for every tap that isn't a
+   * move/attack/claim, and the only thing a tap can do outside the human's own turn. */
+  function selectForInspection(col, row) {
     const base = baseAtHex(state, col, row);
     if (base) {
       openBasePanel(base);
@@ -668,10 +699,21 @@ export function initGameScreen({ onQuit, onGameOver }) {
         }
         endTurn(state);
         if (checkForGameOver()) return;
-        processTurnStart(state, activePlayer(state).id);
+        processTurnStart(state, activePlayer(state).id); // whoever's turn is starting, not the viewer
       }
+    } catch (error) {
+      // An AI turn dying part-way used to leave the match both unplayable and silent: the finally
+      // below unlocked input while the turn was still sitting on the AI, the rejection surfaced
+      // only in the console, and the post-await refresh never ran — so the HUD went on claiming it
+      // was the human's turn while clicks acted as the AI. selectHex's own turn check makes that
+      // harmless now, but a failure still has to be *visible* rather than looking like the game
+      // merely misbehaving.
+      console.error("AI turn failed", error);
+      aiTurnFailure = error;
+      throw error;
     } finally {
       aiTurnInProgress = false;
+      refreshHud(); // re-reads whose turn it actually is, and re-enables End Turn if appropriate
     }
   }
 
@@ -683,7 +725,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     closeLoadPreview();
     endTurn(state);
     if (checkForGameOver()) return;
-    processTurnStart(state, activePlayer(state).id);
+    processTurnStart(state, activePlayer(state).id); // whoever's turn is starting, not the viewer
     await runAiTurnsUntilHuman();
     if (state.gameEnded || state.terminated) return; // the End screen already has the board
     refreshHud();
@@ -733,6 +775,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     start(newState) {
       state = newState;
       grid = deserializeGrid(state.map.width, state.map.height, state.map.rows);
+      aiTurnFailure = null; // a fresh match starts trusted again
       closeMenu();
       closeAllPanels();
       camera?.destroy();
