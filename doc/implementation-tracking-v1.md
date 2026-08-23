@@ -399,7 +399,7 @@ documentation debt), and lumping them together made none of them plannable on th
 - [x] Spec — query-and-conquer.md §5 (neutral-base placement rule), implementation-spec.md §2
       (Base placement subsection) and §5 (Fog of war subsection, hex selection fix). No opt-out
       given this round, so stopping here for review before implementation, per workflow.md step 3.
-- [ ] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
+- [x] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
       §5's placement is currently exactly N seeds for N players, so every base starts owned —
       "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra
       pre-neutral bases would give players a real land-grab to contest from turn 1, not just a
@@ -407,33 +407,60 @@ documentation debt), and lumping them together made none of them plannable on th
       implementation, since it changes a stated game rule. Stage 6 front-runs this for its own
       dev-save testing by hand-placing one neutral base near the human's, rather than waiting on
       the real map-generation feature.
-      **Design (revised after review):** neutral count scales with player count *and* map size —
+      **Design, as reviewed:** neutral count scales with player count *and* map size —
       `round(playerCount × maxCells[size] ÷ maxCells.small)`, using the existing per-size
-      `maxCells` table (`map-tables.js`) rather than a new constant. A small map keeps the
-      original player-count density ("sounds ok" as reviewed); an extra-large map (7.5× a small
-      map's cells) gets ~7.5× as many neutral bases per player, since it has proportionally more
-      room to spread them across. The first N farthest-point seeds (unchanged from today) become
-      player bases; the M size-scaled extras, seeded after them by the same process, become
-      neutral — landing in the gaps between player regions rather than anywhere arbitrary.
-      Neutral SP starts at **half strength (10)**, a stored value only: neither `isValidClaimTarget`
-      nor the base panel's non-disclosure logic reads a non-owned base's SP, so this has no
-      mechanical effect today — set for when something eventually does, not because anything
-      currently does. `maxSp` stays the type's full strength.
-      **Still worth confirming empirically once implemented:** the larger region count on big
-      maps with many players may raise the reseed/candidate-exhaustion rate; the existing
-      bounded-attempts logic should absorb it, but that's an assumption, not yet a measurement.
-- [ ] Hex selection/targeting (game-screen.js's `selectHex`) reads canonical state directly, not
+      `maxCells` table (`map-tables.js`) rather than a new constant. The first N farthest-point
+      seeds become player bases (via a player-only region partition — see below); the M size-scaled
+      extras, seeded after them, become neutral. Neutral SP starts at half strength (10), a stored
+      value only, confirmed with the reviewer to have no mechanical effect today.
+      **Reversed during implementation (workflow.md's "when a rule turns out to be wrong"):** the
+      reviewed formula used `maxCells[size]`, the map's *nominal* cell count. Measured against real
+      generated maps, this was badly wrong for `islands`: nominal count includes all the open
+      water between islands, and a Voronoi region can land squarely inside it with zero eligible
+      land to sample from — no retry limit fixes a region that's entirely water. `large`/`extraLarge`
+      islands maps at 6 players **failed to generate 100% of the time**, even with generously raised
+      retry limits — a structural dead end, not rare bad luck. Fixed by measuring each grid's own
+      *eligible* cell count directly (reusing `eligibleBaseType`, the same predicate placement
+      itself already samples against) and scaling against that instead of the nominal table value —
+      same formula shape, same small-map anchor (a `landOnly` map's eligible count is close enough
+      to nominal there that the reviewed density is unaffected), correct for every map type.
+      **Ad hoc: graceful degradation.** Even the corrected formula can request more than a specific
+      generated map turns out to hold (measured: `large`/`extraLarge` islands at 6 players still
+      wanted more than such an archipelago's actual capacity). Rather than let *any* formula's
+      inevitable misses crash match creation, `placeBases` now retries with progressively fewer
+      neutrals (halved each time) instead of throwing, down to zero if it must — zero always
+      succeeds when player-only placement is itself feasible, unaffected by any of this (the
+      player-region partition stays isolated from the neutral one specifically so this holds).
+      Also lowered the default reseed-attempt bound (20 → 10): with the fallback in place, failing
+      faster at an infeasible count and falling back sooner measurably beat exhausting the full
+      budget on a count that was never going to work (~700ms → ~390ms worst case measured, extra
+      large/islands/6 players — the corner every other combination tested well under 250ms).
+      **Ownership-invariant note:** the player-region computation was also restructured (not just
+      the neutral count) — regions are now partitioned twice, once against player seeds alone (so
+      a neutral seed existing elsewhere can never shrink a player's Voronoi region and change
+      which cell gets sampled) and once against the full seed set for the neutral regions. Verified
+      directly: adding neutral bases produces bit-identical player placement to running with
+      `neutralCount: 0`, not merely "the same seed points" as first assumed.
+- [x] Hex selection/targeting (game-screen.js's `selectHex`) reads canonical state directly, not
       the fog-filtered projection (Stage 9) — a precisely-aimed click can still select/inspect a
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
       framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
       as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
-      **Design chosen (spec):** four call sites move from canonical `state` to
+      **As specced, unchanged in implementation:** four call sites move from canonical `state` to
       `getVisibleState(state, humanId)` — `selectForInspection`'s panel lookup, and the two
       attack/claim-target lookups inside `selectHex`. Everything that decides whether an action is
       *legal* keeps reading canonical state (rules must resolve against reality regardless of what
       the acting player can see) — only *what a tap resolves to* changes. Load/unload target
       lookups are untouched: those only ever resolve to the acting unit's own base/boat, which fog
       never hides in the first place.
+      **Tested via e2e, not node:test** — `game-screen.js` has no direct unit-test coverage
+      anywhere in this codebase (Playwright is the only thing that ever exercises it, per
+      tech-stack.md's stated split), so the wiring check for this fix is necessarily e2e too. A
+      real match's random map layout means there's no fixed hex to assert a hidden unit/base
+      against; the test instead reads the canvas's own rendered pixel color at a corner far from
+      the human's turn-1 camera center (self-verifying that the corner really is unexplored
+      `--ink`, rather than assuming the hex math) and asserts a tap there opens no panel —
+      provable regardless of what the random map actually put there.
 - [x] *Resolved* — no more hex-misc items surfaced; proceeding with exactly the two above.
 
 ## Stage 14 — UI/UX pass

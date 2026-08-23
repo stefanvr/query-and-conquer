@@ -175,25 +175,39 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 - Runs once at match start (createGameState), after a map is picked — not pre-baked into the
   map JSON, since it depends on player count, which varies per match.
 - N + M seed points (N = player count; M = neutral-base count, game spec §5's
-  `round(N × mapData.size's maxCells ÷ SIZES.small.maxCells)` — the existing per-size `maxCells`
-  table in `map-tables.js`, so this is a genuine ratio against that table, not a new constant
-  invented alongside it) via farthest-point sampling over in-map cells: first seed random, each
-  next seed is the in-map cell maximizing its minimum distance to seeds already chosen. Every
-  in-map cell's region = its nearest seed (implicit Voronoi tessellation, no explicit
-  region-boundary construction needed).
+  `round(N × eligibleCells ÷ SIZES.small.maxCells)` — `eligibleCells` is *this grid's own* count
+  of cells `eligibleBaseType` accepts, not the map's nominal size-table cell count. An earlier
+  version used the nominal `maxCells[size]` value directly; measured against real generated
+  `islands` maps it was badly wrong, since nominal count includes all the open water between
+  islands and a Voronoi region can land squarely inside it with nothing to sample — `large`/
+  `extraLarge` islands maps at high player counts failed to place bases **100% of the time**, not
+  rarely. Scaling against actual eligible cells fixes this for every map type, and still reduces
+  to the reviewed player-count density on a `landOnly` map, where eligible and nominal counts are
+  close) via farthest-point sampling over in-map cells: first seed random, each next seed is the
+  in-map cell maximizing its minimum distance to seeds already chosen.
+- Player regions and neutral regions are **two separate Voronoi partitions**, not one shared
+  partition sliced N+M ways. Player regions are computed from the first N seeds *alone*; only once
+  every player base is placed from those regions does a second partition, over the full N+M seeds,
+  get computed and used for the M neutral regions. Doing it this way means a neutral seed existing
+  elsewhere on the map can never shrink a player's own region (adding seeds to a Voronoi partition
+  shrinks every existing cell around it) and so change which cell rejection-sampling lands on
+  inside it — placing neutral bases is provably a no-op on where the player bases end up, not
+  merely "the same seed points, probably close outcomes." The neutral regions, being computed only
+  after the player bases are fixed, still naturally fall into the gaps between them — the
+  contestable "in-between" territory the land-grab (game spec §5) is meant to create.
 - Per region: rejection-sample a candidate cell — its own terrain determines which base type(s)
   it's eligible for (Land/Port/Mountain location rules, game spec §2); check hex-distance >= 5
   from every already-placed base (any player *or neutral*, §1's min-base-distance rule); place if
   valid, else try another candidate cell (bounded attempts), then reseed the whole map (bounded
   attempts) if a region still can't produce a valid base.
-- The first N seeds (in generation order) become player bases, one per player, in player order;
-  the remaining M become neutral (`ownerId: null`). Doing it this way rather than picking N of
-  the N+M seeds some other way means adding neutrals never changes which sites the player bases
-  land on — the first N outputs of farthest-point sampling are identical whether it's asked for N
-  points or N+M, so this is a strict superset of the pre-neutral-base placement, not a
-  reimplementation of it. It also means the neutral bases, being seeded *after* the player bases
-  already exist, naturally fall into the gaps between them — exactly the contestable "in-between"
-  territory the land-grab (game spec §5) is meant to create, rather than landing anywhere random.
+- **Graceful degradation**, since even the eligible-cell-based formula can still ask for more
+  neutrals than one specific generated map happens to hold (measured: still possible on `large`/
+  `extraLarge` islands at high player counts, just far less often, and far short of the earlier
+  100%). Rather than let that crash match creation, placement retries at progressively fewer
+  neutrals — halved each time — instead of throwing once the reseed budget for the requested count
+  is exhausted, down to zero if it must. Zero always succeeds whenever player-only placement is
+  itself feasible, unaffected by any of the above, since the player-region partition never depends
+  on how many neutrals were requested.
 - A neutral base's SP starts at **half its type's strength** (10 of 20, game spec §5) — a stored
   value only, with no mechanical effect today: `isValidClaimTarget` never reads `sp` at all
   (proximity + capturing unit type + affordability is the whole rule), `claimBase` unconditionally
