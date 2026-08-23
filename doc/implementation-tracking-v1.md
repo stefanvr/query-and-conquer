@@ -339,6 +339,15 @@ clean seams, so two planned items collapse into one and two missing ones surface
 kept below in the notes on each item.*
 
 - [ ] Spec
+- [ ] **First:** planes' mandatory ≥50% movement (query-and-conquer.md §3) is enforced only
+      against the *human*, as an End Turn gate (`planesOwingMovement`, Stage 8) — an AI's planes
+      are never held to it, since an AI turn has no End Turn button to block. It's a game rule,
+      not a UI rule, so both sides must obey it. Moved up from Stage 13 to lead this stage,
+      deliberately: hard AI is the first AI that moves planes with intent and spends its whole
+      budget doing it, so an AI exempt from the fuel rule would be measured against a human who
+      isn't — and every balance number taken afterwards would be meaningless. Fix the rule first,
+      then measure. `planesOwingMovement` already takes any `playerId`, so the predicate is
+      shared rather than reimplemented
 - [ ] Difficulty branch point: nothing reads `player.difficulty` today — the engine hardcodes
       easy's traits. Introduce one seam the engine selects on, rather than `if (hard)` scattered
       through the rules; the strategy rules themselves stay shared and unchanged (game spec §8's
@@ -413,12 +422,6 @@ kept below in the notes on each item.*
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
       framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
       as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
-- [ ] Planes' mandatory ≥50% movement (query-and-conquer.md §3) is only enforced against the
-      *human*, as an End Turn gate (`planesOwingMovement`, Stage 8) — an AI's planes are never
-      held to it, since an AI turn has no End Turn button to block. It's a game rule, not a UI
-      rule, so the two sides should be symmetrical: either the AI's own turn has to satisfy it
-      before ending, or the rule needs a penalty that applies to whoever breaks it. Noticed while
-      building Stage 11; left alone rather than guessing at which of those two the design intends
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
 
