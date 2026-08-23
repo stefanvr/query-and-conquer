@@ -3,20 +3,20 @@ import assert from "node:assert/strict";
 import { aiTurnActions } from "../../src/ai/ai-turn.js";
 import { TerrainGrid } from "../../src/map/grid.js";
 import { UNIT_TYPES } from "../../src/state/unit-types.js";
-import { offsetKey } from "../../src/map/hex-coords.js";
+import { offsetKey, offsetDistance } from "../../src/map/hex-coords.js";
 import { planesOwingMovement } from "../../src/state/commands.js";
 
 const MAP_SIZE = 20;
 
 /** AI player 1 vs. human player 0. Fog defaults off, so a rule test isn't also implicitly a
  * visibility test — the one test that cares turns it on explicitly. */
-function aiState({ strategy = "aggressive", fogOfWar = false, turnNumber = 1 } = {}) {
+function aiState({ strategy = "aggressive", fogOfWar = false, turnNumber = 1, difficulty = "easy" } = {}) {
   return {
     options: { fogOfWar },
     map: { width: MAP_SIZE, height: MAP_SIZE },
     players: [
       { id: 0, slot: 0, isHuman: true, difficulty: null, strategy: null, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
-      { id: 1, slot: 1, isHuman: false, difficulty: "easy", strategy, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
+      { id: 1, slot: 1, isHuman: false, difficulty, strategy, exploredCells: [], stats: { unitsBuilt: 0, unitsLost: 0 } },
     ],
     bases: [],
     units: [],
@@ -445,6 +445,47 @@ test("a whole AI turn is deterministic -- identical action sequences from identi
   const grid = allLandGrid();
 
   assert.deepEqual(runTurn(build(), grid), runTurn(build(), grid));
+});
+
+// --- Difficulty: perception (game spec §8's Information and Reaction rows) ---
+
+test("hard AI ignores fog -- it advances on an enemy an easy AI in the same spot can't see", () => {
+  const grid = allLandGrid();
+  const board = (difficulty) => {
+    const s = aiState({ strategy: "aggressive", fogOfWar: true, difficulty });
+    // Far outside the tank's view of 3, and unexplored: invisible to anyone respecting fog.
+    s.units.push(unit({ id: 1, col: 5, row: 5 }), unit({ id: 2, ownerId: 0, col: 17, row: 5 }));
+    return s;
+  };
+
+  const blind = board("easy");
+  const blindActions = runTurn(blind, grid);
+  const seeing = board("hard");
+  const seeingActions = runTurn(seeing, grid);
+
+  // Easy can't see the enemy, so aggressive falls through to exploring; hard heads straight at it.
+  assert.ok(!blindActions.some((a) => a.type === "move" && a.to.col > 5 && a.to.row === 5));
+  assert.ok(seeingActions.some((a) => a.type === "move"));
+  // Distance rather than a hand-worked coordinate: stepping east off an odd column legitimately
+  // changes the row too (odd-q offset), so "row is still 5" would be asserting the wrong geometry.
+  assert.ok(
+    offsetDistance(seeing.units[0], seeing.units[1]) < offsetDistance({ col: 5, row: 5 }, seeing.units[1]),
+    "closed the distance to the enemy it shouldn't have been able to see",
+  );
+});
+
+test("hard AI treats the whole map as explored, so it expands rather than exploring", () => {
+  const grid = allLandGrid();
+  const s = aiState({ strategy: "aggressive", fogOfWar: true, difficulty: "hard" });
+  s.units.push(unit({ id: 1, col: 5, row: 5 }));
+  s.bases.push(base({ id: 0, ownerId: null, col: 9, row: 5 })); // neutral, unexplored, far off
+  s.players[1].exploredCells = [];
+
+  const actions = runTurn(s, grid);
+
+  // With nothing unexplored to walk toward, aggressive rule 3 can only be the expand half.
+  assert.ok(actions.some((a) => a.type === "move"));
+  assert.ok(s.units[0].col > 5, "headed for the neutral base it shouldn't have known about");
 });
 
 // --- Mandatory plane movement (game spec §3) applied to the AI, not just the human ---

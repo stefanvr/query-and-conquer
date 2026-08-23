@@ -129,6 +129,12 @@ function isLastDefenderOfSomeBase(ctx, unit) {
   });
 }
 
+/** An explored-cells set for a player who has explored everything — a hard AI knows the whole
+ * map, so nothing is ever a frontier for it. Duck-typed rather than a real Set of every in-map
+ * cell, which would be up to 12,000 entries rebuilt per turn to answer a question whose answer is
+ * always the same (`nearestUnexplored` only ever asks `.has`). */
+const EVERYWHERE = { has: () => true };
+
 /**
  * The difficulty axis (game spec §8's Difficulty table), as one entry per difficulty.
  *
@@ -144,15 +150,21 @@ function isLastDefenderOfSomeBase(ctx, unit) {
  */
 const DIFFICULTY_TRAITS = {
   easy: {
-    perceive: (state, playerId) => getVisibleState(state, playerId),
+    perceive: (state, player) => ({
+      board: getVisibleState(state, player.id),
+      exploredCells: new Set(player.exploredCells),
+    }),
     chooseTarget: firstValidTarget,
     stepToward: naiveStepToward,
     maxActionsPerUnit: 1,
   },
-  // Hard's own traits arrive one at a time in the commits that follow; it starts as easy so the
-  // seam itself lands as a verifiable no-op rather than mixed in with behavior changes.
+  // Hard's remaining traits arrive one at a time in the commits that follow.
   hard: {
-    perceive: (state, playerId) => getVisibleState(state, playerId),
+    // Canonical state, not a projection: hard ignores fog entirely (game spec §8's Information
+    // row, and the exemption tech-stack.md states). Its Reaction row — "can react anywhere on the
+    // map immediately" — needs no rule of its own, exactly as easy's "only responds to currently
+    // visible threats" needs none: both are just consequences of the board each one gets.
+    perceive: (state) => ({ board: state, exploredCells: EVERYWHERE }),
     chooseTarget: firstValidTarget,
     stepToward: naiveStepToward,
     maxActionsPerUnit: 1,
@@ -390,20 +402,20 @@ export function* aiTurnActions(state, grid, playerId) {
   if (!player) return;
   const strategy = STRATEGIES[player.strategy] ?? STRATEGIES.balanced;
   const traits = DIFFICULTY_TRAITS[player.difficulty] ?? DIFFICULTY_TRAITS.easy;
-  const visible = traits.perceive(state, playerId);
+  const { board, exploredCells } = traits.perceive(state, player);
 
   const ctx = {
     state,
     grid,
     playerId,
     traits,
-    // Decisions read the fog-filtered projection (see this file's own header): visible enemy
-    // units, and bases this player has at least explored once.
-    enemyUnits: visible.units.filter((u) => u.ownerId !== playerId),
-    enemyBases: visible.bases.filter((b) => b.ownerId !== null && b.ownerId !== playerId),
-    neutralBases: visible.bases.filter((b) => b.ownerId === null),
+    // Decisions read whichever board this difficulty perceives (see this file's own header) —
+    // for easy, only currently-visible enemies and ever-explored bases; for hard, everything.
+    enemyUnits: board.units.filter((u) => u.ownerId !== playerId),
+    enemyBases: board.bases.filter((b) => b.ownerId !== null && b.ownerId !== playerId),
+    neutralBases: board.bases.filter((b) => b.ownerId === null),
     ownBases: state.bases.filter((b) => b.ownerId === playerId), // own property is never fogged
-    exploredCells: new Set(player.exploredCells),
+    exploredCells,
   };
 
   // Game spec §8's processing order: base-defenders -> field units -> newly completed units. All
