@@ -29,6 +29,7 @@ import {
   isValidClaimTarget,
   isValidLoadTarget,
   isValidUnloadTarget,
+  planesOwingMovement,
 } from "../state/commands.js";
 import { offsetDistance, offsetKey, hexesInRange } from "../map/hex-coords.js";
 import { UNIT_TYPES, buildableUnitTypes } from "../state/unit-types.js";
@@ -246,8 +247,48 @@ function deployFromBase(ctx, base, garrisoned) {
   return null;
 }
 
-/** Queues the first unit type this base is allowed to build, walking the strategy's own build
- * order. Skipped entirely if the base is at capacity or its queue is already full (game spec §8). */
+/** Moves `unit` onto the first adjacent hex it can actually enter, with no preference at all —
+ * the last resort when a plane owes movement (below) and has nowhere it would rather go, such as
+ * one already sitting next to its own base. Returns the move descriptor, or null if every
+ * neighbor is blocked, impassable, or unaffordable. */
+function stepAnywhere(ctx, unit) {
+  const { state, grid, playerId } = ctx;
+  for (const n of grid.neighborsOf(unit.col, unit.row)) {
+    const from = { col: unit.col, row: unit.row };
+    moveUnit(state, grid, unit.id, n.col, n.row, playerId);
+    if (unit.col === from.col && unit.row === from.row) continue;
+    return { type: "move", unitId: unit.id, from, to: { col: unit.col, row: unit.row } };
+  }
+  return null;
+}
+
+/** Game spec §3's mandatory ≥50% plane movement, applied to this AI exactly as the human's End
+ * Turn gate applies it to the human (implementation-spec.md §6).
+ *
+ * It's a game rule, not a UI rule, so an AI turn must not end with a plane still owing movement
+ * any more than a human turn can. Until now an AI's planes were silently exempt — the gate was
+ * built as a disabled End Turn button, and an AI turn has no button to disable.
+ *
+ * A plane that owes movement heads for the nearest own base that could rearm it, which is what
+ * the rule's own fuel fiction describes; if it has nowhere better to be (no such base, or naive
+ * stepping can't get any closer to one) it takes any step at all — the rule demands movement,
+ * not useful movement. Each step is yielded, so a paced AI turn shows the plane flying.
+ *
+ * Termination: every iteration either moves the plane, spending at least 1 of a finite action
+ * budget, or gives up on it. A plane can also crash mid-loop on its own fuel (game spec §3),
+ * which removes it from `state.units` and so from the predicate. */
+function* satisfyPlaneMovement(ctx) {
+  const { state, playerId } = ctx;
+  for (const plane of planesOwingMovement(state, playerId).sort(byId)) {
+    while (planesOwingMovement(state, playerId).includes(plane)) {
+      const home = nearest(plane, repairBases(ctx));
+      const action = (home && naiveStepToward(ctx, plane, home)) || stepAnywhere(ctx, plane);
+      if (!action) break; // boxed in — nothing more this plane can do about its debt
+      yield action;
+    }
+  }
+}
+
 /** How many of each unit type `playerId` already owns or has coming — field units, boat cargo,
  * base garrisons, in-progress builds and queued ones. Everything that will exist if nothing dies,
  * which is what production should be reasoning about. */
@@ -366,6 +407,12 @@ export function* aiTurnActions(state, grid, playerId) {
     const action = deployFromBase(ctx, base, garrisoned);
     if (action) yield action;
   }
+
+  // Last, because it's a debt settled at the end of the turn rather than an intent: every plane
+  // has had its own chance to move for a reason first, and only what's still owing gets forced.
+  // Newly deployed planes are included, exactly as the human's own gate includes a plane they
+  // just unloaded (game spec §3).
+  yield* satisfyPlaneMovement(ctx);
 
   for (const base of [...ctx.ownBases].sort(byId)) {
     const action = runBaseProduction(ctx, base, strategy);

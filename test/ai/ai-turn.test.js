@@ -4,6 +4,7 @@ import { aiTurnActions } from "../../src/ai/ai-turn.js";
 import { TerrainGrid } from "../../src/map/grid.js";
 import { UNIT_TYPES } from "../../src/state/unit-types.js";
 import { offsetKey } from "../../src/map/hex-coords.js";
+import { planesOwingMovement } from "../../src/state/commands.js";
 
 const MAP_SIZE = 20;
 
@@ -444,4 +445,63 @@ test("a whole AI turn is deterministic -- identical action sequences from identi
   const grid = allLandGrid();
 
   assert.deepEqual(runTurn(build(), grid), runTurn(build(), grid));
+});
+
+// --- Mandatory plane movement (game spec §3) applied to the AI, not just the human ---
+// A defensive AI sitting next to its own base with no enemies about is the cleanest way to get a
+// unit its strategy leaves completely idle: every rule falls through. A tank in that spot simply
+// does nothing; a plane must still fly.
+
+/** A plane fixture with the fuel counters moveUnit maintains (§3's Plane rearm & fuel). */
+function plane(overrides = {}) {
+  return unit({ unitType: "fighter", actionsSpentMoving: 0, cellsFlown: 0, ...overrides });
+}
+
+test("an idle AI plane is still made to fly its mandatory 50% -- the rule binds the AI, not just the human", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  const idle = plane({ id: 1, col: 10, row: 11 });
+  s.units.push(idle);
+  s.bases.push(base({ id: 0, ownerId: 1, col: 10, row: 10 }));
+
+  // Base production runs every turn regardless, so these tests look at the movement actions only.
+  const moves = runTurn(s, grid).filter((a) => a.type === "move");
+
+  assert.ok(moves.length > 0, "the plane was made to move despite its strategy having no use for it");
+  // Half of the fighter's 8 actions per turn.
+  assert.ok(idle.actionsSpentMoving >= UNIT_TYPES.fighter.actionsPerTurn / 2);
+  assert.deepEqual(planesOwingMovement(s, 1), [], "no plane still owes movement when the turn ends");
+});
+
+test("an idle AI tank is left alone -- mandatory movement is a plane rule", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  const idle = unit({ id: 1, col: 10, row: 11 });
+  s.units.push(idle);
+  s.bases.push(base({ id: 0, ownerId: 1, col: 10, row: 10 }));
+
+  assert.deepEqual(runTurn(s, grid).filter((a) => a.type === "move"), []);
+  assert.deepEqual([idle.col, idle.row], [10, 11]);
+});
+
+test("a plane that already flew its share isn't forced to fly further", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  const flown = plane({ id: 1, col: 10, row: 11, actionsSpentMoving: UNIT_TYPES.fighter.actionsPerTurn / 2 });
+  s.units.push(flown);
+  s.bases.push(base({ id: 0, ownerId: 1, col: 10, row: 10 }));
+
+  assert.deepEqual(runTurn(s, grid).filter((a) => a.type === "move"), []);
+  assert.deepEqual([flown.col, flown.row], [10, 11]);
+});
+
+test("a plane with no base to head for still satisfies the rule", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  const stranded = plane({ id: 1, col: 10, row: 11 });
+  s.units.push(stranded); // no bases at all -- nowhere to rearm, but the rule still applies
+  const actions = runTurn(s, grid);
+
+  assert.ok(actions.length > 0);
+  assert.deepEqual(planesOwingMovement(s, 1), []);
 });

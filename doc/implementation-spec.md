@@ -468,6 +468,9 @@ control, entry point to the mid-turn menu)*
 - End Turn is disabled, with a short inline message below the button, while the human player has
   any field plane that still owes its mandatory movement this turn (§3's Plane rearm & fuel) —
   message names the blocking unit(s) by type, e.g. "Fighter still needs to move (2/4 AP)".
+  This button is only how the rule is *presented* to the human — the rule itself binds every
+  player, and an AI turn satisfies it directly (§11) rather than being exempt for want of a
+  button to disable.
 - Entry point (button/icon) opening the mid-turn menu (§8).
 - AI-speed select (Instant / Fast / Slow, game spec §7) — HUD chrome rather than a game option,
   since it's changeable mid-match and changes nothing about the match's own rules or save. See
@@ -610,6 +613,13 @@ speed setting affects it)*
   build; skipped entirely if the base is at capacity or its queue is full (game spec §8).
 - Ties (equally close, equally valid) break by lowest id — determinism, so a seeded match replays
   identically and tests are stable.
+- **Mandatory plane movement** (game spec §3) is settled last, after every unit has had its own
+  chance to act for a reason: any of this player's field planes still owing movement is then made
+  to fly, heading for the nearest own base that could rearm it, or taking any step at all when
+  there's nowhere better to be. The rule demands movement, not useful movement. Planes deployed
+  this turn are included, exactly as the human's gate includes a plane they just unloaded.
+  Shares `planesOwingMovement` with §6's End Turn gate rather than restating the condition, so
+  the two sides cannot drift apart.
 
 ### Easy-difficulty execution traits (game spec §8's Difficulty table)
 - **First valid target, no optimization**: each strategy's stated target priority (lowest
