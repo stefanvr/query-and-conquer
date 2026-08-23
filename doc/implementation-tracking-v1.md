@@ -396,7 +396,9 @@ kept below in the notes on each item.*
 passes, per workflow.md step 1 — one closing stage had become four different kinds of work with
 four different shapes of decision (implementation gaps, layout bugs, open design questions,
 documentation debt), and lumping them together made none of them plannable on their own.*
-- [ ] Spec
+- [x] Spec — query-and-conquer.md §5 (neutral-base placement rule), implementation-spec.md §2
+      (Base placement subsection) and §5 (Fog of war subsection, hex selection fix). No opt-out
+      given this round, so stopping here for review before implementation, per workflow.md step 3.
 - [ ] Map generation: place extra bases beyond the current 1-per-player (query-and-conquer.md
       §5's placement is currently exactly N seeds for N players, so every base starts owned —
       "claim an unclaimed base," Stage 6, only ever applies post-combat today). Extra
@@ -405,14 +407,29 @@ documentation debt), and lumping them together made none of them plannable on th
       implementation, since it changes a stated game rule. Stage 6 front-runs this for its own
       dev-save testing by hand-placing one neutral base near the human's, rather than waiting on
       the real map-generation feature.
+      **Design chosen (spec):** neutral count = player count (doubling total bases). The first N
+      farthest-point seeds (unchanged from today) become player bases; M more, seeded after them
+      by the same process, become neutral — landing in the gaps between player regions rather
+      than anywhere arbitrary. Neutral SP starts at 0, matching the `ownerId === null → sp === 0`
+      invariant every other unclaimed base already holds; `maxSp` stays the type's full strength.
+      **Flagged for review:** the neutral-count formula (player count) and whether it should also
+      scale with map size — picked as the simplest defensible default, not measured against
+      anything. Doubling the region count may also raise the reseed/candidate-exhaustion rate on
+      small or land-only maps with few players; worth confirming empirically once implemented
+      rather than assuming the existing bounded-attempts logic just absorbs it.
 - [ ] Hex selection/targeting (game-screen.js's `selectHex`) reads canonical state directly, not
       the fog-filtered projection (Stage 9) — a precisely-aimed click can still select/inspect a
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
       framing is explicit multiplayer future-readiness, not a v1 requirement, so Stage 9 left this
       as-is rather than rewiring every selection/targeting lookup for a risk that doesn't exist yet
-- [ ] *Thin so far* — only one hex-specific loose end is on file (above); everything else found
-      during the split was either UI/UX or map-generation-adjacent and moved to those buckets.
-      Add anything else that belongs here before starting
+      **Design chosen (spec):** four call sites move from canonical `state` to
+      `getVisibleState(state, humanId)` — `selectForInspection`'s panel lookup, and the two
+      attack/claim-target lookups inside `selectHex`. Everything that decides whether an action is
+      *legal* keeps reading canonical state (rules must resolve against reality regardless of what
+      the acting player can see) — only *what a tap resolves to* changes. Load/unload target
+      lookups are untouched: those only ever resolve to the acting unit's own base/boat, which fog
+      never hides in the first place.
+- [x] *Resolved* — no more hex-misc items surfaced; proceeding with exactly the two above.
 
 ## Stage 14 — UI/UX pass
 - [ ] Spec

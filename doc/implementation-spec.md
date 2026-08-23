@@ -174,18 +174,32 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
 ### Base placement (game spec §5)
 - Runs once at match start (createGameState), after a map is picked — not pre-baked into the
   map JSON, since it depends on player count, which varies per match.
-- N seed points (N = player count) via farthest-point sampling over in-map cells: first seed
-  random, each next seed is the in-map cell maximizing its minimum distance to seeds already
-  chosen. Every in-map cell's region = its nearest seed (implicit Voronoi tessellation, no
-  explicit region-boundary construction needed).
+- N + M seed points (N = player count, M = neutral-base count, also player count) via
+  farthest-point sampling over in-map cells: first seed random, each next seed is the in-map cell
+  maximizing its minimum distance to seeds already chosen. Every in-map cell's region = its
+  nearest seed (implicit Voronoi tessellation, no explicit region-boundary construction needed).
 - Per region: rejection-sample a candidate cell — its own terrain determines which base type(s)
   it's eligible for (Land/Port/Mountain location rules, game spec §2); check hex-distance >= 5
-  from every already-placed base (any player, §1's min-base-distance rule); place if valid, else
-  try another candidate cell (bounded attempts), then reseed the whole map (bounded attempts) if
-  a region still can't produce a valid base.
-- One base per player, regions assigned in player order (all regions are equivalent by
-  construction, so assignment order doesn't bias placement).
-- Base SP starts at full strength (20, §2) — no damage exists yet (combat lands Stage 6).
+  from every already-placed base (any player *or neutral*, §1's min-base-distance rule); place if
+  valid, else try another candidate cell (bounded attempts), then reseed the whole map (bounded
+  attempts) if a region still can't produce a valid base.
+- The first N seeds (in generation order) become player bases, one per player, in player order;
+  the remaining M become neutral (`ownerId: null`). Doing it this way rather than picking N of
+  the N+M seeds some other way means adding neutrals never changes which sites the player bases
+  land on — the first N outputs of farthest-point sampling are identical whether it's asked for N
+  points or N+M, so this is a strict superset of the pre-neutral-base placement, not a
+  reimplementation of it. It also means the neutral bases, being seeded *after* the player bases
+  already exist, naturally fall into the gaps between them — exactly the contestable "in-between"
+  territory the land-grab (game spec §5) is meant to create, rather than landing anywhere random.
+- A neutral base's SP starts at **0**, not its type's full strength — matching the invariant
+  every other unclaimed base in the system already holds (`ownerId === null` implies `sp === 0`
+  everywhere else: `attackBase` only ever sets a base neutral by driving its sp to exactly 0, and
+  `claimBase` immediately sets sp to 4 on claim, so an unclaimed base is never otherwise observed
+  at any other value). `maxSp` still starts at the type's full strength regardless, same as an
+  owned base — it's the repair ceiling once someone eventually holds it, not a reflection of
+  current health.
+- A player base's SP starts at full strength (20, §2) — no damage exists yet (combat lands
+  Stage 6). Unchanged by the above.
 
 ### Base panel (side menu, §7)
 - Opens on selecting a base (§1). Always shows: base type, owner (the same "Human"/`AI n` label +
@@ -429,11 +443,19 @@ cells and units)*
   (hidden again out of range); a base isn't named either way, and this reads as the more natural
   fit of the two given it can't move. `bases` are filtered by `exploredCells`; `units` are
   filtered by `visibleCells` (current view only, matching the design doc's explicit unit rule).
-- **Not in scope for this stage:** hex selection/targeting (game-screen.js's `selectHex` and its
-  `unitAtHex`/`baseAtHex` lookups) keeps reading canonical state, so a precisely-aimed click could
-  still select/inspect something outside current fog. Tech-stack.md's "no cheating via inspecting
-  client state" framing is explicit multiplayer future-readiness, not a v1 requirement — tracked
-  on Stage 13's backlog instead of blocking this stage.
+- **Hex selection/targeting resolves against the same fog-filtered projection the renderer draws
+  from**, not canonical state — tapping a hex the map shows as unexplored or out of current view
+  finds nothing there, same as it visually shows nothing there, rather than a precisely-aimed
+  click still being able to select, inspect, attack, or claim something outside current fog
+  (tech-stack.md's "no cheating via inspecting client state"). Only the lookups that resolve
+  *what a tap found* change — `selectForInspection`'s panel-opening lookup, and the
+  attack/claim-target lookups inside `selectHex`. Everything that decides whether an *action* is
+  legal keeps reading canonical state exactly as before (`isValidAttackTarget` and friends, and
+  movement's own `reachableCells`) — a rule has to resolve against reality regardless of what the
+  acting player can currently see, same reasoning §11 already applies to the AI's own perception
+  vs. execution split. Load/unload destination lookups are unaffected: a load/unload target is
+  always the acting unit's own base or boat, never something fog could be hiding in the first
+  place.
 
 ### In-game map render (extends §1's own section)
 - Three visual states per style-guide.md §7: **unexplored** — nothing drawn at all, no terrain

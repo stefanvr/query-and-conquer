@@ -1,7 +1,8 @@
 # Query and Conquer — Game Design Spec
 
 Turn-based hex-grid strategy game. Single human player vs. 1–5 AI opponents. Each player starts
-with one base; win by capturing/destroying every other base on the map.
+with one base, and the map starts additional bases unclaimed for players to contest (§5); win by
+capturing/destroying every other player's bases and units (§7).
 
 **Purpose.** What the game *is* and what its rules are, independent of how it's built. Written so
 someone could reason about — or play — the game without reading a line of code.
@@ -182,8 +183,18 @@ is restored to 4 and any in-progress build keeps continuing.
 Bases are distributed automatically at game start using a **Grid-cell / Voronoi-region**
 heuristic: the map is divided into roughly equal regions (seeded from evenly spaced points), and
 one base is placed per region via rejection sampling against each base type's terrain and
-min-distance rules. Chosen so this heuristic can be swapped for another later without changing
-anything else.
+min-distance rules (§1). Chosen so this heuristic can be swapped for another later without
+changing anything else.
+
+**Player bases:** one region, and so one base, per player — owned by that player from the start.
+
+**Neutral bases:** as many additional regions — and so additional bases — as there are players,
+placed unowned. They start at 0 strength, same as any other unclaimed base (§4's "claiming an
+unclaimed base" applies to them exactly as it does to one that went neutral through combat), and
+give every match a land-grab to contest from turn 1 rather than only after a base has already
+changed hands once. Subject to the same min-distance rule (§1) as every other base, regardless of
+owner or lack of one — a neutral base is never placed closer to a player's own base, or to
+another neutral, than the game already requires between any two bases.
 
 ---
 
