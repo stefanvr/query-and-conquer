@@ -47,9 +47,15 @@ import { mulberry32 } from "../src/map/prng.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 
-const mapData = JSON.parse(
+// The source map is 26x60, which leaves both sides a long trek from anything. Trimmed to its top
+// 40 rows so a whole match can be played out quickly — the point of this save is reaching an
+// interesting position fast, not exercising map generation. A plain rectangle, so cutting rows
+// off the bottom needs no reshaping; base placement then runs against the smaller map.
+const DEV_MAP_HEIGHT = 40;
+const sourceMap = JSON.parse(
   fs.readFileSync(path.join(repoRoot, "assets", "maps", "small-landOnly-0.json"), "utf8"),
 );
+const mapData = { ...sourceMap, height: DEV_MAP_HEIGHT, rows: sourceMap.rows.slice(0, DEV_MAP_HEIGHT) };
 
 const options = {
   aiDifficulties: ["easy"],
@@ -67,6 +73,13 @@ const state = createGameState(options, mapData, mulberry32(1));
 const grid = deserializeGrid(state.map.width, state.map.height, state.map.rows);
 
 const humanBase = playerBase(state, 0);
+// Pinned rather than left wherever placement lands it. Everything else here — the coastal patch,
+// the port base, the transporter — is written in absolute coordinates, and the e2e specs work out
+// screen positions relative to this base, so letting it drift (trimming the map moved it a row)
+// silently invalidates all of them at once. Fixing the base is far cheaper than re-deriving
+// every dependent coordinate.
+humanBase.col = 0;
+humanBase.row = 2;
 queueBuild(state, humanBase.id, "tank", 0);
 queueBuild(state, humanBase.id, "tank", 0);
 for (let i = 0; i < buildTurns("tank") * 2; i++) processTurnStart(state, 0);
@@ -168,6 +181,17 @@ aiBase.adjacentToDeepWater = true;
 // (§1) so the two ports are genuinely contesting the same water.
 const forwardPort = { col: 17, row: 19 };
 
+// A mountain neighbourhood carved next to the AI, so its mountain base sits with its port rather
+// than half a map away — both enemy bases can then be taken in one push, which is the whole point
+// of a save built for quick matches. Trimming the map removed the only *other* naturally eligible
+// mountain cell, so without this both mountain bases would land on the same one.
+// §2 needs the centre and all six neighbours to be mountain; placed at the 5-cell minimum from
+// the AI's port (§1), and being mountain it's reachable only by plane — §4's fighter-only capture.
+const enemyMountainCell = { col: 7, row: 20 };
+for (const cell of [enemyMountainCell, ...grid.neighborsOf(enemyMountainCell.col, enemyMountainCell.row)]) {
+  grid.set(cell.col, cell.row, "mountain");
+}
+
 state.map.rows = serializeGrid(grid);
 
 // aiWaterChain is 0-indexed from distance 1, so index (distance - 1) is that distance's cell.
@@ -230,10 +254,13 @@ function eligibleMountainCells(grid) {
   }
   return cells;
 }
+// The human's comes from the map's own terrain, nearest their base. The AI's is the neighbourhood
+// carved next to their port above — taking whichever eligible cell happened to be nearest would
+// put it back across the map, which is exactly what the trim was meant to stop.
 const mountainCells = eligibleMountainCells(grid);
 mountainCells.sort((a, b) => offsetDistance(a, humanBase) - offsetDistance(b, humanBase));
-const humanMountainCell = mountainCells[0];
-const enemyMountainCell = mountainCells.slice(1).sort((a, b) => offsetDistance(a, aiBase) - offsetDistance(b, aiBase))[0] ?? mountainCells[0];
+const humanMountainCell = mountainCells.find((c) => c.col !== enemyMountainCell.col || c.row !== enemyMountainCell.row);
+if (!humanMountainCell) throw new Error("no naturally eligible mountain cell left for the human's own base");
 
 function mountainBase(id, ownerId, cell) {
   return {

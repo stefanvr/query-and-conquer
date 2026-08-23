@@ -365,14 +365,6 @@ threats outside its own view.
       implementation, since it changes a stated game rule. Stage 6 front-runs this for its own
       dev-save testing by hand-placing one neutral base near the human's, rather than waiting on
       the real map-generation feature.
-- [ ] Unloading a garrisoned/cargo unit straight into an adjacent friendly boat isn't possible —
-      the unload destination picker (§1) only ever highlights empty passable terrain, since
-      isValidUnloadTarget rejects any already-occupied hex outright, boat included. Needs the
-      same kind of exit-target generalization enterBaseWithCargo (§2) already does for the
-      opposite direction (boat → base): the picker would need to also treat "a friendly boat with
-      room" as a valid destination, and unloadUnit/unloadCargo would need to route into that
-      boat's cargo instead of the field on confirm. Not a minor tweak — found while reviewing
-      Stage 7, deferred here rather than rushed in
 - [ ] Hex selection/targeting (game-screen.js's `selectHex`) reads canonical state directly, not
       the fog-filtered projection (Stage 9) — a precisely-aimed click can still select/inspect a
       unit or base outside current fog. Tech-stack.md's "no cheating via inspecting client state"
