@@ -45,3 +45,32 @@ test("a fresh match (fog of war on by default) renders, pans, and zooms without 
 
   expect(errors).toEqual([]);
 });
+
+test("a tap on a hex the map itself shows as unexplored fog can't select/inspect whatever is actually there", async ({ page }) => {
+  await page.click("#start-button");
+  await page.click("#new-game-button");
+  await expect(page.locator("#opt-fog")).toBeChecked(); // fog on by default, left untouched
+  await page.click("#start-match-button");
+  await expect(page.locator("#screen-game")).toBeVisible();
+
+  const canvas = page.locator("#map-canvas");
+  const cornerColor = await canvas.evaluate((el) => {
+    const ctx = el.getContext("2d");
+    const [r, g, b] = ctx.getImageData(2, 2, 1, 1).data;
+    return `rgb(${r}, ${g}, ${b})`;
+  });
+  // implementation-spec.md §5: the whole viewport is pre-filled --ink (#0B0400) before any tile
+  // draws, and stays that color for a genuinely unexplored cell. The camera starts centered on
+  // the human's own base at turn 1 (§1), with nothing else explored yet, so a canvas corner —
+  // dozens of hexes away at default zoom, well past even a mountain base's view 8 — is
+  // unexplored regardless of what the random map layout actually put there. Reading the pixel
+  // rather than assuming the hex math makes this self-verifying instead of a brittle guess.
+  expect(cornerColor).toBe("rgb(11, 4, 0)");
+
+  await canvas.click({ position: { x: 2, y: 2 } });
+
+  // Before this fix, selectForInspection read canonical state directly: a base or unit sitting
+  // under this exact pixel would have opened its panel despite the map showing nothing there.
+  await expect(page.locator("#base-panel")).toBeHidden();
+  await expect(page.locator("#unit-panel")).toBeHidden();
+});

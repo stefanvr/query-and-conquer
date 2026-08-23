@@ -604,14 +604,19 @@ export function initGameScreen({ onQuit, onGameOver }) {
     // targeting below — an occupied hex never matches isValidMoveTarget anyway, so there's no
     // overlap to resolve, only a fallback when the attack/claim itself isn't currently valid.
     if (selectedUnit && selectedUnit.ownerId === humanId) {
-      const targetUnit = unitAtHex(state, col, row);
+      // What a tap can *find* is fog-filtered (§5) — the same projection the map is drawn from —
+      // so a precisely-aimed click can't select/attack/claim something the renderer shows nothing
+      // at. The commands themselves still take canonical `state`, since a rule has to resolve
+      // against reality regardless of what the human can currently see.
+      const visible = getVisibleState(state, humanId);
+      const targetUnit = unitAtHex(visible, col, row);
       if (targetUnit && isValidAttackTarget(state, grid, selectedUnit, targetUnit)) {
         attackUnit(state, grid, selectedUnit.id, targetUnit.id, humanId);
         renderUnitPanel(selectedUnit);
         redraw();
         return;
       }
-      const targetBase = baseAtHex(state, col, row);
+      const targetBase = baseAtHex(visible, col, row);
       if (targetBase && isValidAttackBaseTarget(state, grid, selectedUnit, targetBase)) {
         attackBase(state, grid, selectedUnit.id, targetBase.id, humanId);
         renderUnitPanel(selectedUnit);
@@ -645,14 +650,17 @@ export function initGameScreen({ onQuit, onGameOver }) {
   }
 
   /** Opens whatever is on the hex, without acting on it — the fallback for every tap that isn't a
-   * move/attack/claim, and the only thing a tap can do outside the human's own turn. */
+   * move/attack/claim, and the only thing a tap can do outside the human's own turn. Reads the
+   * fog-filtered projection (§5), not canonical state, so this can't reveal a unit/base the
+   * renderer itself isn't showing at that hex. */
   function selectForInspection(col, row) {
-    const base = baseAtHex(state, col, row);
+    const visible = getVisibleState(state, humanId);
+    const base = baseAtHex(visible, col, row);
     if (base) {
       openBasePanel(base);
       return;
     }
-    const unit = unitAtHex(state, col, row);
+    const unit = unitAtHex(visible, col, row);
     if (unit) {
       openUnitPanel(unit);
       return;
