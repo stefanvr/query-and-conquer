@@ -102,12 +102,17 @@
       </div>
       <div id="unit-panel" class="side-panel" hidden>
         <button id="unit-panel-close" class="side-panel-close" type="button" aria-label="Close">&times;</button>
-        <h2 id="unit-panel-title" class="side-panel-title"></h2>
-        <p id="unit-panel-sp" class="menu-body-text"></p>
-        <p id="unit-panel-ap" class="menu-body-text"></p>
-        <!-- Only for a plane (roundTripRange set, implementation-spec.md §3's Plane rearm & fuel) -->
-        <p id="unit-panel-strikes" class="menu-body-text" hidden></p>
-        <p id="unit-panel-fuel" class="menu-body-text" hidden></p>
+        <!-- Grouped so a narrow viewport can lay title + stats out as one row instead of stacked
+             (implementation-spec.md §3) -- first instance of a title-row-with-inline-stats
+             pattern meant for reuse in a later panel GUI-style pass. -->
+        <div id="unit-panel-header" class="side-panel-header">
+          <h2 id="unit-panel-title" class="side-panel-title"></h2>
+          <p id="unit-panel-sp" class="menu-body-text panel-stat"></p>
+          <p id="unit-panel-ap" class="menu-body-text panel-stat"></p>
+          <!-- Only for a plane (roundTripRange set, implementation-spec.md §3's Plane rearm & fuel) -->
+          <p id="unit-panel-strikes" class="menu-body-text panel-stat" hidden></p>
+          <p id="unit-panel-fuel" class="menu-body-text panel-stat" hidden></p>
+        </div>
         <!-- Only for a boat (holdCapacity > 0, implementation-spec.md §3) -->
         <div id="unit-panel-cargo-section" hidden>
           <p class="base-panel-section-label">Cargo</p>

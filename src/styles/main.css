@@ -390,6 +390,26 @@ body {
     border-left: none;
     border-top: 1px solid var(--steel);
   }
+
+  /* Stats move inline with the title instead of stacking below it (implementation-spec.md §3) --
+     trims vertical space so more of a short panel (notably the Load button) stays above the fold
+     without scrolling. `.side-panel-title`'s own right margin already clears the close button; the
+     row wraps rather than clipping if every stat can't fit on one line. */
+  .side-panel-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 10px;
+    row-gap: 2px;
+  }
+
+  .side-panel-header .side-panel-title {
+    margin-bottom: 0;
+  }
+
+  .side-panel-header .panel-stat {
+    text-align: left;
+  }
 }
 
 .side-panel[hidden] {
