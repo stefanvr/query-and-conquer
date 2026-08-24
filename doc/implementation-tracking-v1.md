@@ -406,8 +406,11 @@ for what changed and why.*
       long title (Transporter/Carrier) risked the same kind of overflow the plane fix just solved,
       just from title width instead of stat-line count. Added flex-wrap so the stat block drops to
       its own line below the title if the two genuinely can't share one row, rather than clipping
-      against the close button — verified down to a 320px viewport and at larger simulated font
-      scales, since the user's real device made this trigger where local testing hadn't
+      against the close button. Centering confirmed working; the wrap fix reduced but didn't fully
+      resolve Transporter/Carrier's overflow — user confirmed some right-edge overflow remains on
+      their device (a case local testing, down to a 320px viewport and simulated larger font
+      scales, still hasn't reproduced), but called it good enough to move on from for now. Left
+      open in Stage 16's closing-pass sweep below rather than chased further here
 
 ## Stage 15 — Balance & gameplay
 *A real-play pass rather than a code-correctness one: settling the open design questions that
@@ -451,6 +454,14 @@ balance have their own stages above.*
       what was seen. Not chased further because it wouldn't reproduce; if it resurfaces, the fix
       is to make the test wait for stable canvas dimensions rather than assuming them. Watch-item,
       not an open task
+- [ ] Moved from Stage 14: on mobile, a long unit-panel title (Transporter/Carrier) plus its stat
+      block (implementation-spec.md §3) still overflows on the right on the user's real device,
+      despite two rounds of fixes (centering the stat lines, then adding flex-wrap so the block
+      drops below the title rather than clipping) — the wrap fix helped but didn't fully resolve
+      it. Not reproduced locally at any tested width (down to 320px) or simulated font scale, so
+      the next step needs either the exact device/viewport width that shows it, or an on-device
+      screenshot with computed element sizes, rather than another guess. Called "good enough for
+      now" by the user rather than chased further at the time
 
 ---
 
