@@ -371,12 +371,15 @@ load/unload and cargo interaction)*
   this unit (§1's Load destination picker) — opens the picker rather than acting immediately.
 - **Best-effort mobile fix, needs on-device confirmation:** reported on a real phone — a tank's
   panel first opens with the Load button below the fold (needs scrolling to reach), a boat's
-  panel afterward renders correctly, and the tank does too from then on. Suspected cause: mobile
-  Safari's viewport height hasn't settled (URL-bar collapse animation) on the very first layout,
-  so the panel's `max-height: 45vh` (§1) is briefly wrong. Fix: force a second layout pass shortly
-  after the panel's first open this session, same reasoning as §1's canvas `ResizeObserver`
-  re-measure. Unverified without the device that found it — implementation-tracking-v1.md's Stage
-  14 checklist stays open on this item until confirmed there.
+  panel afterward renders correctly, and the tank does too from then on. Suspected cause: the
+  panel's `max-height: 45vh` (§1) is a static viewport-height snapshot, and mobile Safari's own
+  viewport briefly reads taller than its settled size before the URL bar collapses shortly after
+  load — a `vh` value computed against that moment can end up measured too short. Fix: add a
+  `max-height: 45dvh` alongside the existing `vh` rule — `dvh` tracks the *current* viewport
+  rather than a one-time snapshot, so it can't go stale the way a static unit can; a browser that
+  doesn't understand `dvh` simply ignores the line and keeps the `vh` fallback. Unverified without
+  the device that found it — implementation-tracking-v1.md's Stage 14 checklist stays open on
+  this item until confirmed there.
 
 ### Plane rearm & fuel (game spec §3's Generic Planes rules)
 - A plane field unit carries three extra counters beyond the fields every field unit has (§3

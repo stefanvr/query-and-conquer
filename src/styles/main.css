@@ -411,7 +411,14 @@ body {
 
   .side-panel {
     flex: 0 0 auto;
-    max-height: 45vh;
+    max-height: 45vh; /* fallback for browsers without dvh (below) */
+    /* `dvh` tracks the *current* viewport, unlike static `vh` -- computed once against whatever
+       the viewport happened to be (URL-bar expanded or collapsed) at that moment. Mobile Safari's
+       URL-bar collapses shortly after load, so a static-vh max-height could be measured briefly
+       too short on first paint, which read as a real device's Load button sitting below the fold
+       on a panel's very first open (implementation-spec.md §3). A browser that doesn't understand
+       `dvh` simply ignores this line and keeps the vh fallback above. */
+    max-height: 45dvh;
     border-left: none;
     border-top: 1px solid var(--steel);
   }
