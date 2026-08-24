@@ -366,7 +366,12 @@ load/unload and cargo interaction)*
   viewport. Paired two per line — `SP AP` on one line, and for a plane, `strikes fuel` on a second
   — pinned to the row's right edge (between the title and the close button), rather than wrapping
   stat-by-stat: a flat wrapping row let a plane's fourth stat (fuel) spill onto its own line under
-  the title, overflowing the header. Wide viewports keep today's stacked, one-stat-per-line layout
+  the title, overflowing the header. The two lines center relative to each other (not hard-right-
+  aligned), which reads more settled where they're uneven lengths — a plane's own two lines
+  usually are. If the title is long enough (e.g. Transporter/Carrier) that it and the stat block
+  genuinely can't share one row, the block wraps to its own line below the title rather than
+  clipping against the close button, the same graceful-degradation instinct as any other
+  responsive layout in this app. Wide viewports keep today's stacked, one-stat-per-line layout
   unchanged. First instance of a title-row-with-inline-stats pattern, ahead of a broader panel
   GUI-style pass still to come — reuse it there rather than one-off. Base panel is unaffected for
   now.

@@ -401,6 +401,13 @@ for what changed and why.*
       inline-stats work missed since it was only exercised against a 2-stat (SP/AP) unit at the
       time. Paired the stats two per line instead (implementation-spec.md §3); desktop's stacked
       layout is unchanged
+- [x] Ad hoc: two more requests against the stat block above — center the two lines relative to
+      each other (was right-aligned) for a more settled look where they're uneven lengths, and a
+      long title (Transporter/Carrier) risked the same kind of overflow the plane fix just solved,
+      just from title width instead of stat-line count. Added flex-wrap so the stat block drops to
+      its own line below the title if the two genuinely can't share one row, rather than clipping
+      against the close button — verified down to a 320px viewport and at larger simulated font
+      scales, since the user's real device made this trigger where local testing hadn't
 
 ## Stage 15 — Balance & gameplay
 *A real-play pass rather than a code-correctness one: settling the open design questions that

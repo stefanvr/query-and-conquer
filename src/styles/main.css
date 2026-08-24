@@ -450,9 +450,14 @@ body {
      without scrolling. Title on the left, the stat block pinned to the row's right edge (between
      the title and the close button) via space-between -- padding-right reserves the close
      button's own clearance regardless of which child ends up rightmost, since that's no longer
-     always the title the way it was when title was the row's only/last item. */
+     always the title the way it was when title was the row's only/last item.
+     flex-wrap is the safety net for a long title (Transporter/Carrier) plus a wide stat block not
+     fitting one row at all -- on a device/font-size combination narrow enough for that, the block
+     drops to its own line below the title instead of the previous nowrap's clip/overlap against
+     the close button. */
   .side-panel-header {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: flex-start;
     gap: 10px;
@@ -465,11 +470,13 @@ body {
 
   /* Two stats per line (SP+AP, strikes+fuel) rather than one flat wrapping row -- individual
      stats wrapping stat-by-stat let a plane's fuel value overflow onto its own line under the
-     title. Each line is its own flex row so it wraps (or not) as a unit. */
+     title. Each line is its own flex row so it wraps (or not) as a unit. align-items: center (not
+     flex-end) so the shorter line centers relative to the longer one instead of both hard-right-
+     aligning against it. */
   .panel-stat-block {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: center;
     gap: 2px;
     flex-shrink: 0;
   }
