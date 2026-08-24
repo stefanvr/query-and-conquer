@@ -19,8 +19,9 @@ async function startMatch(page) {
   await expect(page.locator("#screen-game")).toBeVisible();
 }
 
-test("the HUD exposes an AI speed control, defaulting to Instant", async ({ page }) => {
+test("the mid-turn menu exposes an AI speed control, defaulting to Instant", async ({ page }) => {
   await startMatch(page);
+  await page.click("#menu-button");
   const speed = page.locator("#hud-ai-speed");
   await expect(speed).toBeVisible();
   await expect(speed).toHaveValue("0"); // Instant
@@ -49,7 +50,12 @@ test("on a paced speed, End Turn locks out while the AI plays, then re-enables",
   page.on("pageerror", (err) => errors.push(String(err)));
   await startMatch(page);
 
+  // AI speed lives in the mid-turn menu (implementation-spec.md §8), not the HUD -- open it,
+  // set the speed, then close it back before End Turn (the menu is a full-screen overlay that
+  // would otherwise intercept the click).
+  await page.click("#menu-button");
   await page.selectOption("#hud-ai-speed", "1000"); // Fast: 1s per AI action
+  await page.click("#menu-close-button");
   await page.click("#end-turn-button");
 
   // The AI's first action holds the turn, so the human can't act out of turn.

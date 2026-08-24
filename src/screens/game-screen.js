@@ -159,7 +159,6 @@ export function initGameScreen({ onQuit, onGameOver }) {
     // keep saying it, rather than letting the next refresh quietly clear the message.
     if (aiTurnFailure) {
       endTurnButton.disabled = true;
-      endTurnBlockedMessage.hidden = false;
       endTurnBlockedMessage.textContent = "An AI turn failed — see the browser console. Reload to continue.";
       return;
     }
@@ -168,8 +167,12 @@ export function initGameScreen({ onQuit, onGameOver }) {
     // transient "wait your turn", not something the human can act on the way a plane's mandatory
     // movement is.
     endTurnButton.disabled = aiTurnInProgress || owing.length > 0;
-    endTurnBlockedMessage.hidden = owing.length === 0;
-    if (owing.length === 0) return;
+    // Content-driven, not [hidden] (implementation-spec.md §6) -- the element's own row is always
+    // reserved, empty or not, so its text changing never shifts End Turn/Menu on the row above.
+    if (owing.length === 0) {
+      endTurnBlockedMessage.textContent = "";
+      return;
+    }
     endTurnBlockedMessage.textContent = owing
       .map((u) => {
         const stats = UNIT_TYPES[u.unitType];

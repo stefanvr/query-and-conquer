@@ -56,21 +56,17 @@
 
   <div id="screen-game" class="screen-view" hidden>
     <div id="hud">
-      <span id="hud-turn-indicator"></span>
+      <div id="hud-main-row">
+        <span id="hud-turn-indicator"></span>
+        <button id="end-turn-button" class="btn-primary">End Turn</button>
+        <button id="menu-button" class="btn-primary">Menu</button>
+      </div>
       <!-- Shown while a plane still owes its mandatory movement this turn (implementation-spec.md
-           §6/§3's Plane rearm & fuel) -- disables End Turn alongside it. -->
-      <span id="hud-end-turn-blocked" class="menu-body-text" hidden></span>
-      <!-- AI speed (implementation-spec.md §6/§11) — HUD chrome, not a game option: changeable
-           mid-match, and changes nothing about the match's own rules or its save. -->
-      <label id="hud-ai-speed-label" class="hud-inline-label">AI speed
-        <select id="hud-ai-speed">
-          <option value="0" selected>Instant</option>
-          <option value="1000">Fast</option>
-          <option value="2000">Slow</option>
-        </select>
-      </label>
-      <button id="end-turn-button" class="btn-primary">End Turn</button>
-      <button id="menu-button" class="btn-primary">Menu</button>
+           §6/§3's Plane rearm & fuel) -- disables End Turn alongside it. Always in flow (never
+           [hidden]) and on its own row below hud-main-row, so it appearing/disappearing can never
+           shift End Turn/Menu sideways -- controlled by content (empty when nothing to say), not
+           by hiding the element. -->
+      <span id="hud-end-turn-blocked" class="menu-body-text"></span>
     </div>
     <!-- Canvas and panels are siblings so an open panel *takes* space rather than floating over
          the map: nothing the player might tap can end up underneath it. -->
@@ -124,6 +120,16 @@
     <div id="mid-turn-menu" hidden>
       <div class="menu-panel" id="mid-turn-menu-main">
         <h1 class="menu-title">Menu</h1>
+        <!-- AI speed (implementation-spec.md §6/§8/§11) — app chrome, not a game option:
+             changeable mid-match, and changes nothing about the match's own rules or its save.
+             Reachable even mid-cascade during an AI's own turn, unlike the actions below. -->
+        <label id="hud-ai-speed-label" class="hud-inline-label">AI speed
+          <select id="hud-ai-speed">
+            <option value="0" selected>Instant</option>
+            <option value="1000">Fast</option>
+            <option value="2000">Slow</option>
+          </select>
+        </label>
         <div class="menu-stack">
           <button id="save-button" class="btn-primary">Save</button>
           <button id="surrender-button" class="btn-primary">Surrender</button>

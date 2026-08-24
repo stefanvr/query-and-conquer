@@ -213,7 +213,6 @@ body {
   display: none;
 }
 
-#hud,
 #end-hud {
   display: flex;
   align-items: center;
@@ -221,6 +220,25 @@ body {
   padding: 10px 16px;
   background: var(--olive);
   border-bottom: 1px solid var(--steel);
+  flex-wrap: wrap;
+}
+
+/* #hud stacks two rows: the primary controls, and a reserved line below them for the "you still
+   owe an action" notice (implementation-spec.md §6). Kept a separate row rather than inline in
+   the row above so the notice appearing/disappearing can never shift End Turn/Menu sideways --
+   the row above never changes shape regardless of what's below it. */
+#hud {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 16px;
+  background: var(--olive);
+  border-bottom: 1px solid var(--steel);
+}
+
+#hud-main-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -285,9 +303,16 @@ body {
 
 /* End Turn gating message (implementation-spec.md §6/§3's Plane rearm & fuel) — shares
    .menu-body-text's steel-gray text but in --rust to read as a blocker, not neutral info. */
+/* Reserves a line's height at all times (never [hidden], per index.html) -- text-align:left
+   overrides .menu-body-text's centered default, matching the left-aligned turn indicator above
+   it, since this now sits alone on its own full-width row rather than inline among other HUD
+   controls. */
 #hud-end-turn-blocked {
+  display: block;
   color: var(--rust);
-  margin: 0;
+  margin: 4px 0 0;
+  min-height: 1.2em;
+  text-align: left;
 }
 
 .canvas-wrap {
