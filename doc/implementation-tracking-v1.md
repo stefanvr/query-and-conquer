@@ -391,10 +391,9 @@ for what changed and why.*
       review, not left open any longer: the base/unit panel's own SP/owner display
       (implementation-spec.md §2/§3) and the map's own token/marker removal on death are the v1
       answer in full
-- [ ] The mandatory-movement notice (added above) names every owing plane inline by type — doesn't
-      scale: with several planes owing movement at once the message grows without bound, wrapping
-      past the row reserved for it. Fell off the radar until now; see implementation-spec.md §6/§7
-      for the button+list replacement
+- [x] The mandatory-movement notice named every owing plane inline by type — didn't scale. Fell
+      off the radar until flagged post-review; see "Mandatory action: a scaling button + panel,
+      replacing the per-unit HUD message" (implementation-spec.md §6/§7)
 
 ## Stage 15 — Balance & gameplay
 *A real-play pass rather than a code-correctness one: settling the open design questions that
