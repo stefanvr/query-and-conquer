@@ -116,6 +116,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
   const unitPanelTitle = document.querySelector("#unit-panel-title");
   const unitPanelSp = document.querySelector("#unit-panel-sp");
   const unitPanelAp = document.querySelector("#unit-panel-ap");
+  const unitPanelPlaneStats = document.querySelector("#unit-panel-plane-stats");
   const unitPanelStrikes = document.querySelector("#unit-panel-strikes");
   const unitPanelFuel = document.querySelector("#unit-panel-fuel");
   const unitPanelCargoSection = document.querySelector("#unit-panel-cargo-section");
@@ -347,9 +348,10 @@ export function initGameScreen({ onQuit, onGameOver }) {
     unitPanelSp.textContent = `${unit.sp}/${unit.maxSp} SP`;
     unitPanelAp.textContent = `${unit.remainingActions}/${stats.actionsPerTurn} AP`;
 
-    // --- Strikes/fuel remaining: only for a plane (roundTripRange set, §3's Plane rearm & fuel). ---
-    unitPanelStrikes.hidden = !stats.roundTripRange;
-    unitPanelFuel.hidden = !stats.roundTripRange;
+    // --- Strikes/fuel remaining: only for a plane (roundTripRange set, §3's Plane rearm & fuel).
+    // One hidden toggle on the shared line, not two on the individual spans -- the two always
+    // show or hide together, never independently. ---
+    unitPanelPlaneStats.hidden = !stats.roundTripRange;
     if (stats.roundTripRange) {
       unitPanelStrikes.textContent = `${stats.maxStrikes - unit.strikesUsed}/${stats.maxStrikes} strikes`;
       unitPanelFuel.textContent = `${stats.roundTripRange - unit.cellsFlown}/${stats.roundTripRange} fuel`;

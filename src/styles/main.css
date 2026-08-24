@@ -445,24 +445,48 @@ body {
     border-top: 1px solid var(--steel);
   }
 
-  /* Stats move inline with the title instead of stacking below it (implementation-spec.md §3) --
+  /* Stats move next to the title instead of stacking below it (implementation-spec.md §3) --
      trims vertical space so more of a short panel (notably the Load button) stays above the fold
-     without scrolling. `.side-panel-title`'s own right margin already clears the close button; the
-     row wraps rather than clipping if every stat can't fit on one line. */
+     without scrolling. Title on the left, the stat block pinned to the row's right edge (between
+     the title and the close button) via space-between -- padding-right reserves the close
+     button's own clearance regardless of which child ends up rightmost, since that's no longer
+     always the title the way it was when title was the row's only/last item. */
   .side-panel-header {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    column-gap: 10px;
-    row-gap: 2px;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding-right: 32px;
   }
 
   .side-panel-header .side-panel-title {
     margin-bottom: 0;
   }
 
-  .side-panel-header .panel-stat {
-    text-align: left;
+  /* Two stats per line (SP+AP, strikes+fuel) rather than one flat wrapping row -- individual
+     stats wrapping stat-by-stat let a plane's fuel value overflow onto its own line under the
+     title. Each line is its own flex row so it wraps (or not) as a unit. */
+  .panel-stat-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .panel-stat-line {
+    display: flex;
+    gap: 8px;
+    margin: 0;
+  }
+
+  /* .panel-stat-line's own display: flex above (class, 0-1-0) would otherwise beat [hidden]'s
+     display: none (0-1-0, but user-agent origin loses to any author rule regardless of
+     specificity) -- same gotcha as .side-panel[hidden]/#hud-mandatory-action[hidden] elsewhere in
+     this file. Only matters here, inside the media query -- outside it .panel-stat-line has no
+     competing display rule, so plain [hidden] already wins there. */
+  .panel-stat-line[hidden] {
+    display: none;
   }
 }
 
@@ -493,6 +517,14 @@ body {
   font-family: var(--font-display);
   letter-spacing: 0.05em;
   margin: 0 32px 12px 0;
+}
+
+/* Base (all-viewport) rule: each stat span is its own line by default, same as when they were
+   separate <p> elements pre-Stage-14 -- .panel-stat-line's own narrow-viewport display:flex
+   (above) overrides this for its direct children regardless of their own display value, which is
+   what turns each pair into one row on a narrow screen without touching this rule. */
+.panel-stat-line span {
+  display: block;
 }
 
 .base-panel-section-label {

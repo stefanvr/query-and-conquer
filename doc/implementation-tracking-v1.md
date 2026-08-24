@@ -396,6 +396,11 @@ for what changed and why.*
 - [x] The mandatory-movement notice named every owing plane inline by type — didn't scale. Fell
       off the radar until flagged post-review; see "Mandatory action: a scaling button + panel,
       replacing the per-unit HUD message" (implementation-spec.md §6/§7)
+- [x] Ad hoc: on a narrow viewport, a plane's unit panel (4 stats: SP, AP, strikes, fuel) wrapped
+      stat-by-stat and let fuel spill onto its own line under the title — an overflow the earlier
+      inline-stats work missed since it was only exercised against a 2-stat (SP/AP) unit at the
+      time. Paired the stats two per line instead (implementation-spec.md §3); desktop's stacked
+      layout is unchanged
 
 ## Stage 15 — Balance & gameplay
 *A real-play pass rather than a code-correctness one: settling the open design questions that

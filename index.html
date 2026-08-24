@@ -102,14 +102,22 @@
         <button id="unit-panel-close" class="side-panel-close" type="button" aria-label="Close">&times;</button>
         <!-- Grouped so a narrow viewport can lay title + stats out as one row instead of stacked
              (implementation-spec.md §3) -- first instance of a title-row-with-inline-stats
-             pattern meant for reuse in a later panel GUI-style pass. -->
+             pattern meant for reuse in a later panel GUI-style pass. Stats pair up two per line
+             (SP+AP, strikes+fuel) rather than wrapping stat-by-stat, which let a plane's fuel
+             value overflow onto its own line under the title on a narrow screen. -->
         <div id="unit-panel-header" class="side-panel-header">
           <h2 id="unit-panel-title" class="side-panel-title"></h2>
-          <p id="unit-panel-sp" class="menu-body-text panel-stat"></p>
-          <p id="unit-panel-ap" class="menu-body-text panel-stat"></p>
-          <!-- Only for a plane (roundTripRange set, implementation-spec.md §3's Plane rearm & fuel) -->
-          <p id="unit-panel-strikes" class="menu-body-text panel-stat" hidden></p>
-          <p id="unit-panel-fuel" class="menu-body-text panel-stat" hidden></p>
+          <div id="unit-panel-stats" class="panel-stat-block">
+            <p class="menu-body-text panel-stat-line">
+              <span id="unit-panel-sp"></span>
+              <span id="unit-panel-ap"></span>
+            </p>
+            <!-- Only for a plane (roundTripRange set, implementation-spec.md §3's Plane rearm & fuel) -->
+            <p id="unit-panel-plane-stats" class="menu-body-text panel-stat-line" hidden>
+              <span id="unit-panel-strikes"></span>
+              <span id="unit-panel-fuel"></span>
+            </p>
+          </div>
         </div>
         <!-- Only for a boat (holdCapacity > 0, implementation-spec.md §3) -->
         <div id="unit-panel-cargo-section" hidden>

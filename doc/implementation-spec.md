@@ -361,12 +361,15 @@ load/unload and cargo interaction)*
   fuel remaining (`roundTripRange - cellsFlown`, e.g. `62/100`) — same plain-text treatment as
   SP/AP (style-guide.md §8).
 - Narrow viewports (the side-panel's own `max-width: 700px` stacked-layout breakpoint, §1): the
-  stat lines (SP, AP, and — for a plane — strikes/fuel) move inline alongside the unit-type title
-  instead of stacking below it, trimming vertical space so more of the panel (notably the Load
-  button) stays above the fold without scrolling on a short viewport. Wide viewports keep today's
-  stacked layout. First instance of a title-row-with-inline-stats pattern, ahead of a broader
-  panel GUI-style pass still to come — reuse it there rather than one-off. Base panel is
-  unaffected for now.
+  stats move next to the unit-type title instead of stacking below it, trimming vertical space so
+  more of the panel (notably the Load button) stays above the fold without scrolling on a short
+  viewport. Paired two per line — `SP AP` on one line, and for a plane, `strikes fuel` on a second
+  — pinned to the row's right edge (between the title and the close button), rather than wrapping
+  stat-by-stat: a flat wrapping row let a plane's fourth stat (fuel) spill onto its own line under
+  the title, overflowing the header. Wide viewports keep today's stacked, one-stat-per-line layout
+  unchanged. First instance of a title-row-with-inline-stats pattern, ahead of a broader panel
+  GUI-style pass still to come — reuse it there rather than one-off. Base panel is unaffected for
+  now.
 - Load button: single button, shown whenever at least one adjacent base or boat could accept
   this unit (§1's Load destination picker) — opens the picker rather than acting immediately.
 - **Mobile fix, on-device confirmed cause, fix pending re-confirmation:** reported on a real
