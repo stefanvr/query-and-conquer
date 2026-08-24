@@ -442,10 +442,14 @@ to compare against, agreed with the user rather than assumed).*
       resolves, not upfront — there's no new UX to spec ahead of a decision that doesn't exist yet
 - [ ] Gameplay questionnaire — gaps a played match can surface that a seeded sim or a unit test
       structurally can't (a sim has no opinion on whether something *feels* right):
-  - Mountain-base takedown (moved from game spec §9): does the Bomber+Fighter pairing the
-      strength table implies feel like an intended combined-arms puzzle, or genuinely too hard?
-      If too hard: lower mountain-base strength, raise Fighter's ground attack, or leave it and
-      document the pairing as the intended cost
+  - **Resolved:** Mountain-base takedown (moved from game spec §9) — not the Bomber+Fighter
+      pairing itself, but a broader strength/attack imbalance it surfaced (Fighter tougher than a
+      Tank; Tank's air atk barely a threat). See "Balance pass: Fighter strength down, Tank air
+      attack up" for the numbers and reasoning
+  - **Resolved, not a bug:** user also reported not seeing AI planes attack tanks — a throwaway
+      simulation (deleted, per code-conventions.md) showed planes attacking tanks 196/1722 times
+      in a 20-match sample, the most common plane-vs-unit target; read as the one short session
+      not catching it, not a structural gap. No code change
   - Does Hard AI feel meaningfully stronger than Easy in a real match, or does the measured 1.38×
       action-tempo gap (Stage 12) read as too close for the difficulty label to be honest?
   - Now that an AI's planes are held to the mandatory ≥50% movement rule (Stage 12), does a

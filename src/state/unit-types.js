@@ -16,7 +16,8 @@ export const UNIT_TYPES = {
     view: 3,
     strength: 10,
     groundAtk: 4,
-    airAtk: 1,
+    airAtk: 2, // Stage 15 balance pass: was 1 -- tanks outnumber planes most games, so a tank
+    // needed to be a real (if secondary) threat to a plane flying near it, not a nuisance
     moveCost: { gras: 1, gravel: 2, mountain: 0, sand: 3, shallow: 0, deep: 0 },
   },
   fighter: {
@@ -28,9 +29,10 @@ export const UNIT_TYPES = {
     attackRange: 2,
     needsLOS: false,
     view: 5,
-    strength: 15,
+    strength: 8, // Stage 15 balance pass: was 15 -- tougher than a tank read backwards for a
+    // light interceptor; now the more fragile one, rewarding careful maneuvering over facetanking
     groundAtk: 2,
-    airAtk: 4,
+    airAtk: 4, // stays clearly above the tank's own (2) -- Fighter keeps its air-superiority edge
     moveCost: { gras: 1, gravel: 1, mountain: 2, sand: 1, shallow: 1, deep: 1 },
     maxStrikes: 4, // before returning to base/carrier to rearm
     roundTripRange: 100,
