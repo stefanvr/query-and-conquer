@@ -383,10 +383,13 @@ for what changed and why.*
       (Instant/Fast/Slow) out of the HUD into the mid-turn menu (implementation-spec.md §6/§8) —
       see "HUD: reserve space for the End Turn blocker notice; move AI speed to the mid-turn menu"
 - [ ] On mobile, selecting a tank opens its panel with the Load button below the fold, so the
-      unit's only action is invisible until scrolled to. Selecting a boat (carrier/transporter)
-      afterwards renders correctly, and the tank does too from then on. Suspected cause and a
-      best-effort fix landed — see "Mobile panel: dvh alongside vh for the side-panel max-height"
-      — but stays open pending confirmation on the real device that found it
+      unit's only action is invisible until scrolled to. First fix ("Mobile panel: dvh alongside
+      vh for the side-panel max-height") guessed wrong — user confirmed on-device it didn't help,
+      and follow-up questioning placed the real cause elsewhere: Android Chrome, reliably on every
+      cold load, the whole *page* needs scrolling (not the panel's own), which pointed at
+      `min-height: 100vh` on the page's own full-screen containers rather than the panel. See
+      "Mobile page height: dvh alongside vh, the fold bug's real location" for the corrected fix —
+      still stays open pending confirmation on the device that found it
 - [x] No dedicated attack/capture animation or toast — closed by decision during Stage 14's plan
       review, not left open any longer: the base/unit panel's own SP/owner display
       (implementation-spec.md §2/§3) and the map's own token/marker removal on death are the v1

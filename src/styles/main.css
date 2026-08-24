@@ -2,9 +2,26 @@
 
 * { box-sizing: border-box; }
 
+/* `dvh` alongside `vh` everywhere a full-viewport container sets min-height (also below, on
+   .screen-view and #screen-game/#screen-end) — the actual mobile bug (implementation-spec.md §3):
+   static `vh` on Android Chrome (and modern iOS Safari) resolves to the *large* viewport, as if
+   the browser's own address-bar chrome were already collapsed. On a fresh page load that chrome
+   is still showing, so the page renders taller than what's currently visible and needs a
+   page-level scroll to reach the bottom of it -- reported as the unit panel's Load button sitting
+   below the fold on a tank's first-ever panel this session, self-correcting once the chrome
+   collapses (typically on the first scroll) and the *actual* viewport catches up to the `vh`
+   value already assumed. `dvh` tracks the chrome's current state instead of assuming it away, so
+   the page is never taller than what's actually on screen. A browser without `dvh` support simply
+   ignores that line and keeps the `vh` fallback.
+   (This turned out to be the real cause of the bug an earlier fix mis-attributed to `.side-panel`'s
+   own max-height, §1 below -- that fix wasn't wrong to try, `dvh` genuinely is the right tool for
+   a stale-viewport-snapshot bug, but it was solving the wrong element: on-device testing confirmed
+   it was the whole *page* needing a scroll, on Android Chrome specifically, not the panel's own
+   internal one.) */
 html, body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 body {
@@ -17,6 +34,7 @@ body {
    [hidden] attribute between them (no URL routing — see implementation-spec.md §8). */
 .screen-view {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -203,6 +221,7 @@ body {
   justify-content: flex-start;
   padding: 0;
   min-height: 100vh;
+  min-height: 100dvh; /* the real mobile fix -- see the comment on html, body above */
   position: relative;
 }
 

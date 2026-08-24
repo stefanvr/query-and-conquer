@@ -369,17 +369,23 @@ load/unload and cargo interaction)*
   unaffected for now.
 - Load button: single button, shown whenever at least one adjacent base or boat could accept
   this unit (§1's Load destination picker) — opens the picker rather than acting immediately.
-- **Best-effort mobile fix, needs on-device confirmation:** reported on a real phone — a tank's
-  panel first opens with the Load button below the fold (needs scrolling to reach), a boat's
-  panel afterward renders correctly, and the tank does too from then on. Suspected cause: the
-  panel's `max-height: 45vh` (§1) is a static viewport-height snapshot, and mobile Safari's own
-  viewport briefly reads taller than its settled size before the URL bar collapses shortly after
-  load — a `vh` value computed against that moment can end up measured too short. Fix: add a
-  `max-height: 45dvh` alongside the existing `vh` rule — `dvh` tracks the *current* viewport
-  rather than a one-time snapshot, so it can't go stale the way a static unit can; a browser that
-  doesn't understand `dvh` simply ignores the line and keeps the `vh` fallback. Unverified without
-  the device that found it — implementation-tracking-v1.md's Stage 14 checklist stays open on
-  this item until confirmed there.
+- **Mobile fix, on-device confirmed cause, fix pending re-confirmation:** reported on a real
+  phone — a tank's panel first opens with the Load button below the fold (needs scrolling to
+  reach), a boat's panel afterward renders correctly, and the tank does too from then on. A first
+  fix guessed the cause was the *panel's own* `max-height: 45vh` (§1) — wrong: on-device follow-up
+  (Android Chrome, reliably reproducible on every cold load) established it's the whole *page*
+  that needs scrolling, not the panel's own internal one, so that fix was solving the wrong
+  element. Real cause: `min-height: 100vh` on `html`/`body`/`.screen-view`/`#screen-game` is a
+  static snapshot that Android Chrome (like modern iOS Safari) resolves to the *large* viewport —
+  as if its own address-bar chrome were already collapsed. On a fresh load that chrome is still
+  showing, so the page renders taller than what's actually visible and needs a page scroll to
+  reach the bottom of it; the chrome typically collapses on the first scroll, after which the real
+  viewport catches up to the `vh` value already assumed, and the page fits without scrolling from
+  then on — matching "first panel of the session only, any panel, self-correcting." Fix: `100dvh`
+  alongside each `100vh`, same reasoning as the (harmless, but not the actual fix) `.side-panel`
+  change above — `dvh` tracks the chrome's current state instead of assuming it away. Unverified
+  without the device that found it — implementation-tracking-v1.md's Stage 14 checklist stays open
+  on this item until confirmed there.
 
 ### Plane rearm & fuel (game spec §3's Generic Planes rules)
 - A plane field unit carries three extra counters beyond the fields every field unit has (§3
