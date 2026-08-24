@@ -62,11 +62,13 @@
         <button id="menu-button" class="btn-primary">Menu</button>
       </div>
       <!-- Shown while a plane still owes its mandatory movement this turn (implementation-spec.md
-           §6/§3's Plane rearm & fuel) -- disables End Turn alongside it. Always in flow (never
-           [hidden]) and on its own row below hud-main-row, so it appearing/disappearing can never
-           shift End Turn/Menu sideways -- controlled by content (empty when nothing to say), not
-           by hiding the element. -->
-      <span id="hud-end-turn-blocked" class="menu-body-text"></span>
+           §6/§3's Plane rearm & fuel) -- disables End Turn alongside it. A count, not a per-unit
+           message: naming every owing plane inline doesn't scale (grows without bound, wraps past
+           this row). Opens the mandatory-action panel below (§7) with the actual list. Also
+           doubles as the AI-turn-failure notice (§11) -- disabled, unclickable, when showing that
+           text instead. Hidden (not merely emptied) when there's nothing to say -- unlike the
+           HUD's own row above, this one's presence can't shift End Turn/Menu sideways (§6). -->
+      <button id="hud-mandatory-action" class="btn-primary" type="button" hidden></button>
     </div>
     <!-- Canvas and panels are siblings so an open panel *takes* space rather than floating over
          the map: nothing the player might tap can end up underneath it. -->
@@ -115,6 +117,14 @@
           <div id="unit-panel-cargo" class="slot-grid"></div>
         </div>
         <div id="unit-panel-actions" class="base-panel-build-buttons"></div>
+      </div>
+      <!-- Third panel type (implementation-spec.md §7), opened by the HUD's Mandatory action
+           button (§6) rather than by selecting a hex -- lists the human's own field planes still
+           owing movement, same slot-grid chrome as a garrison/cargo list. -->
+      <div id="mandatory-action-panel" class="side-panel" hidden>
+        <button id="mandatory-action-panel-close" class="side-panel-close" type="button" aria-label="Close">&times;</button>
+        <h2 class="side-panel-title">Mandatory action</h2>
+        <div id="mandatory-action-list" class="slot-grid"></div>
       </div>
     </div>
     <div id="mid-turn-menu" hidden>

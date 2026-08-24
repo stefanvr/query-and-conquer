@@ -32,7 +32,7 @@ test("control returns to the human after every AI turn, with no silent failure",
 
   const indicator = page.locator("#hud-turn-indicator");
   const endTurn = page.locator("#end-turn-button");
-  const blocked = page.locator("#hud-end-turn-blocked");
+  const blocked = page.locator("#hud-mandatory-action");
 
   for (let turn = 1; turn <= 8; turn++) {
     // Whenever the human can act, the HUD must say so and End Turn must be usable. A turn left
@@ -70,7 +70,7 @@ test("Hard is selectable, and a match of hard AIs plays its turns without failin
   for (let turn = 1; turn <= 6; turn++) {
     await expect(page.locator("#hud-turn-indicator")).toContainText("Human");
     await expect(endTurn).toBeEnabled();
-    await expect(page.locator("#hud-end-turn-blocked")).not.toContainText("AI turn failed");
+    await expect(page.locator("#hud-mandatory-action")).not.toContainText("AI turn failed");
     await endTurn.click();
   }
 
@@ -93,6 +93,6 @@ test("rapid End Turn clicks don't desync the HUD from whose turn it is", async (
 
   await expect(page.locator("#hud-turn-indicator")).toContainText("Human");
   await expect(endTurn).toBeEnabled();
-  await expect(page.locator("#hud-end-turn-blocked")).not.toContainText("AI turn failed");
+  await expect(page.locator("#hud-mandatory-action")).not.toContainText("AI turn failed");
   expect(errors).toEqual([]);
 });

@@ -32,12 +32,32 @@ async function screenPosFor(page, col, row) {
   return { x: box.x + box.width / 2 + (p.x - base.x), y: box.y + box.height / 2 + (p.y - base.y) };
 }
 
-test("End Turn is disabled on load, naming the fighter/bomber that still owe their mandatory movement", async ({ page }) => {
+test("End Turn is disabled on load, and the Mandatory action button counts the fighter/bomber that still owe movement", async ({ page }) => {
   await expect(page.locator("#end-turn-button")).toBeDisabled();
-  const message = page.locator("#hud-end-turn-blocked");
-  await expect(message).toBeVisible();
-  await expect(message).toContainText("Fighter");
-  await expect(message).toContainText("Bomber");
+  const button = page.locator("#hud-mandatory-action");
+  await expect(button).toBeVisible();
+  await expect(button).toContainText("Mandatory action (2)");
+});
+
+test("the Mandatory action panel lists both owing planes, and clicking one jumps to it", async ({ page }) => {
+  await page.click("#hud-mandatory-action");
+  const panel = page.locator("#mandatory-action-panel");
+  await expect(panel).toBeVisible();
+  const list = page.locator("#mandatory-action-list");
+  const slots = list.locator(".slot");
+  await expect(slots).toHaveCount(2);
+  // Slot labels render upper-cased (fillSlotContent's default), unlike the unit panel's title.
+  await expect(list).toContainText(/FIGHTER/i);
+  await expect(list).toContainText(/BOMBER/i);
+
+  await slots.first().click();
+
+  // The panel is replaced by that unit's own panel (implementation-spec.md §7) -- same swap any
+  // hex selection would have done. Either owing plane is a valid outcome here; which one is first
+  // depends on save/fixture order, not something this test should couple to.
+  await expect(panel).toBeHidden();
+  await expect(page.locator("#unit-panel")).toBeVisible();
+  await expect(page.locator("#unit-panel-title")).toContainText(/Fighter|Bomber/);
 });
 
 test("selecting the human's own mountain base shows its type and Fighter/Bomber build buttons", async ({ page }) => {

@@ -86,7 +86,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
   const canvas = document.querySelector("#map-canvas");
   const turnIndicator = document.querySelector("#hud-turn-indicator");
   const endTurnButton = document.querySelector("#end-turn-button");
-  const endTurnBlockedMessage = document.querySelector("#hud-end-turn-blocked");
+  const mandatoryActionButton = document.querySelector("#hud-mandatory-action");
   const aiSpeedSelect = document.querySelector("#hud-ai-speed");
   const menuButton = document.querySelector("#menu-button");
   const midTurnMenu = document.querySelector("#mid-turn-menu");
@@ -121,6 +121,9 @@ export function initGameScreen({ onQuit, onGameOver }) {
   const unitPanelCargoSection = document.querySelector("#unit-panel-cargo-section");
   const unitPanelCargo = document.querySelector("#unit-panel-cargo");
   const unitPanelActions = document.querySelector("#unit-panel-actions");
+  const mandatoryActionPanel = document.querySelector("#mandatory-action-panel");
+  const mandatoryActionPanelClose = document.querySelector("#mandatory-action-panel-close");
+  const mandatoryActionList = document.querySelector("#mandatory-action-list");
 
   let state = null;
   let grid = null; // cached TerrainGrid — state.map is plain JSON, doesn't change during a match
@@ -150,36 +153,36 @@ export function initGameScreen({ onQuit, onGameOver }) {
     refreshEndTurnGate();
   }
 
-  /** Disables End Turn (+ a short inline message naming the blocker) while the human still has a
-   * field plane owing its mandatory movement this turn (implementation-spec.md §6/§3's Plane
-   * rearm & fuel). Call after anything that could change a plane's actionsSpentMoving or
-   * remainingActions. */
+  /** Disables End Turn (+ the Mandatory action button, §6/§7) while the human still has a field
+   * plane owing its mandatory movement this turn (implementation-spec.md §3's Plane rearm & fuel).
+   * Call after anything that could change a plane's actionsSpentMoving or remainingActions. */
   function refreshEndTurnGate() {
     // A failed AI turn outranks everything: the match can't be trusted from here, so say so and
-    // keep saying it, rather than letting the next refresh quietly clear the message.
+    // keep saying it, rather than letting the next refresh quietly clear the message. Shown on the
+    // same button, disabled -- there's nothing to open.
     if (aiTurnFailure) {
       endTurnButton.disabled = true;
-      endTurnBlockedMessage.textContent = "An AI turn failed — see the browser console. Reload to continue.";
+      mandatoryActionButton.hidden = false;
+      mandatoryActionButton.disabled = true;
+      mandatoryActionButton.textContent = "An AI turn failed — see the browser console. Reload to continue.";
       return;
     }
     const owing = planesOwingMovement(state, humanId);
-    // Also disabled while the AI is mid-turn (§11) — but with no blocker message, since that's a
-    // transient "wait your turn", not something the human can act on the way a plane's mandatory
-    // movement is.
+    // Also disabled while the AI is mid-turn (§11) — but the button itself stays whatever it was,
+    // since that's a transient "wait your turn", not something the human can act on the way a
+    // plane's mandatory movement is.
     endTurnButton.disabled = aiTurnInProgress || owing.length > 0;
-    // Content-driven, not [hidden] (implementation-spec.md §6) -- the element's own row is always
-    // reserved, empty or not, so its text changing never shifts End Turn/Menu on the row above.
+    // Hidden, not just emptied, when there's nothing to report (implementation-spec.md §6) -- the
+    // row above (End Turn/Menu) is a structurally separate flex row this one's presence can't
+    // shift sideways, so there's no jank risk left to guard against by keeping it reserved.
+    mandatoryActionButton.hidden = owing.length === 0;
     if (owing.length === 0) {
-      endTurnBlockedMessage.textContent = "";
+      if (!mandatoryActionPanel.hidden) closeMandatoryActionPanel(); // the list it showed is now empty
       return;
     }
-    endTurnBlockedMessage.textContent = owing
-      .map((u) => {
-        const stats = UNIT_TYPES[u.unitType];
-        const name = u.unitType[0].toUpperCase() + u.unitType.slice(1);
-        return `${name} still needs to move (${u.actionsSpentMoving}/${stats.actionsPerTurn / 2} AP)`;
-      })
-      .join("; ");
+    mandatoryActionButton.disabled = false;
+    mandatoryActionButton.textContent = `Mandatory action (${owing.length})`;
+    if (!mandatoryActionPanel.hidden) renderMandatoryActionPanel(); // open -- keep its list current
   }
 
   function renderBasePanel(base) {
@@ -399,6 +402,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     selectedQueueIndex = null;
     basePanel.hidden = true;
     unitPanel.hidden = true;
+    mandatoryActionPanel.hidden = true;
     camera?.resize(); // the map just reclaimed the panel's space — re-measure before any hit-test
     camera?.setSelectedHex(null);
     camera?.setActionTargets({}); // nothing selected -- no reach or targets to show (§1)
@@ -411,11 +415,52 @@ export function initGameScreen({ onQuit, onGameOver }) {
     selectedUnit = null;
     selectedQueueIndex = null;
     unitPanel.hidden = true;
+    mandatoryActionPanel.hidden = true;
     basePanel.hidden = false;
     camera.resize(); // the panel just took space from the map — re-measure before any hit-test
     camera.setSelectedHex({ col: base.col, row: base.row });
     camera.setActionTargets({}); // a base has no reach/targets of its own (§1)
     renderBasePanel(base);
+  }
+
+  /** Lists the human's own field planes still owing movement this turn (implementation-spec.md
+   * §7's Mandatory-action panel) — same slot-grid chrome as a garrison/cargo list. Clicking one
+   * jumps straight to it: centers the camera, then opens its ordinary unit panel (§3), same as
+   * selecting it on the map would have. */
+  function renderMandatoryActionPanel() {
+    mandatoryActionList.innerHTML = "";
+    for (const unit of planesOwingMovement(state, humanId)) {
+      const stats = UNIT_TYPES[unit.unitType];
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "slot";
+      fillSlotContent(el, unit.unitType, `${unit.actionsSpentMoving}/${stats.actionsPerTurn / 2} AP`);
+      el.addEventListener("click", () => {
+        camera?.centerOn(unit.col, unit.row);
+        openUnitPanel(unit); // replaces this panel the same way selecting any hex would (§7)
+      });
+      mandatoryActionList.appendChild(el);
+    }
+  }
+
+  function openMandatoryActionPanel() {
+    selectedBase = null;
+    selectedUnit = null;
+    selectedQueueIndex = null;
+    basePanel.hidden = true;
+    unitPanel.hidden = true;
+    closeUnloadPreview();
+    closeLoadPreview();
+    mandatoryActionPanel.hidden = false;
+    camera?.resize(); // the panel just took space from the map — re-measure before any hit-test
+    camera?.setSelectedHex(null);
+    camera?.setActionTargets({}); // not tied to a hex selection (§7) -- nothing of its own to show
+    renderMandatoryActionPanel();
+  }
+
+  function closeMandatoryActionPanel() {
+    mandatoryActionPanel.hidden = true;
+    camera?.resize(); // the map just reclaimed the panel's space — re-measure before any hit-test
   }
 
   /** Every hex `garrisoned` could unload onto from `container` (a base or a boat) — mirrors
@@ -480,6 +525,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
     selectedUnit = unit;
     selectedBase = null;
     basePanel.hidden = true;
+    mandatoryActionPanel.hidden = true;
     unitPanel.hidden = false;
     camera.resize(); // the panel just took space from the map — re-measure before any hit-test
     camera.setSelectedHex({ col: unit.col, row: unit.row });
@@ -768,6 +814,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
   }
 
   endTurnButton.addEventListener("click", advanceUntilHuman);
+  mandatoryActionButton.addEventListener("click", openMandatoryActionPanel);
   menuButton.addEventListener("click", openMenu);
   menuCloseButton.addEventListener("click", closeMenu);
   saveButton.addEventListener("click", () => {
@@ -789,6 +836,7 @@ export function initGameScreen({ onQuit, onGameOver }) {
   zoomOutButton.addEventListener("click", () => camera?.zoomOut());
   basePanelClose.addEventListener("click", closeAllPanels);
   unitPanelClose.addEventListener("click", closeAllPanels);
+  mandatoryActionPanelClose.addEventListener("click", closeMandatoryActionPanel);
 
   return {
     start(newState) {
