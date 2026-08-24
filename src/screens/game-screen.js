@@ -433,6 +433,9 @@ export function initGameScreen({ onQuit, onGameOver }) {
     basePanel.hidden = true;
     unitPanel.hidden = true;
     camera?.resize(); // the map just reclaimed the panel's space — re-measure before any hit-test
+    // The previous selection's move/attack/claim overlay belongs to a selection this picker has
+    // already replaced -- leaving it on screen would be a stale reading (implementation-spec.md §1).
+    camera?.setActionTargets({});
     camera.setPendingUnload({
       col: container.col,
       row: container.row,
@@ -458,6 +461,9 @@ export function initGameScreen({ onQuit, onGameOver }) {
     basePanel.hidden = true;
     unitPanel.hidden = true;
     camera?.resize(); // the map just reclaimed the panel's space — re-measure before any hit-test
+    // Same reasoning as openUnloadPreview above: don't leave the unit's own move/attack/claim
+    // overlay showing once its selection has become this picker instead.
+    camera?.setActionTargets({});
     camera.setPendingLoadTargets(computeLoadTargets(unit));
   }
 
@@ -550,14 +556,6 @@ export function initGameScreen({ onQuit, onGameOver }) {
     }
     if (pendingUnload) {
       const { containerType, container, garrisoned } = pendingUnload;
-      if (col === container.col && row === container.row) {
-        // Clicking the container (== the previewed unit's own hex, since its token draws on top
-        // of it) cancels back to its panel (implementation-spec.md §1).
-        closeUnloadPreview();
-        if (containerType === "base") openBasePanel(container);
-        else openUnitPanel(container); // a boat is a field unit -- reselect it
-        return;
-      }
       const targets = computeUnloadTargets(container, garrisoned);
       if (targets.some((t) => t.col === col && t.row === row)) {
         if (containerType === "base") unloadUnit(state, grid, container.id, garrisoned.id, col, row, humanId);
@@ -568,17 +566,17 @@ export function initGameScreen({ onQuit, onGameOver }) {
         redraw();
         return;
       }
-      return; // anything else: no-op, stays in the picker
+      // Anything else -- the container hex, the previewed unit's own hex, or any other hex --
+      // cancels back to the container's own panel (implementation-spec.md §1). No silent no-op:
+      // a stray tap now visibly leaves the picker rather than stranding the player in it.
+      closeUnloadPreview();
+      if (containerType === "base") openBasePanel(container);
+      else openUnitPanel(container); // a boat is a field unit -- reselect it
+      return;
     }
 
     if (pendingLoad) {
       const unit = pendingLoad;
-      if (col === unit.col && row === unit.row) {
-        // Clicking the unit's own hex cancels back to its panel (implementation-spec.md §1).
-        closeLoadPreview();
-        openUnitPanel(unit);
-        return;
-      }
       const targets = computeLoadTargets(unit);
       if (targets.some((t) => t.col === col && t.row === row)) {
         const targetBase = baseAtHex(state, col, row);
@@ -597,7 +595,12 @@ export function initGameScreen({ onQuit, onGameOver }) {
         redraw();
         return;
       }
-      return; // anything else: no-op, stays in the picker
+      // Anything else -- the unit's own hex, or any other hex -- cancels back to the unit's own
+      // panel, unit still selected (implementation-spec.md §1). No silent no-op: a stray tap now
+      // visibly leaves the picker rather than stranding the player in it.
+      closeLoadPreview();
+      openUnitPanel(unit);
+      return;
     }
 
     // Attack & claim targeting (implementation-spec.md §1) takes priority over Movement
