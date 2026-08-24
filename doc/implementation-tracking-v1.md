@@ -372,26 +372,21 @@ for what changed and why.*
       since Stage 5 — the e2e suite now runs every test on both viewports. *(Landed while this
       was still filed under the old Stage 13, before the split above — kept here since this is
       where the rest of the UI/UX pass now lives.)*
-- [ ] Unit panel: SP/AP/strikes/fuel move inline with the title on narrow viewports
-      (implementation-spec.md §3) — first instance of a pattern meant for reuse in a later panel
-      GUI-style pass, put first in this stage for that reason
-- [ ] Load/unload destination picker: dim (suppress) the stale move/attack/claim overlay while a
+- [x] Unit panel: SP/AP/strikes/fuel move inline with the title on narrow viewports
+      (implementation-spec.md §3) — see "Unit panel: stats inline with the title on narrow
+      viewports"; first instance of a pattern meant for reuse in a later panel GUI-style pass
+- [x] Load/unload destination picker: dim (suppress) the stale move/attack/claim overlay while a
       picker is open, and cancel back to the relevant panel on any click that isn't a highlighted
-      destination, not just the container/unit's own hex (implementation-spec.md §1) — applies to
-      both pickers alike, a deliberate consistency call made during spec sign-off
-- [ ] HUD: reserve space for the "plane still owes its movement" notice so it stops shoving End
-      Turn/Menu sideways when it appears/disappears — sized and worded generically so the same
-      slot covers a future "you still owe an action" case beyond planes (implementation-spec.md §6)
-- [ ] Move the AI speed control (Instant/Fast/Slow) out of the HUD and into the mid-turn menu
-      (implementation-spec.md §6/§8) — confirmed it stays reachable while an AI turn is animating,
-      since the menu's own entry point isn't turn-gated in code
+      destination (implementation-spec.md §1) — see "Load/unload picker: dim the stale range
+      overlay, cancel from anywhere"; applies to both pickers, a consistency call made at sign-off
+- [x] HUD: reserve space for the "plane still owes its movement" notice, and move AI speed
+      (Instant/Fast/Slow) out of the HUD into the mid-turn menu (implementation-spec.md §6/§8) —
+      see "HUD: reserve space for the End Turn blocker notice; move AI speed to the mid-turn menu"
 - [ ] On mobile, selecting a tank opens its panel with the Load button below the fold, so the
       unit's only action is invisible until scrolled to. Selecting a boat (carrier/transporter)
-      afterwards renders correctly, and the tank does too from then on — so the content isn't
-      too tall for the panel as such, the *first* render just lays out against a stale or
-      not-yet-settled panel box, suspected mobile-Safari viewport-height settling
-      (implementation-spec.md §3). Found on a real device; the fix here is best-effort and stays
-      open until confirmed there
+      afterwards renders correctly, and the tank does too from then on. Suspected cause and a
+      best-effort fix landed — see "Mobile panel: dvh alongside vh for the side-panel max-height"
+      — but stays open pending confirmation on the real device that found it
 - [x] No dedicated attack/capture animation or toast — closed by decision during Stage 14's plan
       review, not left open any longer: the base/unit panel's own SP/owner display
       (implementation-spec.md §2/§3) and the map's own token/marker removal on death are the v1
