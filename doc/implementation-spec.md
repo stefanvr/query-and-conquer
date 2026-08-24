@@ -532,25 +532,52 @@ cells and units)*
 the mid-turn menu)*
 - Persistent bar: current player/turn indicator, End Turn button, Menu button.
 - End Turn is disabled while the human player has any field plane that still owes its mandatory
-  movement this turn (§3's Plane rearm & fuel) — an inline message names the blocking unit(s) by
-  type, e.g. "Fighter still needs to move (2/4 AP)". This button is only how the rule is
-  *presented* to the human — the rule itself binds every player, and an AI turn satisfies it
-  directly (§11) rather than being exempt for want of a button to disable.
-- That message's slot reserves its own space in the HUD row rather than the bar reflowing around
-  whether it's present — appearing/disappearing (a plane starting or finishing its mandatory
-  movement) used to shove End Turn/Menu sideways mid-interaction, a moving target for a tap. Sized
-  for the longest realistic message so the reservation itself doesn't reflow as the wording
-  changes; empty rather than `hidden` when there's nothing to say, so the same reserved slot is
-  ready for the next "you still owe an action before ending the turn" case beyond planes, without
-  another one-off.
+  movement this turn (§3's Plane rearm & fuel). This button is only how the rule is *presented* to
+  the human — the rule itself binds every player, and an AI turn satisfies it directly (§11)
+  rather than being exempt for want of a button to disable.
+- **Mandatory action button**, in the row below `hud-main-row` (same slot the old inline message
+  used): a full-width button reading "Mandatory action (N)", N = the count of the human's own
+  field planes still owing movement. Replaces an earlier version of this notice that named every
+  owing plane inline by type (e.g. "Fighter still needs to move (2/4 AP); Bomber still needs to
+  move (1/3 AP)") — that didn't scale, since the message grows without bound as more planes owe
+  movement at once, eventually wrapping past the row reserved for it. A count is bounded no matter
+  how many planes owe movement; the button (§7 below) is where the *names* live instead.
+- Hidden (not merely emptied) when the count is 0 — unlike the row's own earlier "always reserve,
+  content-driven" rule, hiding it no longer risks shoving End Turn/Menu sideways: those buttons
+  live in `hud-main-row` above, a structurally separate row this one's presence can't reach
+  sideways into. Only the row below shifts vertically as this one comes and goes, a smaller
+  concern than the original sideways-tap-target bug this whole notice exists to avoid.
+- Clicking it opens the mandatory-action panel (§7) in the side-panel slot, replacing whatever
+  base/unit panel was open there.
+- One element serves both this and the pre-existing AI-turn-failure notice (§11): on that failure,
+  it shows the failure text disabled (unclickable — there's nothing to open) rather than the
+  mandatory-action count, and that check still outranks this one exactly as it did before. The two
+  conditions can't overlap in practice (a thrown AI turn is treated as unrecoverable), so one
+  element covering both isn't a real ambiguity, just reuse of the one reserved slot.
 - Entry point (button/icon) opening the mid-turn menu (§8, which now also hosts AI-speed — moved
   out of the HUD to spare mobile's limited bar width for a control set rarely).
 
 ## 7. Side menu & selection panel
 *(app-only — the contextual detail/action panel shown for whatever's currently selected, base
 or unit; hosts the interaction described in §2/§3 above)*
-- Two panel types (base panel §2, unit panel §3), same side-panel chrome, swapped by what's
-  currently selected (§1) — never both at once, since only one hex can be selected at a time.
+- Three panel types (base panel §2, unit panel §3, mandatory-action panel below), same side-panel
+  chrome, swapped by what's currently selected or otherwise active (§1) — never more than one at
+  once. The third type isn't tied to hex selection like the other two; opening it (§6) replaces
+  whichever of the other two was showing, the same way selecting a different hex would.
+
+### Mandatory-action panel
+- Opened by the HUD's Mandatory action button (§6). Lists every one of the human's own field
+  planes still owing movement this turn, one slot each — same `.slot-grid` chrome as a base's
+  garrison or a boat's cargo (§2/§3, style-guide.md §9): unit-type shape icon + label, second line
+  showing the same progress fraction the button's predecessor used to show inline
+  (`actionsSpentMoving/half of actionsPerTurn AP`, §3's Plane rearm & fuel).
+- Clicking a slot closes the panel and jumps to that unit: centers the map camera on its hex (§1),
+  then opens its ordinary unit panel (§3) — the same panel selecting it on the map would have
+  opened. Nothing loops back to this list automatically once that unit is dealt with; reopening
+  the Mandatory action button shows whoever's still left.
+- Nothing else is clickable in this panel — no close button of its own beyond the shared
+  side-panel one, since selecting anything else (a hex, another panel) already replaces it the
+  same way it replaced whatever was open before it.
 
 ## 8. Menus & screens
 *(app-only — start screen, main menu (new game / load game), game options menu, mid-turn menu

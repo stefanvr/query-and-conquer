@@ -391,16 +391,10 @@ for what changed and why.*
       review, not left open any longer: the base/unit panel's own SP/owner display
       (implementation-spec.md §2/§3) and the map's own token/marker removal on death are the v1
       answer in full
-- [ ] `unit-movement.spec.js`'s "moving the tank to an adjacent hex" failed twice in about
-      sixteen full-suite runs during Stage 12, then passed twelve consecutive runs and always
-      passes in isolation. Both failures were in runs that took 30s and 15s against a normal
-      6–7s, so machine load is the likely cause rather than a logic defect — but the test
-      computes a screen position from the canvas box and assumes the camera is still centred on
-      the base at the default hex size, and canvas re-measurement became asynchronous
-      (`ResizeObserver`) in the panel-overlay fix above. A widened timing window under load fits
-      what was seen. Not chased further because it wouldn't reproduce; if it resurfaces, the fix
-      is to make the test wait for stable canvas dimensions rather than assuming them. Watch-item,
-      not an open task
+- [ ] The mandatory-movement notice (added above) names every owing plane inline by type — doesn't
+      scale: with several planes owing movement at once the message grows without bound, wrapping
+      past the row reserved for it. Fell off the radar until now; see implementation-spec.md §6/§7
+      for the button+list replacement
 
 ## Stage 15 — Balance & gameplay
 *A real-play pass rather than a code-correctness one: settling the open design questions that
@@ -434,6 +428,16 @@ balance have their own stages above.*
 - [ ] Edge-case sweep against query-and-conquer.md
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
+- [ ] Moved from Stage 14: `unit-movement.spec.js`'s "moving the tank to an adjacent hex" failed
+      twice in about sixteen full-suite runs during Stage 12, then passed twelve consecutive runs
+      and always passes in isolation. Both failures were in runs that took 30s and 15s against a
+      normal 6–7s, so machine load is the likely cause rather than a logic defect — but the test
+      computes a screen position from the canvas box and assumes the camera is still centred on
+      the base at the default hex size, and canvas re-measurement became asynchronous
+      (`ResizeObserver`) in Stage 14's panel-overlay fix. A widened timing window under load fits
+      what was seen. Not chased further because it wouldn't reproduce; if it resurfaces, the fix
+      is to make the test wait for stable canvas dimensions rather than assuming them. Watch-item,
+      not an open task
 
 ---
 
