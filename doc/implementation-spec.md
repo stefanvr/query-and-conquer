@@ -109,10 +109,15 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   either **open terrain** (passable for its type, unoccupied, affordable within its full action
   budget) or **an adjacent friendly boat** whose hold accepts this unit's category and still has
   room (§3's Cargo).
-- Clicking the base/boat hex, or the previewed unit's own hex, cancels back to its panel.
-  Clicking a highlighted hex confirms — the unit either becomes a field unit there, or joins that
-  boat's cargo — and its unit panel opens if it's a field unit afterward (§3). Clicking anything
-  else is a no-op; stays in preview mode.
+- Whatever move/attack/claim overlay (§1's Movement targeting / Attack & claim targeting) was
+  showing before the picker opened is suppressed for its duration — only the picker's own
+  highlighted destinations (style-guide.md §8's Load/unload destination overlay) show. That
+  overlay belonged to a selection the picker has already replaced, so leaving it on screen is a
+  stale reading, not a real one.
+- Clicking anything that isn't a highlighted destination — the base/boat hex, the previewed
+  unit's own hex, or any other hex — cancels back to the container's own panel. Clicking a
+  highlighted hex confirms — the unit either becomes a field unit there, or joins that boat's
+  cargo — and its unit panel opens if it's a field unit afterward (§3).
 - Unloading straight into a boat costs **2**: 1 for the load/unload action itself (game spec §3),
   + 1 as the floor every move pays. No terrain is crossed — the unit goes hold to hold, and each
   container's own cell is impassable to the other's occupant anyway — but a transfer must not come
@@ -130,11 +135,13 @@ mouse — see tech-stack.md's Mobile & touch support section.)*
   its own (to inspect or act on later), so a plain click-to-load with no explicit mode-entry step
   would collide with that — especially on touch, with no hover to disambiguate intent first.
 - Clicking it doesn't act immediately: it closes the unit panel and enters load-preview mode,
-  mirroring the unload picker above — every valid adjacent base/boat highlights.
-- Clicking the unit's own hex cancels back to its panel. Clicking a highlighted hex confirms —
-  loads the unit into that base or boat (§2/§3); its panel opens if it's still a field unit
-  afterward, otherwise the map/HUD alone reflects the change. Clicking anything else is a no-op;
-  stays in preview mode.
+  mirroring the unload picker above — every valid adjacent base/boat highlights, and whatever
+  move/attack/claim overlay the unit's own selection was showing is suppressed for the picker's
+  duration, same reasoning as the unload picker above.
+- Clicking anything that isn't a highlighted destination — the unit's own hex, or any other
+  hex — cancels back to the unit's own panel, unit still selected. Clicking a highlighted hex
+  confirms — loads the unit into that base or boat (§2/§3); its panel opens if it's still a field
+  unit afterward, otherwise the map/HUD alone reflects the change.
 
 ### Attack & claim targeting
 - With a unit selected, tapping/clicking a hex resolves in priority order before falling back to
@@ -353,8 +360,23 @@ load/unload and cargo interaction)*
   (category `plane`), also shows strikes remaining (`maxStrikes - strikesUsed`, e.g. `3/4`) and
   fuel remaining (`roundTripRange - cellsFlown`, e.g. `62/100`) — same plain-text treatment as
   SP/AP (style-guide.md §8).
+- Narrow viewports (the side-panel's own `max-width: 700px` stacked-layout breakpoint, §1): the
+  stat lines (SP, AP, and — for a plane — strikes/fuel) move inline alongside the unit-type title
+  instead of stacking below it, trimming vertical space so more of the panel (notably the Load
+  button) stays above the fold without scrolling on a short viewport. Wide viewports keep today's
+  stacked layout. First instance of a title-row-with-inline-stats pattern, ahead of a broader
+  panel GUI-style pass still to come — reuse it there rather than one-off. Base panel is
+  unaffected for now.
 - Load button: single button, shown whenever at least one adjacent base or boat could accept
   this unit (§1's Load destination picker) — opens the picker rather than acting immediately.
+- **Best-effort mobile fix, needs on-device confirmation:** reported on a real phone — a tank's
+  panel first opens with the Load button below the fold (needs scrolling to reach), a boat's
+  panel afterward renders correctly, and the tank does too from then on. Suspected cause: mobile
+  Safari's viewport height hasn't settled (URL-bar collapse animation) on the very first layout,
+  so the panel's `max-height: 45vh` (§1) is briefly wrong. Fix: force a second layout pass shortly
+  after the panel's first open this session, same reasoning as §1's canvas `ResizeObserver`
+  re-measure. Unverified without the device that found it — implementation-tracking-v1.md's Stage
+  14 checklist stays open on this item until confirmed there.
 
 ### Plane rearm & fuel (game spec §3's Generic Planes rules)
 - A plane field unit carries three extra counters beyond the fields every field unit has (§3
@@ -423,9 +445,9 @@ indicators)*
 - Neutral base: steel-gray owner stroke instead of a player accent color (map-canvas.js's
   `ownerColorVar`, extended with a "no owner" case) — same treatment the base panel's owner line
   uses (§2).
-- No dedicated attack/capture animation or toast for v1 — the base/unit panel's own SP/owner
-  display (§2/§3, already live) and the map's own token/marker removal on death are the only
-  feedback. A full pass on this belongs to Stage 14's UI/UX polish, not here.
+- No dedicated attack/capture animation or toast for v1 — settled, not still open. The base/unit
+  panel's own SP/owner display (§2/§3, already live) and the map's own token/marker removal on
+  death are the feedback for v1 in full.
 
 ## 5. Fog of war
 *(game spec §6 — visual treatment of hidden / explored-but-not-visible / currently-visible
@@ -503,19 +525,23 @@ cells and units)*
   fog-of-war coverage that dedicated node:test/e2e coverage doesn't already provide more directly.
 
 ## 6. HUD
-*(app-only — persistent on-screen chrome: turn/player indicator, end-turn control, AI-speed
-control, entry point to the mid-turn menu)*
-- Persistent bar: current player/turn indicator, End Turn button.
-- End Turn is disabled, with a short inline message below the button, while the human player has
-  any field plane that still owes its mandatory movement this turn (§3's Plane rearm & fuel) —
-  message names the blocking unit(s) by type, e.g. "Fighter still needs to move (2/4 AP)".
-  This button is only how the rule is *presented* to the human — the rule itself binds every
-  player, and an AI turn satisfies it directly (§11) rather than being exempt for want of a
-  button to disable.
-- Entry point (button/icon) opening the mid-turn menu (§8).
-- AI-speed select (Instant / Fast / Slow, game spec §7) — HUD chrome rather than a game option,
-  since it's changeable mid-match and changes nothing about the match's own rules or save. See
-  §11's Pacing & HUD control for what each setting does.
+*(app-only — persistent on-screen chrome: turn/player indicator, end-turn control, entry point to
+the mid-turn menu)*
+- Persistent bar: current player/turn indicator, End Turn button, Menu button.
+- End Turn is disabled while the human player has any field plane that still owes its mandatory
+  movement this turn (§3's Plane rearm & fuel) — an inline message names the blocking unit(s) by
+  type, e.g. "Fighter still needs to move (2/4 AP)". This button is only how the rule is
+  *presented* to the human — the rule itself binds every player, and an AI turn satisfies it
+  directly (§11) rather than being exempt for want of a button to disable.
+- That message's slot reserves its own space in the HUD row rather than the bar reflowing around
+  whether it's present — appearing/disappearing (a plane starting or finishing its mandatory
+  movement) used to shove End Turn/Menu sideways mid-interaction, a moving target for a tap. Sized
+  for the longest realistic message so the reservation itself doesn't reflow as the wording
+  changes; empty rather than `hidden` when there's nothing to say, so the same reserved slot is
+  ready for the next "you still owe an action before ending the turn" case beyond planes, without
+  another one-off.
+- Entry point (button/icon) opening the mid-turn menu (§8, which now also hosts AI-speed — moved
+  out of the HUD to spare mobile's limited bar width for a control set rarely).
 
 ## 7. Side menu & selection panel
 *(app-only — the contextual detail/action panel shown for whatever's currently selected, base
@@ -554,7 +580,14 @@ or unit; hosts the interaction described in §2/§3 above)*
   turn order, navigates to the game screen.
 
 ### Mid-turn menu
-- Reached via the HUD's entry point (§6), any time during the human player's own turn.
+- Reached via the HUD's entry point (§6). The entry point itself isn't gated to the human's own
+  turn — the menu can open while an AI turn is animating too, which matters for AI-speed below.
+- AI-speed select (Instant / Fast / Slow, game spec §7) sits above the three actions, changeable
+  any time the menu is open — including mid-cascade during an AI's own turn, unlike the three
+  actions below, which all require it being the human's own turn to make sense. Moved here from
+  the HUD (§6): app chrome rather than a game option, since it's changeable mid-match and changes
+  nothing about the match's own rules or save. See §11's Pacing & HUD control for what each
+  setting does.
 - Three actions, in this order: Save (§10), Surrender (instant elimination — irreversible;
   shows an in-app confirmation panel, not a native `confirm()`, before applying), Quit (return
   to main menu; save slot untouched).

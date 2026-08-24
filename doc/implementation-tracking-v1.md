@@ -352,7 +352,17 @@ catch-all into four focused stages".*
 - [x] *Resolved* — no more hex-misc items surfaced beyond the two above.
 
 ## Stage 14 — UI/UX pass
-- [ ] Spec
+
+**Try it:** on a phone-width viewport, select a plane mid-move (HUD notice appears without
+shifting End Turn/Menu), select a tank (its stats sit inline with the title, Load button visible
+without scrolling), open its Load picker (range dims to just the highlighted destinations, tap
+anywhere else to cancel back to the panel with the unit still selected), then open the mid-turn
+menu and change AI speed there instead of in the HUD.
+
+*Plan revised before starting (workflow.md step 1) — see "Stage 14: plan review and spec sign-off"
+for what changed and why.*
+
+- [x] Spec — see "Stage 14: plan review and spec sign-off"
 - [x] An open side panel could overlap the map, so a tap meant for a hex hit the panel instead —
       worst on narrow viewports where it covered canvas-centre, but it hid the zoom buttons at
       any width. Fixed by making the panel a layout sibling of the canvas rather than an overlay:
@@ -362,26 +372,30 @@ catch-all into four focused stages".*
       since Stage 5 — the e2e suite now runs every test on both viewports. *(Landed while this
       was still filed under the old Stage 13, before the split above — kept here since this is
       where the rest of the UI/UX pass now lives.)*
+- [ ] Unit panel: SP/AP/strikes/fuel move inline with the title on narrow viewports
+      (implementation-spec.md §3) — first instance of a pattern meant for reuse in a later panel
+      GUI-style pass, put first in this stage for that reason
+- [ ] Load/unload destination picker: dim (suppress) the stale move/attack/claim overlay while a
+      picker is open, and cancel back to the relevant panel on any click that isn't a highlighted
+      destination, not just the container/unit's own hex (implementation-spec.md §1) — applies to
+      both pickers alike, a deliberate consistency call made during spec sign-off
+- [ ] HUD: reserve space for the "plane still owes its movement" notice so it stops shoving End
+      Turn/Menu sideways when it appears/disappears — sized and worded generically so the same
+      slot covers a future "you still owe an action" case beyond planes (implementation-spec.md §6)
+- [ ] Move the AI speed control (Instant/Fast/Slow) out of the HUD and into the mid-turn menu
+      (implementation-spec.md §6/§8) — confirmed it stays reachable while an AI turn is animating,
+      since the menu's own entry point isn't turn-gated in code
 - [ ] On mobile, selecting a tank opens its panel with the Load button below the fold, so the
       unit's only action is invisible until scrolled to. Selecting a boat (carrier/transporter)
       afterwards renders correctly, and the tank does too from then on — so the content isn't
       too tall for the panel as such, the *first* render just lays out against a stale or
-      not-yet-settled panel box. Found on a real device, after the overlay fix above
-- [ ] The "plane still owes its movement" HUD notice (`#hud-end-turn-blocked`) is an element
-      that appears and disappears in the HUD row, shoving End Turn and Menu sideways on mobile
-      — a moving target for a tap. Wants a solution that scales: this is the first
-      "you still owe an action before you can end the turn" notice, not the last, so reserving
-      space or moving the notice out of the button row should hold for the next one too,
-      rather than being special-cased for planes
-- [ ] Move the AI speed control (Instant/Fast/Slow) out of the HUD and into the in-game menu.
-      It was put in the HUD as chrome rather than a game option (spec §6/§11) since it's
-      changeable mid-match and affects nothing about the match's rules or its save — but it
-      costs permanent HUD width for something set rarely, which mobile can't spare. Moving it
-      means updating that §6/§11 reasoning and the `#hud-ai-speed` e2e coverage, not just the
-      markup
-- [ ] No dedicated attack/capture animation or toast — the base/unit panel's own SP/owner
-      display (implementation-spec.md §2/§3, already live) and the map's own token/marker removal
-      on death are the only feedback right now. Deferred here since Stage 4/6
+      not-yet-settled panel box, suspected mobile-Safari viewport-height settling
+      (implementation-spec.md §3). Found on a real device; the fix here is best-effort and stays
+      open until confirmed there
+- [x] No dedicated attack/capture animation or toast — closed by decision during Stage 14's plan
+      review, not left open any longer: the base/unit panel's own SP/owner display
+      (implementation-spec.md §2/§3) and the map's own token/marker removal on death are the v1
+      answer in full
 - [ ] `unit-movement.spec.js`'s "moving the tank to an adjacent hex" failed twice in about
       sixteen full-suite runs during Stage 12, then passed twelve consecutive runs and always
       passes in isolation. Both failures were in runs that took 30s and 15s against a normal
@@ -390,7 +404,8 @@ catch-all into four focused stages".*
       the base at the default hex size, and canvas re-measurement became asynchronous
       (`ResizeObserver`) in the panel-overlay fix above. A widened timing window under load fits
       what was seen. Not chased further because it wouldn't reproduce; if it resurfaces, the fix
-      is to make the test wait for stable canvas dimensions rather than assuming them
+      is to make the test wait for stable canvas dimensions rather than assuming them. Watch-item,
+      not an open task
 
 ## Stage 15 — Balance & gameplay
 *A real-play pass rather than a code-correctness one: settling the open design questions that
