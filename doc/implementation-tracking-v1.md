@@ -419,21 +419,42 @@ here in full — decided-on-paper-only tuning content doesn't belong in a doc me
 settled rules (workflow.md's "when a rule turns out to be wrong" applies in reverse: this is
 content that was never a rule to begin with). Whatever gets decided writes back into
 query-and-conquer.md as ordinary rule text; §9 itself goes away once nothing is left open there.*
-- [ ] Spec
+
+*Plan reviewed before starting (workflow.md step 1): the questionnaire still holds — nothing in
+Stages 13/14 touched AI difficulty, plane movement, rearm, or mountain bases. Two corrections:
+game spec §9 has already been fully extracted (it's gone from query-and-conquer.md; this
+checklist already carries its content, so there's no separate move-the-section step left to do),
+and "the Stage 12 manual match test" doesn't refer to existing notes — Stage 12's own "Try it" was
+verified by a 30-match seeded simulation, not an actually-watched match, so that bullet just means
+folding in whatever this stage's own play surfaces. Sequencing agreed with the user: mountain-base
+first (zero setup, the dev save already has the fixture), then Hard-vs-Easy feel + plane
+purposefulness together in one match, then rearm timing last (needs a dev-only toggle built first
+to compare against, agreed with the user rather than assumed).*
+
+- [x] Ad hoc, found during plan review: `assets/dev-save.json` was stale — regenerating it (no
+      code changes, same seed) added one neutral base that wasn't there before, Stage 13's own
+      neutral-base seeding never having been reflected in the committed save. Confirmed via a
+      structural diff that nothing else changed (map, units, the other bases all identical bar an
+      id renumbering to make room) and the full suite still passes — base ids aren't referenced by
+      number anywhere in code or tests, only by position, so the shift is harmless
+- [ ] Spec — implementation-spec.md §3's Plane rearm & fuel section already flags the rearm-timing
+      question as open; update it (and any other affected section) once each questionnaire item
+      resolves, not upfront — there's no new UX to spec ahead of a decision that doesn't exist yet
 - [ ] Gameplay questionnaire — gaps a played match can surface that a seeded sim or a unit test
       structurally can't (a sim has no opinion on whether something *feels* right):
+  - Mountain-base takedown (moved from game spec §9): does the Bomber+Fighter pairing the
+      strength table implies feel like an intended combined-arms puzzle, or genuinely too hard?
+      If too hard: lower mountain-base strength, raise Fighter's ground attack, or leave it and
+      document the pairing as the intended cost
   - Does Hard AI feel meaningfully stronger than Easy in a real match, or does the measured 1.38×
       action-tempo gap (Stage 12) read as too close for the difficulty label to be honest?
   - Now that an AI's planes are held to the mandatory ≥50% movement rule (Stage 12), does a
       Hard AI's plane use look purposeful in a real game, or does the forced movement read as
       erratic/wasteful?
-  - Plane rearm/refuel timing (moved from game spec §9): instant, same-turn rearm vs. resolving
-      at the owner's next turn-start — play both and compare tempo, don't just reason about it
-  - Mountain-base takedown (moved from game spec §9): does the Bomber+Fighter pairing the
-      strength table implies feel like an intended combined-arms puzzle, or genuinely too hard?
-      If too hard: lower mountain-base strength, raise Fighter's ground attack, or leave it and
-      document the pairing as the intended cost
-  - Anything else surfaced by the Stage 12 manual match test
+  - Plane rearm/refuel timing: instant, same-turn rearm vs. resolving at the owner's next
+      turn-start — play both and compare tempo via a temporary dev-only toggle, don't just reason
+      about it
+  - Anything else surfaced along the way
 - [ ] Decide and implement whatever the questionnaire above settles; fold each resolved question
       back into query-and-conquer.md's normal rule text (not a new open-questions appendix)
 
