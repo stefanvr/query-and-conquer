@@ -474,6 +474,11 @@ building a feature; normal branch discipline resumes once this stage wraps.*
       as 3 tanks before the first plane on re-verification. See "AI build order: weight Tank..."
       and its follow-up "AI build order: fix the head start..." commits, and query-and-conquer.md
       §8
+  - **Resolved:** user's finding — Defensive/Balanced units run from fights instead of landing a
+      last hit, and only fight once truly cornered. Traced to `retreatToRepair` being rule 1 for
+      both strategies, gated on *any* damage at all, ahead of every attack rule. Fixed with a 50%
+      SP threshold plus a kill-shot override (take a lethal attack regardless of own damage) — see
+      "AI: don't flee a kill, and don't flee a scratch" and query-and-conquer.md §8
   - Anything else surfaced along the way
 - [ ] Decide and implement whatever the questionnaire above settles; fold each resolved question
       back into query-and-conquer.md's normal rule text (not a new open-questions appendix)

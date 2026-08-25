@@ -341,20 +341,27 @@ aggressive one committing everything) is a candidate refinement, not v1 behavior
 - Target priority: lowest remaining strength (finish off weakened targets).
 
 **Defensive**
-1. If damaged and a friendly base can repair it this turn, retreat toward it.
-2. Else attack an enemy in range that's threatening a friendly base (within that base's view).
-3. Else hold near the nearest friendly base — only move toward it if farther away than
+1. If a lined-up attack would destroy an enemy unit outright, take it — regardless of this unit's
+   own damage (Stage 15: a unit one hit from repair shouldn't flee past one it's also one hit from
+   destroying).
+2. Else, if below half its own strength and a friendly base can repair it this turn, retreat
+   toward it (Stage 15: "any damage at all" read too twitchy in practice — a scratch shouldn't
+   send a unit running from a fight it's still winning).
+3. Else attack an enemy in range that's threatening a friendly base (within that base's view).
+4. Else hold near the nearest friendly base — only move toward it if farther away than
    (that base's view + this unit's view). E.g. a tank near a land base: 4 + 3 = 7 cells.
-4. Idle at full strength with no threat present, and not capture-eligible or no known unclaimed
+5. Idle at full strength with no threat present, and not capture-eligible or no known unclaimed
    base exists: takes no action (unused budget is intentional).
-5. Else (capture-eligible, a known unclaimed base exists, and rules 1–4 found nothing to do):
+6. Else (capture-eligible, a known unclaimed base exists, and rules 1–5 found nothing to do):
    pathfind toward the nearest known unclaimed base to expand.
 - Build order: cheapest to most expensive by bbt — Tank/Transporter (1×) > Fighter (2×) >
   Fregat (3×) > Bomber (5×) > Carrier (8×).
 - Target priority: highest attack value first (neutralize the biggest threat, not the easiest kill).
 
 **Balanced**
-1. If damaged, retreat to repair (as Defensive).
+1. If a lined-up attack would destroy an enemy unit outright, take it, regardless of this unit's
+   own damage; else if below half its own strength and a friendly base can repair it this turn,
+   retreat toward it (as Defensive, Stage 15).
 2. Else attack an enemy in range.
 3. Else, if a known unclaimed base exists and this unit can capture it, move toward it.
 4. Else move toward the nearest known enemy — but never leave a player owned base with zero units, either units in view

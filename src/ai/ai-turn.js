@@ -173,6 +173,28 @@ function repairBases(ctx) {
   return ctx.ownBases.filter((b) => b.garrison.length + (b.inProgress ? 1 : 0) < MAX_BASE_CAPACITY);
 }
 
+/** Below this fraction of max SP, a unit is considered "hurt enough to retreat" (Stage 15 balance
+ * pass) — above it, retreatToRepair below steps aside and lets the strategy's own attack rule run
+ * as if the unit weren't damaged at all. The literal game-spec wording ("if damaged... retreat")
+ * read as "any damage at all", which sent a unit running from a fair fight over a single scratch
+ * — confirmed by the user in a real match, not just a theoretical reading. */
+const RETREAT_SP_THRESHOLD = 0.5;
+
+/** An enemy unit `unit` could destroy outright with an attack right now, if any — used to let a
+ * unit finish a kill before retreatToRepair pulls it away, regardless of how damaged the unit
+ * itself is. Bases are deliberately excluded: a base's own garrison-then-SP damage order (game
+ * spec §4) makes "lethal in one hit" a much murkier question than for a unit, and isn't the "runs
+ * from a last attack" case this exists for. */
+function lethalTargetInRange(ctx, unit) {
+  const { state, grid } = ctx;
+  const stats = UNIT_TYPES[unit.unitType];
+  return ctx.enemyUnits.find((e) => {
+    if (!isValidAttackTarget(state, grid, unit, e)) return false;
+    const damage = UNIT_TYPES[e.unitType].targetType === "air" ? stats.airAtk : stats.groundAtk;
+    return damage >= e.sp;
+  });
+}
+
 /** Moves toward `base` and *arrives*: claims it if it's adjacent and claimable right now,
  * otherwise takes a naive step. Shared by every "move toward an unclaimed base" rule. */
 function approachAndClaim(ctx, unit, base) {
@@ -309,10 +331,19 @@ const RULES = {
     return frontier ? ctx.traits.stepToward(ctx, unit, frontier) : null;
   },
 
-  /** If damaged and a friendly base has room, head back to it (and enter, once adjacent). */
+  /** If hurt (below RETREAT_SP_THRESHOLD) and a friendly base has room, head back to it (and
+   * enter, once adjacent) — unless there's a kill on the table right now, which this unit takes
+   * regardless of its own damage (Stage 15 balance pass, see lethalTargetInRange above): a unit
+   * one hit from repair shouldn't flee past an enemy it's also one hit from destroying. */
   retreatToRepair(ctx, unit) {
     const { state, grid, playerId } = ctx;
-    if (unit.sp >= unit.maxSp) return null;
+    if (unit.sp >= unit.maxSp) return null; // full health -- the next rule's own attack check applies
+    const target = lethalTargetInRange(ctx, unit);
+    if (target) {
+      attackUnit(state, grid, unit.id, target.id, playerId);
+      return { type: "attackUnit", unitId: unit.id, targetId: target.id };
+    }
+    if (unit.sp >= unit.maxSp * RETREAT_SP_THRESHOLD) return null; // hurt, but not badly enough yet
     const base = nearest(unit, repairBases(ctx));
     if (!base) return null;
     if (isValidLoadTarget(grid, unit, base)) {

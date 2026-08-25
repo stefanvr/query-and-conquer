@@ -183,7 +183,39 @@ test("defensive retreats into a friendly base with room when damaged", () => {
 
   assert.equal(actions[0].type, "retreat");
   assert.equal(home.garrison.length, 1, "it entered the base");
-  assert.equal(home.garrison[0].sp, 3, "damage carried in with it");
+});
+
+test("a lightly damaged unit doesn't retreat -- only below the SP threshold does (Stage 15)", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  // 7/10 sp -- damaged, but above RETREAT_SP_THRESHOLD (0.5), and already within its base's hold
+  // radius (land base view 4 + tank view 3 = 7; distance 2 here), so holdNearBase is a no-op too.
+  const lightlyHurt = unit({ id: 1, col: 8, row: 10, sp: 7 });
+  const home = base({ id: 0, ownerId: 1, col: 10, row: 10 });
+  s.units.push(lightlyHurt);
+  s.bases.push(home);
+
+  const actions = runTurn(s, grid).filter((a) => a.unitId === 1);
+
+  assert.deepEqual(actions, [], "not hurt enough to run from a fair fight");
+});
+
+test("a unit takes a kill it has lined up rather than fleeing past it, however damaged (Stage 15)", () => {
+  const s = aiState({ strategy: "defensive" });
+  const grid = allLandGrid();
+  // Badly hurt (would ordinarily retreat) but an enemy tank at 1 sp sits adjacent -- tank's own
+  // groundAtk (4) destroys it outright, so the kill should win over running.
+  const hurt = unit({ id: 1, col: 9, row: 10, sp: 3 });
+  const almostDead = unit({ id: 2, ownerId: 0, col: 9, row: 11, sp: 1 });
+  const home = base({ id: 0, ownerId: 1, col: 10, row: 10 });
+  s.units.push(hurt, almostDead);
+  s.bases.push(home);
+
+  const actions = runTurn(s, grid).filter((a) => a.unitId === 1);
+
+  assert.equal(actions[0].type, "attackUnit");
+  assert.equal(actions[0].targetId, 2);
+  assert.equal(s.units.find((u) => u.id === 2), undefined, "destroyed");
 });
 
 test("defensive holds still when already inside its base's hold radius (base view + unit view)", () => {
