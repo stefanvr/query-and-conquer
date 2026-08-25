@@ -431,6 +431,12 @@ first (zero setup, the dev save already has the fixture), then Hard-vs-Easy feel
 purposefulness together in one match, then rearm timing last (needs a dev-only toggle built first
 to compare against, agreed with the user rather than assumed).*
 
+*Process note, explicitly a temporary deviation per the user, scoped to this stage: workflow.md's
+push-then-review-then-merge gate is relaxed here — each finding merges straight to `main` once
+its own commit lands, so the user can playtest each change on their phone between findings rather
+than waiting for the whole stage. This stage is tuning values/algorithms against feedback, not
+building a feature; normal branch discipline resumes once this stage wraps.*
+
 - [x] Ad hoc, found during plan review: `assets/dev-save.json` was stale — regenerating it (no
       code changes, same seed) added one neutral base that wasn't there before, Stage 13's own
       neutral-base seeding never having been reflected in the committed save. Confirmed via a
