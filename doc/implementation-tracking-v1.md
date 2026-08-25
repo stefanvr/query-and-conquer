@@ -458,6 +458,12 @@ to compare against, agreed with the user rather than assumed).*
   - Plane rearm/refuel timing: instant, same-turn rearm vs. resolving at the owner's next
       turn-start — play both and compare tempo via a temporary dev-only toggle, don't just reason
       about it
+  - **Resolved:** user's finding — AI builds planes too soon, tanks feel under-favored. Verified
+      the actual cause with a throwaway sim (deleted): plain fewest-first made every strategy's
+      Land-base production identical (Tank, Fighter, Bomber, Tank, ... regardless of strategy),
+      independent of AI-vs-AI combat. Fixed with a build weight (Tank counts as ⅓) — see "AI build
+      order: weight Tank so it takes 3 of them before a plane enters rotation" and
+      query-and-conquer.md §8
   - Anything else surfaced along the way
 - [ ] Decide and implement whatever the questionnaire above settles; fold each resolved question
       back into query-and-conquer.md's normal rule text (not a new open-questions appendix)

@@ -456,9 +456,25 @@ function ownedUnitCounts(state, playerId) {
   return counts;
 }
 
-/** Queues one unit at this base, choosing the buildable type the player owns fewest of — ties
- * broken by position in the strategy's own build order (game spec §8). Skipped if the base is at
- * capacity or its queue is full.
+/** How many of a type "count as one" for the fewest-first comparison below — only tank is
+ * weighted, so it takes 3 tanks to register as level with 1 of anything else. Stage 15 balance
+ * pass: plain unweighted counts made every strategy's Land-base production the same tank, fighter,
+ * bomber, tank, fighter, bomber, ... round-robin regardless of strategy (their build-order lists
+ * happen to share that relative order for those three types even though the full lists differ),
+ * so a fighter was the second unit any AI ever built, every game — not what "cheap combat units
+ * first" (Aggressive) or "even mix" (Balanced) describe, and confirmed independent of AI-vs-AI
+ * combat (identical round-robin with zero enemies to fight). Every other type keeps its plain
+ * 1:1 weight; this is a targeted fix for the tank/plane ratio specifically, not a general
+ * per-strategy ratio system. */
+const BUILD_WEIGHT = { tank: 3 };
+
+function weightedCount(counts, unitType) {
+  return (counts[unitType] ?? 0) / (BUILD_WEIGHT[unitType] ?? 1);
+}
+
+/** Queues one unit at this base, choosing the buildable type the player owns fewest of (weighted,
+ * above) — ties broken by position in the strategy's own build order (game spec §8). Skipped if
+ * the base is at capacity or its queue is full.
  *
  * Fewest-first rather than simply the top of the list, because "always the first type you're
  * allowed to build" makes every entry after the first dead: a land or port base would produce
@@ -478,8 +494,8 @@ function runBaseProduction(ctx, base, strategy) {
   const counts = ownedUnitCounts(state, playerId);
   let unitType = buildable[0];
   for (const candidate of buildable) {
-    // Strict `<` keeps the earlier build-order entry when counts are equal.
-    if ((counts[candidate] ?? 0) < (counts[unitType] ?? 0)) unitType = candidate;
+    // Strict `<` keeps the earlier build-order entry when weighted counts are equal.
+    if (weightedCount(counts, candidate) < weightedCount(counts, unitType)) unitType = candidate;
   }
 
   queueBuild(state, base.id, unitType, playerId);

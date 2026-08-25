@@ -283,8 +283,9 @@ Each turn, per unit — processed in order **base-defenders → field units → 
 units** — the AI walks its strategy's priority list top to bottom and takes the first applicable
 action, until its action budget runs out or nothing applies. Each base independently evaluates
 its build-priority list once per turn and queues one unit: of the types it's actually allowed to
-build, whichever the player currently owns **fewest** of, ties broken by position in the build
-order. If the base is at capacity or its queue is full, it skips production that turn.
+build, whichever the player currently owns **fewest of relative to its build weight** (below),
+ties broken by position in the build order. If the base is at capacity or its queue is full, it
+skips production that turn.
 
 *Fewest-first, not simply the highest-priority buildable type* — that earlier rule made every
 entry after the first unreachable, since the first is always allowed. A land or port base built
@@ -292,6 +293,15 @@ nothing but tanks forever and a mountain base nothing but fighters, which left a
 unable to take a mountain base: cracking one needs a bomber's ground attack, and it would never
 build a bomber. Ties falling back to build-order position keeps the order meaningful — it decides
 what arrives first, and what a base reaches for once its army is even.
+
+*Build weight* (Stage 15 balance pass) — Tank counts as ⅓ of a unit for this comparison, every
+other type as a whole one, so it takes 3 tanks before a base considers itself "caught up" enough
+to build something else. Plain fewest-first (every type weighted equally) turned out to make a
+Land base's production strategy-independent: Aggressive, Defensive, and Balanced all happen to
+list Tank before Fighter before Bomber, so all three produced the identical Tank, Fighter, Bomber,
+Tank, ... round-robin regardless of strategy — a Fighter was the second unit any AI ever built,
+every game, which didn't match any strategy's own stated build-order intent (Aggressive's "cheap
+combat units first" least of all). Confirmed independent of AI-vs-AI combat, not a symptom of it.
 
 This is a **per-unit greedy loop**, not coordinated multi-unit planning — a deliberate v1
 simplification; combined-arms coordination is a candidate for later. Naval logistics (AI loading
