@@ -464,12 +464,16 @@ building a feature; normal branch discipline resumes once this stage wraps.*
   - Plane rearm/refuel timing: instant, same-turn rearm vs. resolving at the owner's next
       turn-start — play both and compare tempo via a temporary dev-only toggle, don't just reason
       about it
-  - **Resolved:** user's finding — AI builds planes too soon, tanks feel under-favored. Verified
-      the actual cause with a throwaway sim (deleted): plain fewest-first made every strategy's
-      Land-base production identical (Tank, Fighter, Bomber, Tank, ... regardless of strategy),
-      independent of AI-vs-AI combat. Fixed with a build weight (Tank counts as ⅓) — see "AI build
-      order: weight Tank so it takes 3 of them before a plane enters rotation" and
-      query-and-conquer.md §8
+  - **Resolved, in two passes:** user's finding — AI builds planes too soon, tanks feel
+      under-favored. Verified the actual cause with a throwaway sim (deleted): plain fewest-first
+      made every strategy's Land-base production identical (Tank, Fighter, Bomber, Tank, ...
+      regardless of strategy), independent of AI-vs-AI combat. First fix (a divisor) shipped to
+      main, tested by the user, and confirmed *not actually working* — traced to a real
+      mathematical gap (a divisor can't delay a type's first appearance past count 1, regardless
+      of the divisor's size) and replaced with a head-start subtraction, which measures correctly
+      as 3 tanks before the first plane on re-verification. See "AI build order: weight Tank..."
+      and its follow-up "AI build order: fix the head start..." commits, and query-and-conquer.md
+      §8
   - Anything else surfaced along the way
 - [ ] Decide and implement whatever the questionnaire above settles; fold each resolved question
       back into query-and-conquer.md's normal rule text (not a new open-questions appendix)
@@ -481,6 +485,8 @@ balance have their own stages above.*
 - [ ] Edge-case sweep against query-and-conquer.md
 - [ ] Audit implementation-spec.md and query-and-conquer.md against the actual implementation,
       and document any remaining gaps
+- [ ] From Stage 15: the unclaimed (neutral) base's map-marker color is hard to distinguish —
+      user flagged this during balance playtesting as worth a look, not investigated yet
 - [ ] Moved from Stage 14: `unit-movement.spec.js`'s "moving the tank to an adjacent hex" failed
       twice in about sixteen full-suite runs during Stage 12, then passed twelve consecutive runs
       and always passes in isolation. Both failures were in runs that took 30s and 15s against a

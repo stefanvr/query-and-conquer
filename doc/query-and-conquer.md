@@ -294,14 +294,17 @@ unable to take a mountain base: cracking one needs a bomber's ground attack, and
 build a bomber. Ties falling back to build-order position keeps the order meaningful — it decides
 what arrives first, and what a base reaches for once its army is even.
 
-*Build weight* (Stage 15 balance pass) — Tank counts as ⅓ of a unit for this comparison, every
-other type as a whole one, so it takes 3 tanks before a base considers itself "caught up" enough
-to build something else. Plain fewest-first (every type weighted equally) turned out to make a
-Land base's production strategy-independent: Aggressive, Defensive, and Balanced all happen to
-list Tank before Fighter before Bomber, so all three produced the identical Tank, Fighter, Bomber,
-Tank, ... round-robin regardless of strategy — a Fighter was the second unit any AI ever built,
-every game, which didn't match any strategy's own stated build-order intent (Aggressive's "cheap
-combat units first" least of all). Confirmed independent of AI-vs-AI combat, not a symptom of it.
+*Build head start* (Stage 15 balance pass) — Tank's own count reads 2 lower than it really is for
+this comparison, so it takes 3 tanks before a base considers itself "caught up" enough to build
+something else. Plain fewest-first (no adjustment) turned out to make a Land base's production
+strategy-independent: Aggressive, Defensive, and Balanced all happen to list Tank before Fighter
+before Bomber, so all three produced the identical Tank, Fighter, Bomber, Tank, ... round-robin
+regardless of strategy — a Fighter was the second unit any AI ever built, every game, which didn't
+match any strategy's own stated build-order intent (Aggressive's "cheap combat units first" least
+of all). Confirmed independent of AI-vs-AI combat, not a symptom of it. A first attempt scaled
+Tank's count down by a divisor instead of subtracting a head start — on-device testing showed it
+didn't actually delay a Fighter's *first* appearance at all (an unbuilt type's count of 0 always
+beats any positive number, however small the divisor makes it), so the mechanism changed.
 
 This is a **per-unit greedy loop**, not coordinated multi-unit planning — a deliberate v1
 simplification; combined-arms coordination is a candidate for later. Naval logistics (AI loading

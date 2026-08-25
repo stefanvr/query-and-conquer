@@ -330,7 +330,27 @@ test("with nothing owned yet, a base builds the first type in its strategy's bui
 test("a base builds the type it owns fewest of, so the build order past the first entry isn't dead", () => {
   const s = aiState({ strategy: "aggressive" }); // tank > fighter > bomber > ...
   const grid = allLandGrid();
-  // Already holding tanks, so the top of the order is no longer the scarcest thing.
+  // Tank has a 3-unit build head start (Stage 15 balance pass) -- already holding exactly that
+  // many is what finally makes it no longer the scarcest thing.
+  s.bases.push(base({
+    id: 0,
+    ownerId: 1,
+    type: "land",
+    garrison: [
+      { id: 90, unitType: "tank", sp: 10 },
+      { id: 91, unitType: "tank", sp: 10 },
+      { id: 92, unitType: "tank", sp: 10 },
+    ],
+  }));
+
+  const build = runTurn(s, grid).find((a) => a.type === "build");
+  assert.equal(build.unitType, "fighter", "moved down the order rather than making a fourth tank");
+});
+
+test("tank's build head start delays fighter, but doesn't block it forever", () => {
+  const s = aiState({ strategy: "aggressive" });
+  const grid = allLandGrid();
+  // One short of the head start -- still tank-scarce by design, so a third tank is correct here.
   s.bases.push(base({
     id: 0,
     ownerId: 1,
@@ -339,7 +359,7 @@ test("a base builds the type it owns fewest of, so the build order past the firs
   }));
 
   const build = runTurn(s, grid).find((a) => a.type === "build");
-  assert.equal(build.unitType, "fighter", "moved down the order rather than making a third tank");
+  assert.equal(build.unitType, "tank", "two tanks hasn't caught up to the 3-unit head start yet");
 });
 
 test("a mountain base alternates fighter and bomber, which is what makes taking a mountain base possible at all", () => {
@@ -364,7 +384,9 @@ test("production counts units the player already has in the field, not just at t
   const s = aiState({ strategy: "aggressive" });
   const grid = allLandGrid();
   s.bases.push(base({ id: 0, ownerId: 1, type: "land", garrison: [] })); // empty base...
-  s.units.push(unit({ id: 1, col: 2, row: 2 }), unit({ id: 2, col: 3, row: 3 })); // ...but two tanks afield
+  // ...but three tanks afield -- tank's own 3-unit build head start (Stage 15), read off the
+  // player's whole army rather than just this base's own garrison/queue.
+  s.units.push(unit({ id: 1, col: 2, row: 2 }), unit({ id: 2, col: 3, row: 3 }), unit({ id: 3, col: 4, row: 4 }));
 
   const build = runTurn(s, grid).find((a) => a.type === "build");
   assert.equal(build.unitType, "fighter", "an empty base still knows the army is tank-heavy");

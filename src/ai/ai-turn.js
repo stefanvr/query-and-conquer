@@ -456,25 +456,40 @@ function ownedUnitCounts(state, playerId) {
   return counts;
 }
 
-/** How many of a type "count as one" for the fewest-first comparison below — only tank is
- * weighted, so it takes 3 tanks to register as level with 1 of anything else. Stage 15 balance
+/** A head start subtracted from a type's raw count for the fewest-first comparison below — only
+ * tank has one, so it takes 3 tanks before anything else looks equally "needed". Stage 15 balance
  * pass: plain unweighted counts made every strategy's Land-base production the same tank, fighter,
  * bomber, tank, fighter, bomber, ... round-robin regardless of strategy (their build-order lists
  * happen to share that relative order for those three types even though the full lists differ),
  * so a fighter was the second unit any AI ever built, every game — not what "cheap combat units
  * first" (Aggressive) or "even mix" (Balanced) describe, and confirmed independent of AI-vs-AI
- * combat (identical round-robin with zero enemies to fight). Every other type keeps its plain
- * 1:1 weight; this is a targeted fix for the tank/plane ratio specifically, not a general
- * per-strategy ratio system. */
-const BUILD_WEIGHT = { tank: 3 };
+ * combat (identical round-robin with zero enemies to fight).
+ *
+ * A *divisor* was tried first and confirmed not to work, on-device: dividing a type's count by a
+ * weight can never delay that type's *first* appearance, no matter how large the weight, since an
+ * unbuilt type's raw count (0) always beats `n / weight` for any positive `n` — a fighter still
+ * became the very next build the moment even one tank existed. A subtracted head start is what
+ * actually creates a real gap: tank's own count reads 3 lower than it really is for this
+ * comparison alone, so it keeps looking "neediest" until it's genuinely 3 ahead. Every other type
+ * keeps a head start of 0 (no change); this is a targeted fix for the tank/plane ratio
+ * specifically, not a general per-strategy ratio system.
+ *
+ * The head start is 2, not 3, for exactly 3 tanks to get built before the first plane: a tie
+ * still favors tank (build-order position, above), so at 2 tanks the adjusted count (2 - 2 = 0)
+ * only ties fighter's own 0 — tank wins that tie and gets built a 3rd time. Only once a 3rd tank
+ * actually exists does its adjusted count (3 - 2 = 1) exceed fighter's (0), and fighter wins. A
+ * head start of 3 was tried first and measured to actually require a 4th tank before switching —
+ * off by one from the stated intent, caught by the two tests below expecting a fighter after
+ * exactly 3. */
+const BUILD_HEAD_START = { tank: 2 };
 
-function weightedCount(counts, unitType) {
-  return (counts[unitType] ?? 0) / (BUILD_WEIGHT[unitType] ?? 1);
+function adjustedCount(counts, unitType) {
+  return (counts[unitType] ?? 0) - (BUILD_HEAD_START[unitType] ?? 0);
 }
 
-/** Queues one unit at this base, choosing the buildable type the player owns fewest of (weighted,
- * above) — ties broken by position in the strategy's own build order (game spec §8). Skipped if
- * the base is at capacity or its queue is full.
+/** Queues one unit at this base, choosing the buildable type the player owns fewest of (head-start
+ * adjusted, above) — ties broken by position in the strategy's own build order (game spec §8).
+ * Skipped if the base is at capacity or its queue is full.
  *
  * Fewest-first rather than simply the top of the list, because "always the first type you're
  * allowed to build" makes every entry after the first dead: a land or port base would produce
@@ -494,8 +509,8 @@ function runBaseProduction(ctx, base, strategy) {
   const counts = ownedUnitCounts(state, playerId);
   let unitType = buildable[0];
   for (const candidate of buildable) {
-    // Strict `<` keeps the earlier build-order entry when weighted counts are equal.
-    if (weightedCount(counts, candidate) < weightedCount(counts, unitType)) unitType = candidate;
+    // Strict `<` keeps the earlier build-order entry when adjusted counts are equal.
+    if (adjustedCount(counts, candidate) < adjustedCount(counts, unitType)) unitType = candidate;
   }
 
   queueBuild(state, base.id, unitType, playerId);
