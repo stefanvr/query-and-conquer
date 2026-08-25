@@ -262,6 +262,43 @@ test("balanced claims an adjacent neutral base instead of just walking at it", (
   assert.equal(neutral.garrison[0].id, 1, "the claiming unit garrisons inside");
 });
 
+test("hard skips an unreachable neutral base for a farther one it can actually reach (Stage 15)", () => {
+  // A water wall spans the whole grid between the tank and the nearer base -- no land route
+  // around it at all within this map. The nearest-by-straight-line base is genuinely unreachable;
+  // the farther one isn't.
+  const s = aiState({ strategy: "balanced", difficulty: "hard" });
+  const grid = allLandGrid();
+  for (let row = 0; row < MAP_SIZE; row++) grid.set(10, row, "deep");
+  const stuck = unit({ id: 1, col: 5, row: 10 });
+  const nearButWalledOff = base({ id: 0, ownerId: null, lastOwnerId: null, col: 12, row: 10, sp: 0 });
+  const fartherButReachable = base({ id: 1, ownerId: null, lastOwnerId: null, col: 2, row: 2, sp: 0 });
+  s.units.push(stuck);
+  s.bases.push(nearButWalledOff, fartherButReachable);
+
+  const actions = runTurn(s, grid);
+
+  assert.equal(actions[0].type, "move");
+  assert.ok(stuck.col !== 5 || stuck.row !== 10, "moved -- didn't fixate on the base it can't actually get to");
+});
+
+test("easy has no way to know a base is unreachable, and gets stuck on it -- its own documented weakness (Stage 15)", () => {
+  const s = aiState({ strategy: "balanced", difficulty: "easy" });
+  const grid = allLandGrid();
+  for (let row = 0; row < MAP_SIZE; row++) grid.set(10, row, "deep");
+  // Already adjacent to the wall -- easy's single naive step this turn tries to walk straight
+  // into the water (the one neighbor that most reduces distance to the target) and fails, with
+  // no fallback to try the farther, actually-reachable base instead.
+  const stuck = unit({ id: 1, col: 9, row: 10 });
+  const nearButWalledOff = base({ id: 0, ownerId: null, lastOwnerId: null, col: 12, row: 10, sp: 0 });
+  const fartherButReachable = base({ id: 1, ownerId: null, lastOwnerId: null, col: 2, row: 2, sp: 0 });
+  s.units.push(stuck);
+  s.bases.push(nearButWalledOff, fartherButReachable);
+
+  const actions = runTurn(s, grid);
+
+  assert.deepEqual(actions, [], "no fallback for easy -- naive pathing can't see the wall coming");
+});
+
 test("balanced won't advance away when it's the last unit holding one of its own bases", () => {
   const s = aiState({ strategy: "balanced" });
   const grid = allLandGrid();

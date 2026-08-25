@@ -479,6 +479,17 @@ building a feature; normal branch discipline resumes once this stage wraps.*
       both strategies, gated on *any* damage at all, ahead of every attack rule. Fixed with a 50%
       SP threshold plus a kill-shot override (take a lethal attack regardless of own damage) — see
       "AI: don't flee a kill, and don't flee a scratch" and query-and-conquer.md §8
+  - **Resolved:** user's finding — 3 tanks converged near an unclaimed base (fog off) and
+      permanently stopped without claiming it, confirmed persisting over several real turns. Root
+      cause: `expandToUnclaimedBase` targeted the straight-line-nearest neutral base with no
+      regard for whether a route to it actually existed — a base sitting behind water with no land
+      route left a unit fixated on it forever, never trying the next-nearest (reproduced with a
+      throwaway sim after an initial false start where my own test script forgot to reset AP
+      between simulated turns, which had made an *unrelated*, perfectly-working case look broken
+      too). Fixed for hard difficulty only (`nearestReachable`, checked via a real route search) —
+      easy keeps fixating on an unreachable nearest base, since that's its own documented "may
+      waste actions on obstacles" weakness, not something to quietly fix out from under it. See
+      "AI: stop fixating on an unclaimed base with no route to it"
   - Anything else surfaced along the way
 - [ ] Decide and implement whatever the questionnaire above settles; fold each resolved question
       back into query-and-conquer.md's normal rule text (not a new open-questions appendix)
@@ -519,7 +530,10 @@ Genuinely out of scope for this build, per what the design/tech docs themselves 
 deferred — not a place to park anything that's merely unfinished.
 
 - [ ] AI combined-arms coordination beyond the per-unit greedy loop — §8 names this "a candidate
-      for later" explicitly
+      for later" explicitly. Stage 15 example of the shape this could take: under fog of war,
+      spreading multiple units out (or forming a scouting chain) to search for an unclaimed base
+      whose location isn't actually known yet, instead of every unit independently pathing at
+      whatever the *nearest-by-last-known-info* target happens to be
 - [ ] AI naval logistics (AI loading its own units onto transporters/carriers) — §8 explicitly
       scopes this out for v1
 - [ ] Multiplayer/server mode — tech-stack.md's "future direction"; the canonical/visible-state

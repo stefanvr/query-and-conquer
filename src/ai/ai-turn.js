@@ -64,6 +64,21 @@ function nearest(from, candidates) {
   return best;
 }
 
+/** Like `nearest`, but skips a candidate with no viable route at all — hard difficulty's own
+ * expansion target (DIFFICULTY_TRAITS below), not used by easy. Stage 15 balance pass: `nearest`
+ * alone (straight-line hex distance) let a unit fixate forever on the literal closest unclaimed
+ * base even when it sat behind water with no land route at all — a permanent stall, confirmed by
+ * the user across several real turns, not a slow approach, since nothing ever tried the
+ * next-nearest candidate instead. Not given to easy: its naive pathing has no way to know
+ * reachability in advance either, which is exactly its own documented weakness (game spec §8's
+ * Pathing row, "may waste actions on obstacles") — giving it this lookahead would make it smarter
+ * than its difficulty is supposed to be. */
+function nearestReachable(ctx, from, candidates) {
+  const { state, grid } = ctx;
+  const sorted = [...candidates].sort((a, b) => offsetDistance(from, a) - offsetDistance(from, b) || a.id - b.id);
+  return sorted.find((c) => offsetDistance(from, c) <= 1 || routeTo(state, grid, from, c) !== null) ?? null;
+}
+
 /** Easy difficulty's "first valid target found (no optimization)" — deliberately ignores the
  * strategy's own `targetPriority`, which is what hard difficulty turns on instead. */
 function firstValidTarget(ctx, candidates, isValid) {
@@ -277,6 +292,9 @@ const DIFFICULTY_TRAITS = {
     }),
     chooseTarget: firstValidTarget,
     stepToward: naiveStepToward,
+    // Straight-line nearest, same as chooseTarget's own naivety -- easy has no way to know a
+    // target's unreachable ahead of time, so it doesn't get to skip one (nearestReachable, below).
+    pickExpansionTarget: (ctx, unit, candidates) => nearest(unit, candidates),
     maxActionsPerUnit: 1,
   },
   // Hard's remaining traits arrive one at a time in the commits that follow.
@@ -288,6 +306,10 @@ const DIFFICULTY_TRAITS = {
     perceive: (state) => ({ board: state, exploredCells: EVERYWHERE }),
     chooseTarget: priorityTarget,
     stepToward: routedStepToward,
+    // Skips a candidate with no viable route (nearestReachable, above) -- pairs with hard's own
+    // full pathfinding: knowing a target's unreachable before committing a whole turn to it is
+    // the same kind of lookahead "uses full action budget effectively" already implies.
+    pickExpansionTarget: nearestReachable,
     // "Uses full action budget effectively" (game spec §8) — a unit keeps walking its priority
     // list until it runs out of actions or nothing applies. Unbounded is safe rather than
     // reckless: the loop's own no-progress guard requires every pass to spend at least one of a
@@ -377,7 +399,7 @@ const RULES = {
 
   /** Move toward (and take) the nearest known unclaimed base, if this unit can capture at all. */
   expandToUnclaimedBase(ctx, unit) {
-    const base = nearest(unit, ctx.neutralBases);
+    const base = ctx.traits.pickExpansionTarget(ctx, unit, ctx.neutralBases);
     if (!base) return null;
     return approachAndClaim(ctx, unit, base);
   },
